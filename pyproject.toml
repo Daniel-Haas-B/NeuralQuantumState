@@ -12,6 +12,13 @@ torchvision = "^0.15.2"
 matplotlib = "^3.7.2"
 ipykernel = "^6.25.1"
 pre-commit = "^3.3.3"
+jax = "^0.4.14"
+jaxlib = "^0.4.14"
+pandas = "^2.0.3"
+tqdm = "^4.66.1"
+pathos = "^0.3.1"
+colorlog = "^6.7.0"
+seaborn = "^0.12.2"
 
 
 [tool.poetry.group.dev.dependencies]

@@ -15,12 +15,12 @@ jax.config.update("jax_platform_name", "cpu")
 
 
 output_filename = "../data/runtimes.csv"
-nparticles = 1  # particles
-dim = 1  # dimensionality
-nhidden = 1  # hidden neurons
+nparticles = 2  # particles
+dim = 2  # dimensionality
+nhidden = 2  # hidden neurons
+interaction = True
 
-
-training_cycles = [10_000, 20_000, 30_000, 40_000]
+training_cycles = [10_000]  # , 20_000, 30_000, 40_000]
 data = {
     "max_iter": training_cycles,
     "t_rwm_numpy": [],
@@ -35,7 +35,7 @@ for max_iter in training_cycles:
         nparticles,
         dim,
         nhidden=nhidden,
-        interaction=False,
+        interaction=interaction,
         mcmc_alg="rwm",
         nqs_repr="psi",
         backend="numpy",
@@ -66,7 +66,7 @@ for max_iter in training_cycles:
         nparticles,
         dim,
         nhidden=nhidden,
-        interaction=False,
+        interaction=interaction,
         mcmc_alg="lmh",
         nqs_repr="psi",
         backend="numpy",
@@ -97,7 +97,7 @@ for max_iter in training_cycles:
         nparticles,
         dim,
         nhidden=nhidden,
-        interaction=False,
+        interaction=interaction,
         mcmc_alg="rwm",
         nqs_repr="psi",
         backend="jax",
@@ -128,7 +128,7 @@ for max_iter in training_cycles:
         nparticles,
         dim,
         nhidden=nhidden,
-        interaction=False,
+        interaction=interaction,
         mcmc_alg="lmh",
         nqs_repr="psi",
         backend="jax",

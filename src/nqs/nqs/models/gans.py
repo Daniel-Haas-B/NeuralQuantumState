@@ -5,14 +5,14 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 
-from .base_analytical_rbm import BaseRBM
-from .base_jax_rbm import BaseJAXRBM
+from .base_analytical_gan import BaseGAN
+from .base_jax_gan import BaseJAXGAN
 
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
 
 
-class NIRBM(BaseRBM):
+class NIGAN(BaseGAN):
     """Non-interacting with analytical"""
 
     def __init__(self, sigma2=1.0, factor=0.5):
@@ -23,7 +23,7 @@ class NIRBM(BaseRBM):
         return 0.5 * np.sum(r * r)
 
 
-class IRBM(BaseRBM):
+class IGAN(BaseGAN):
     """Interacting with analytical"""
 
     def __init__(self, nparticles, dim, sigma2=1.0, factor=0.5):
@@ -43,7 +43,7 @@ class IRBM(BaseRBM):
         return v_trap + v_int
 
 
-class JAXNIRBM(BaseJAXRBM):
+class JAXNIRBM(BaseJAXGAN):
     """Non-interacting with JAX"""
 
     def __init__(self, sigma2=1.0, factor=0.5):
@@ -55,7 +55,7 @@ class JAXNIRBM(BaseJAXRBM):
         return 0.5 * jnp.sum(r * r)
 
 
-class JAXIRBM(BaseJAXRBM):
+class JAXIRBM(BaseJAXGAN):
     """Interacting with JAX"""
 
     def __init__(self, nparticles, dim, sigma2=1.0, factor=0.5):
@@ -97,12 +97,12 @@ if __name__ == "__main__":
     h_bias = rng.standard_normal(size=(N,))
     kernel = rng.standard_normal(size=(M, N))
 
-    nirbm = NIRBM()
+    nigan = NIGAN()
     jaxnirbm = JAXNIRBM()
-    print("wf eval:", nirbm.wf(r, v_bias, h_bias, kernel))
-    print("logprob:", nirbm.logprob(r, v_bias, h_bias, kernel))
-    print("grad v_bias", nirbm.grad_v_bias(r, v_bias, h_bias, kernel).sum())
-    print("grad h_bias", nirbm.grad_h_bias(r, v_bias, h_bias, kernel).sum())
-    print("grad kernel", nirbm.grad_kernel(r, v_bias, h_bias, kernel).sum())
-    print("drift force:", nirbm.drift_force(r, v_bias, h_bias, kernel))
-    print("local energy:", nirbm.local_energy(r, v_bias, h_bias, kernel))
+    print("wf eval:", nigan.wf(r, v_bias, h_bias, kernel))
+    print("logprob:", nigan.logprob(r, v_bias, h_bias, kernel))
+    print("grad v_bias", nigan.grad_v_bias(r, v_bias, h_bias, kernel).sum())
+    print("grad h_bias", nigan.grad_h_bias(r, v_bias, h_bias, kernel).sum())
+    print("grad kernel", nigan.grad_kernel(r, v_bias, h_bias, kernel).sum())
+    print("drift force:", nigan.drift_force(r, v_bias, h_bias, kernel))
+    print("local energy:", nigan.local_energy(r, v_bias, h_bias, kernel))

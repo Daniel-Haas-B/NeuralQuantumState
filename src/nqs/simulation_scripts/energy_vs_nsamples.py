@@ -14,7 +14,7 @@ nparticles = 2  # particles
 dim = 2  # dimensionality
 nhidden = 5  # hidden neurons
 
-system = nqs.NQS(
+system = nqs.RBMNQS(
     nparticles,
     dim,
     nhidden=nhidden,

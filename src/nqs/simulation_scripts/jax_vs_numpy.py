@@ -31,7 +31,7 @@ data = {
 
 # Numpy, RWM
 for max_iter in training_cycles:
-    system = nqs.NQS(
+    system = nqs.RBMNQS(
         nparticles,
         dim,
         nhidden=nhidden,
@@ -62,7 +62,7 @@ for max_iter in training_cycles:
 
 # Numpy, LMH
 for max_iter in training_cycles:
-    system = nqs.NQS(
+    system = nqs.RBMNQS(
         nparticles,
         dim,
         nhidden=nhidden,
@@ -93,7 +93,7 @@ for max_iter in training_cycles:
 
 # JAX, RWM
 for max_iter in training_cycles:
-    system = nqs.NQS(
+    system = nqs.RBMNQS(
         nparticles,
         dim,
         nhidden=nhidden,
@@ -124,7 +124,7 @@ for max_iter in training_cycles:
 
 # JAX, LMH
 for max_iter in training_cycles:
-    system = nqs.NQS(
+    system = nqs.RBMNQS(
         nparticles,
         dim,
         nhidden=nhidden,

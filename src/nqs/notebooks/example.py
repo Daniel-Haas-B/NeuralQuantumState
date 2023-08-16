@@ -8,7 +8,7 @@ scale = 3.0  # Scale of proposal distribution
 sigma2 = 1.0  # Variance of Gaussian layer in the RBM
 
 # Instantiate the model
-system = nqs.NQS(
+system = nqs.RBMNQS(
     nparticles,
     dim,
     nhidden=nhidden,
@@ -41,7 +41,6 @@ system.train(
 df = system.sample(
     int(2**18),  # No. of energy samples
     nchains=4,  # No. of Markov chains
-    mcmc_alg=None,  # Set MCMC algo. (optional)
     seed=None,  # Set for reproducibility
 )
 

@@ -2,15 +2,6 @@ import copy
 import sys
 import warnings
 
-import numpy as np
-import pandas as pd
-from base_sampler import Sampler
-from models import IRBM
-from models import JAXIRBM
-from models import JAXNIRBM
-from models import NIRBM
-from numpy.random import default_rng
-from tqdm.auto import tqdm
 from utils import early_stopping
 from utils import errors
 from utils import generate_seed_sequence
@@ -18,6 +9,21 @@ from utils import setup_logger
 from utils import State
 
 sys.path.insert(0, "../sampler/")
+import numpy as np
+import pandas as pd
+from sampler import Sampler
+from models import IRBM
+from models import JAXIRBM
+from models import JAXNIRBM
+from models import NIRBM
+from numpy.random import default_rng
+from tqdm.auto import tqdm
+
+sys.path.insert(0, "../sampler/")
+
+
+from metropolis_hastings import MetroHastings
+from metropolis import Metropolis as Metro
 
 
 # import sys
@@ -36,7 +42,6 @@ class RBMNQS:
         dim,
         nhidden=1,
         interaction=False,
-        mcmc_alg="rwm",
         nqs_repr="psi2",
         backend="numpy",
         log=True,
@@ -47,6 +52,7 @@ class RBMNQS:
 
         self._check_logger(log, logger_level)
         self._log = log
+        self.mcmc_alg = None
 
         if self._log:
             self.logger = setup_logger(self.__class__.__name__, level=logger_level)
@@ -55,7 +61,6 @@ class RBMNQS:
 
         self._P = nparticles
         self._dim = dim
-        self.mcmc_alg = mcmc_alg
         self._nhidden = nhidden
         self._nvisible = self._P * self._dim
 
@@ -88,7 +93,7 @@ class RBMNQS:
             raise ValueError(msg)
 
         # set mcmc step
-        self._sampler = Sampler(self.mcmc_alg, self.rbm, self.rng, logger=self.logger)
+        self._sampler = Sampler(self.rbm, self.rng, logger=self.logger)
 
         if self._log:
             neuron_str = "neurons" if self._nhidden > 1 else "neuron"
@@ -103,6 +108,21 @@ class RBMNQS:
         self._is_trained_ = False
         self._is_tuned_ = False
         self._sampling_performed_ = False
+
+    def set_sampler(self, mcmc_alg):
+        """ """
+        if not isinstance(mcmc_alg, str):
+            raise TypeError("'mcmc_alg' must be passed as str")
+
+        if mcmc_alg == "m":
+            self.mcmc_alg = "m"
+            self._sampler = Metro(self.rbm, self.rng, logger=self.logger)
+        elif mcmc_alg == "lmh":
+            self.mcmc_alg = "lmh"
+            self._sampler = MetroHastings(self.rbm, self.rng, logger=self.logger)
+        else:
+            msg = "Unsupported backend, only 'numpy' or 'jax' is allowed"
+            raise ValueError(msg)
 
     def _is_initialized(self):
         if not self._is_initialized_:
@@ -398,7 +418,7 @@ class RBMNQS:
                 # Tune proposal scale
                 old_scale = scale
                 accept_rate = state.n_accepted / tune_interval
-                scale = self._tune_table(old_scale, accept_rate)
+                scale = self._sampler.tune_scale(old_scale, accept_rate)
 
                 # Reset
                 steps_before_tune = tune_interval

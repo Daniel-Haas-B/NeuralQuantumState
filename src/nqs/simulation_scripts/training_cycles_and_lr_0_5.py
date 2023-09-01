@@ -32,7 +32,7 @@ for max_iter in training_cycles:
         dim,
         nhidden=nhidden,
         interaction=False,  # TOTUNE True
-        mcmc_alg="rwm",  # TOTUNE "lmh"
+        mcmc_alg="m",  # TOTUNE "lmh"
         nqs_repr="psi",
         backend="numpy",
         log=True,

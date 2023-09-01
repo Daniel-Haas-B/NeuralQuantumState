@@ -13,7 +13,7 @@ system = nqs.RBMNQS(
     dim,
     nhidden=nhidden,
     interaction={False, True},  # Repulsion or not
-    mcmc_alg={"rwm", "lmh"},  # MCMC algorithm
+    mcmc_alg={"m", "mh"},  # MCMC algorithm
     nqs_repr={"psi", "psi2"},  # RBM representation
     backend={"numpy", "jax"},  # Closed-form or AD
     log=True,  # Show logger?

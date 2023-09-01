@@ -28,7 +28,9 @@ class BaseJAXRBM:
         self._sigma2_factor = 1.0 / self._sigma2
         self._sigma2_factor2 = 0.5 / self._sigma2
 
-    @partial(jax.jit, static_argnums=(0,))
+    @partial(
+        jax.jit, static_argnums=(0,)
+    )  # @partial is a decorator that allows partial function application, meaning that you can derive a function from a function by fixing some arguments.
     def _softplus(self, x):
         """Softplus activation function.
 

@@ -61,7 +61,6 @@ class MetroHastings(Sampler):
 
         # Metroplis acceptance criterion
         accept = log_unif < ratio
-
         # If accept is True, yield proposal, otherwise keep old state
         new_positions = proposals if accept else state.positions
 

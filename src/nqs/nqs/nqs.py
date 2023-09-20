@@ -93,6 +93,7 @@ class RBMNQS:
             raise ValueError(msg)
 
         # set mcmc step
+
         self._sampler = Sampler(self.rbm, self.rng, logger=self.logger)
 
         if self._log:
@@ -109,17 +110,20 @@ class RBMNQS:
         self._is_tuned_ = False
         self._sampling_performed_ = False
 
-    def set_sampler(self, mcmc_alg):
-        """ """
+    def set_sampler(self, mcmc_alg, scale=0.5):
+        """
+        Set the MCMC algorithm to be used for sampling.
+        """
+
         if not isinstance(mcmc_alg, str):
             raise TypeError("'mcmc_alg' must be passed as str")
 
         if mcmc_alg == "m":
             self.mcmc_alg = "m"
-            self._sampler = Metro(self.rbm, self.rng, logger=self.logger)
+            self._sampler = Metro(self.rbm, self.rng, scale, logger=self.logger)
         elif mcmc_alg == "lmh":
             self.mcmc_alg = "lmh"
-            self._sampler = MetroHastings(self.rbm, self.rng, logger=self.logger)
+            self._sampler = MetroHastings(self.rbm, self.rng, scale, logger=self.logger)
         else:
             msg = "Unsupported backend, only 'numpy' or 'jax' is allowed"
             raise ValueError(msg)
@@ -146,11 +150,11 @@ class RBMNQS:
         if not isinstance(logger_level, str):
             raise TypeError("'logger_level' must be passed as str")
 
-    def init(self, sigma2=1.0, scale=0.5, seed=None):
+    def init(self, sigma2=1.0, seed=None):
         """ """
         self.rbm.sigma2 = sigma2
-        self.scale = scale
-
+        # self.scale = scale
+        # print("init scale", self.scale)
         rng = self.rng(seed)
 
         r = rng.standard_normal(size=self._nvisible)
@@ -188,7 +192,9 @@ class RBMNQS:
         seed=None,
         mcmc_alg=None,
     ):
-        """ """
+        """
+        Train the NQS model using the specified gradient method.
+        """
 
         self._is_initialized()
         self._training_cycles = max_iter
@@ -204,7 +210,8 @@ class RBMNQS:
         v_bias = self._v_bias
         h_bias = self._h_bias
         kernel = self._kernel
-        scale = self.scale
+        # scale = self.scale maybe legacy
+
         # Reset n_accepted
         state = State(state.positions, state.logp, 0, state.delta)
 
@@ -242,7 +249,7 @@ class RBMNQS:
         grads_kernel = []
 
         # Training
-        for i in t_range:
+        for _ in t_range:
             state = self._sampler.step(state, v_bias, h_bias, kernel, seed_seq)
             loc_energy = self.rbm.local_energy(state.positions, v_bias, h_bias, kernel)
             gr_v_bias = self.rbm.grad_v_bias(state.positions, v_bias, h_bias, kernel)
@@ -359,7 +366,7 @@ class RBMNQS:
         self._v_bias = v_bias
         self._h_bias = h_bias
         self._kernel = kernel
-        self.scale = scale
+        # self.scale = scale
         self._is_trained_ = True
 
     def tune(
@@ -373,7 +380,8 @@ class RBMNQS:
         mcmc_alg=None,
     ):
         """
-        Tune proposal scale
+        BROKEN NOW due to self.scale
+        Tune proposal scale so that the acceptance rate is around 0.5.
         """
 
         self._is_initialized()
@@ -466,13 +474,13 @@ class RBMNQS:
 
         return self._results
 
-    @property
-    def scale(self):
-        return self._sampler.scale
+    # @property
+    # def scale(self):
+    #    return self._sampler.scale
 
-    @scale.setter
-    def scale(self, value):
-        self._sampler.scale = value
+    # @scale.setter
+    # def scale(self, value):
+    #    self._sampler.scale = value
 
     @property
     def results(self):

@@ -5,8 +5,9 @@ from utils import State
 
 
 class Metropolis(Sampler):
-    def __init__(self, rbm, rng, logger=None):
+    def __init__(self, rbm, rng, scale, logger=None):
         super().__init__(rbm, rng, logger)
+        self._scale = scale
 
     def _step(self, state, v_bias, h_bias, kernel, seed):
         """One step of the random walk Metropolis algorithm
@@ -30,7 +31,7 @@ class Metropolis(Sampler):
         rng = self._rng(next_gen)
 
         # Sample proposal positions, i.e., move walkers
-        proposals = rng.normal(loc=state.positions, scale=self._scale)
+        proposals = rng.normal(loc=state.positions, scale=self.scale)
 
         # Sample log uniform rvs
         log_unif = np.log(rng.random())

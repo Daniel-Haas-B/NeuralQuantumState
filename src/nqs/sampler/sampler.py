@@ -18,7 +18,7 @@ class Sampler:
     def __init__(self, rbm, rng, logger=None):
         self._rbm = rbm
         self._rng = rng
-        self._scale = None
+        self._scale = None  # to be set by child class
         self._logger = logger
 
     def sample(self, state, params, nsamples, nchains=1, seed=None):

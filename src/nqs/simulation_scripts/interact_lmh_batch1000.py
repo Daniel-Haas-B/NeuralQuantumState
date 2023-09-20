@@ -28,7 +28,7 @@ eta = 0.05
 dfs = []
 
 for nhidden in nhidden_lst:
-    system = nqs.NQS(
+    system = nqs.RBMNQS(
         nparticles,
         dim,
         nhidden=nhidden,

@@ -10,8 +10,10 @@ import numpy as onp
 
 # from typing import Callable
 
-Array = Union[onp.ndarray, jnp.ndarray]
-PyTree = Union[Array, Iterable[Array], Mapping[Any, Array]]
+Array = Union[onp.ndarray, jnp.ndarray]  # either numpy or jax numpy array
+PyTree = Union[
+    Array, Iterable[Array], Mapping[Any, Array]
+]  # either array, iterable of arrays or mapping of arrays
 
 
 class State(NamedTuple):

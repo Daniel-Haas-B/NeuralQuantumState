@@ -1,25 +1,30 @@
 import copy
+import sys
 import warnings
-from threading import RLock as TRLock
 
+from utils import early_stopping
+from utils import errors
+from utils import generate_seed_sequence
+from utils import setup_logger
+from utils import State
+
+sys.path.insert(0, "../sampler/")
 import numpy as np
 import pandas as pd
+from sampler import Sampler
 from models import IRBM
 from models import JAXIRBM
 from models import JAXNIRBM
 from models import NIRBM
 from numpy.random import default_rng
-from pathos.pools import ProcessPool
 from tqdm.auto import tqdm
-from utils import advance_PRNG_state
-from utils import block
-from utils import check_and_set_nchains
-from utils import early_stopping
-from utils import generate_seed_sequence
-from utils import setup_logger
-from utils import State
-from utils import tune_scale_lmh_table
-from utils import tune_scale_rwm_table
+
+sys.path.insert(0, "../sampler/")
+
+
+from metropolis_hastings import MetroHastings
+from metropolis import Metropolis as Metro
+
 
 # import sys
 # from abc import abstractmethod
@@ -30,45 +35,24 @@ from utils import tune_scale_rwm_table
 warnings.filterwarnings("ignore", message="divide by zero encountered")
 
 
-class NotInitialized(Exception):
-    r"""Failed attempt at accessing posterior samples.
-    A call to the sample method must be carried out first.
-    """
-    pass
-
-
-class NotTrained(Exception):
-    r"""Failed attempt at accessing posterior samples.
-    A call to the sample method must be carried out first.
-    """
-    pass
-
-
-class SamplingNotPerformed(Exception):
-    r"""Failed attempt at accessing posterior samples.
-    A call to the sample method must be carried out first.
-    """
-    pass
-
-
-class NQS:
+class RBMNQS:
     def __init__(
         self,
         nparticles,
         dim,
         nhidden=1,
         interaction=False,
-        mcmc_alg="rwm",
         nqs_repr="psi2",
         backend="numpy",
         log=True,
         logger_level="INFO",
         rng=None,
     ):
-        """Neural Network Quantum State"""
+        """RBM Neural Network Quantum State"""
 
         self._check_logger(log, logger_level)
         self._log = log
+        self.mcmc_alg = None
 
         if self._log:
             self.logger = setup_logger(self.__class__.__name__, level=logger_level)
@@ -77,13 +61,11 @@ class NQS:
 
         self._P = nparticles
         self._dim = dim
-        self._mcmc_alg = mcmc_alg
         self._nhidden = nhidden
         self._nvisible = self._P * self._dim
 
         if rng is None:
-            rng = default_rng
-        self._rng = rng
+            self.rng = default_rng
 
         if nqs_repr == "psi":
             factor = 1.0
@@ -98,20 +80,20 @@ class NQS:
 
         if backend == "numpy":
             if interaction:
-                self._rbm = IRBM(self._P, self._dim, factor=factor)
+                self.rbm = IRBM(self._P, self._dim, factor=factor)
             else:
-                self._rbm = NIRBM(factor=factor)
+                self.rbm = NIRBM(factor=factor)
         elif backend == "jax":
             if interaction:
-                self._rbm = JAXIRBM(self._P, self._dim, factor=factor)
+                self.rbm = JAXIRBM(self._P, self._dim, factor=factor)
             else:
-                self._rbm = JAXNIRBM(factor=factor)
+                self.rbm = JAXNIRBM(factor=factor)
         else:
             msg = "Unsupported backend, only 'numpy' or 'jax' is allowed"
             raise ValueError(msg)
 
         # set mcmc step
-        self._set_mcmc_alg(mcmc_alg)
+        self._sampler = Sampler(self.rbm, self.rng, logger=self.logger)
 
         if self._log:
             neuron_str = "neurons" if self._nhidden > 1 else "neuron"
@@ -127,33 +109,35 @@ class NQS:
         self._is_tuned_ = False
         self._sampling_performed_ = False
 
-    def _set_mcmc_alg(self, mcmc_alg):
-        if mcmc_alg == "rwm":
-            self._mcmc_alg = mcmc_alg
-            self._step = self._rwm_step
-            self._tune_table = tune_scale_rwm_table
+    def set_sampler(self, mcmc_alg):
+        """ """
+        if not isinstance(mcmc_alg, str):
+            raise TypeError("'mcmc_alg' must be passed as str")
+
+        if mcmc_alg == "m":
+            self.mcmc_alg = "m"
+            self._sampler = Metro(self.rbm, self.rng, logger=self.logger)
         elif mcmc_alg == "lmh":
-            self._mcmc_alg = mcmc_alg
-            self._step = self._lmh_step
-            self._tune_table = tune_scale_lmh_table
+            self.mcmc_alg = "lmh"
+            self._sampler = MetroHastings(self.rbm, self.rng, logger=self.logger)
         else:
-            msg = "Unsupported MCMC algorithm, only 'rwm' or 'lmh' is allowed"
+            msg = "Unsupported backend, only 'numpy' or 'jax' is allowed"
             raise ValueError(msg)
 
     def _is_initialized(self):
         if not self._is_initialized_:
             msg = "A call to 'init' must be made before training"
-            raise NotInitialized(msg)
+            raise errors.NotInitialized(msg)
 
     def _is_trained(self):
         if not self._is_trained_:
             msg = "A call to 'train' must be made before sampling"
-            raise NotTrained(msg)
+            raise errors.NotTrained(msg)
 
     def _sampling_performed(self):
         if not self._is_trained_:
             msg = "A call to 'sample' must be made in order to access results"
-            raise SamplingNotPerformed(msg)
+            raise errors.SamplingNotPerformed(msg)
 
     def _check_logger(self, log, logger_level):
         if not isinstance(log, bool):
@@ -164,10 +148,10 @@ class NQS:
 
     def init(self, sigma2=1.0, scale=0.5, seed=None):
         """ """
-        self._rbm.sigma2 = sigma2
-        self._scale = scale
+        self.rbm.sigma2 = sigma2
+        self.scale = scale
 
-        rng = self._rng(seed)
+        rng = self.rng(seed)
 
         r = rng.standard_normal(size=self._nvisible)
 
@@ -185,9 +169,8 @@ class NQS:
         self._kernel *= np.sqrt(1 / self._nvisible)
         # self._kernel *= np.sqrt(2 / (self._nvisible + self._nhidden))
 
-        logp = self._rbm.logprob(r, self._v_bias, self._h_bias, self._kernel)
-        self._state = State(r, logp, 0, 0)
-
+        logp = self.rbm.logprob(r, self._v_bias, self._h_bias, self._kernel)
+        self.state = State(r, logp, 0, 0)
         self._is_initialized_ = True
 
     def train(
@@ -213,13 +196,15 @@ class NQS:
         self._eta = eta
 
         if mcmc_alg is not None:
-            self._set_mcmc_alg(mcmc_alg)
+            self._sampler = Sampler(
+                self.mcmc_alg, self.rbm, self.rng, logger=self.logger
+            )
 
-        state = self._state
+        state = self.state
         v_bias = self._v_bias
         h_bias = self._h_bias
         kernel = self._kernel
-        scale = self._scale
+        scale = self.scale
         # Reset n_accepted
         state = State(state.positions, state.logp, 0, state.delta)
 
@@ -258,11 +243,11 @@ class NQS:
 
         # Training
         for i in t_range:
-            state = self._step(state, v_bias, h_bias, kernel, seed_seq)
-            loc_energy = self._rbm.local_energy(state.positions, v_bias, h_bias, kernel)
-            gr_v_bias = self._rbm.grad_v_bias(state.positions, v_bias, h_bias, kernel)
-            gr_h_bias = self._rbm.grad_h_bias(state.positions, v_bias, h_bias, kernel)
-            gr_kernel = self._rbm.grad_kernel(state.positions, v_bias, h_bias, kernel)
+            state = self._sampler.step(state, v_bias, h_bias, kernel, seed_seq)
+            loc_energy = self.rbm.local_energy(state.positions, v_bias, h_bias, kernel)
+            gr_v_bias = self.rbm.grad_v_bias(state.positions, v_bias, h_bias, kernel)
+            gr_h_bias = self.rbm.grad_h_bias(state.positions, v_bias, h_bias, kernel)
+            gr_kernel = self.rbm.grad_kernel(state.positions, v_bias, h_bias, kernel)
             energies.append(loc_energy)
             grads_v_bias.append(gr_v_bias)
             grads_h_bias.append(gr_h_bias)
@@ -370,11 +355,11 @@ class NQS:
 
         # end
         # Update shared values
-        self._state = state
+        self.state = state
         self._v_bias = v_bias
         self._h_bias = h_bias
         self._kernel = kernel
-        self._scale = scale
+        self.scale = scale
         self._is_trained_ = True
 
     def tune(
@@ -392,18 +377,18 @@ class NQS:
         """
 
         self._is_initialized()
-        state = self._state
+        state = self.state
         v_bias = self._v_bias
         h_bias = self._h_bias
         kernel = self._kernel
-        scale = self._scale
+        scale = self.scale
 
         if mcmc_alg is not None:
-            self._set_mcmc_alg(mcmc_alg)
+            self._sampler = Sampler(self.mcmc_alg, self.rbm, self.rng, self._log)
 
         # Used to throw warnings if tuned alg mismatch chosen alg
         # in other procedures
-        self._tuned_mcmc_alg = self._mcmc_alg
+        self._tuned_mcmc_alg = self.mcmc_alg
 
         # Config
         # did_early_stop = False
@@ -426,260 +411,68 @@ class NQS:
         steps_before_tune = tune_interval
 
         for i in t_range:
-            state = self._step(state, v_bias, h_bias, kernel, seed_seq)
+            state = self._sampler.step(state, v_bias, h_bias, kernel, seed_seq)
             steps_before_tune -= 1
 
             if steps_before_tune == 0:
                 # Tune proposal scale
                 old_scale = scale
                 accept_rate = state.n_accepted / tune_interval
-                scale = self._tune_table(old_scale, accept_rate)
+                scale = self._sampler.tune_scale(old_scale, accept_rate)
 
                 # Reset
                 steps_before_tune = tune_interval
                 state = State(state.positions, state.logp, 0, state.delta)
 
         # Update shared values
-        self._state = state
+        self.state = state
         self._v_bias = v_bias
         self._h_bias = h_bias
         self._kernel = kernel
-        self._scale = scale
+        self.scale = scale
         self._is_tuned_ = True
 
-    def sample(self, nsamples, nchains=1, seed=None, mcmc_alg=None):
-        """ """
+    def sample(self, nsamples, nchains=1, seed=None):
+        """helper for the sample method from the Sampler class"""
 
-        # TODO: accept biases and kernel as parameters and
-        # assume they are optimized if passed
         self._is_initialized()
         self._is_trained()
-        state = self._state
-        v_bias = self._v_bias
-        h_bias = self._h_bias
-        kernel = self._kernel
-        scale = self._scale
-        if mcmc_alg is not None:
-            self._set_mcmc_alg(mcmc_alg)
 
-        nchains = check_and_set_nchains(nchains, self.logger)
-        seeds = generate_seed_sequence(seed, nchains)
+        params = {
+            "v_bias": self._v_bias,
+            "h_bias": self._h_bias,
+            "kernel": self._kernel,
+        }
 
-        if nchains == 1:
-            chain_id = 0
-            results, self._energies = self._sample(
-                nsamples, state, v_bias, h_bias, kernel, scale, seeds[0], chain_id
-            )
-            self._results = pd.DataFrame([results])
-        else:
-            if self._log:
-                # for managing output contention
-                tqdm.set_lock(TRLock())
-                initializer = tqdm.set_lock
-                initargs = (tqdm.get_lock(),)
-            else:
-                initializer = None
-                initargs = None
-
-            # Handle iterables
-            nsamples = (nsamples,) * nchains
-            state = (state,) * nchains
-            v_bias = (v_bias,) * nchains
-            h_bias = (h_bias,) * nchains
-            kernel = (kernel,) * nchains
-            scale = (scale,) * nchains
-            chain_ids = range(nchains)
-
-            with ProcessPool(
-                nchains, initializer=initializer, initargs=initargs
-            ) as pool:
-                results, self._energies = zip(
-                    *pool.map(
-                        self._sample,
-                        nsamples,
-                        state,
-                        v_bias,
-                        h_bias,
-                        kernel,
-                        scale,
-                        seeds,
-                        chain_ids,
-                    )
-                )
-            self._results = pd.DataFrame(results)
-
-        self._sampling_performed_ = True
-        if self._log:
-            self.logger.info("Sampling done")
-
-        return self._results
-
-    def _sample(self, nsamples, state, v_bias, h_bias, kernel, scale, seed, chain_id):
-        """To be called by process"""
-        if self._log:
-            t_range = tqdm(
-                range(nsamples),
-                desc=f"[Sampling progress] Chain {chain_id+1}",
-                position=chain_id,
-                leave=True,
-                colour="green",
-            )
-        else:
-            t_range = range(nsamples)
-
-        # Config
-        state = State(state.positions, state.logp, 0, state.delta)
-        energies = np.zeros(nsamples)
-
-        for i in t_range:
-            state = self._step(state, v_bias, h_bias, kernel, seed)
-            energies[i] = self._rbm.local_energy(
-                state.positions, v_bias, h_bias, kernel
-            )
-        if self._log:
-            t_range.clear()
-
-        energy = np.mean(energies)
-        error = block(energies)
-        variance = np.mean(energies**2) - energy**2
-        acc_rate = state.n_accepted / nsamples
-
-        results = {
-            "chain_id": chain_id + 1,
+        system_info = {
             "nparticles": self._P,
             "dim": self._dim,
-            "energy": energy,
-            "std_error": error,
-            "variance": variance,
-            "accept_rate": acc_rate,
             "eta": self._eta,
-            "scale": scale,
             "nvisible": self._nvisible,
             "nhidden": self._nhidden,
-            "mcmc_alg": self._mcmc_alg,
-            "nsamples": nsamples,
+            "mcmc_alg": self.mcmc_alg,
             "training_cycles": self._training_cycles,
             "training_batch": self._training_batch,
         }
 
-        return results, energies
-
-    def _rwm_step(self, state, v_bias, h_bias, kernel, seed):
-        """One step of the random walk Metropolis algorithm
-
-        Parameters
-        ----------
-        state : nqs.State
-            Current state of the system. See state.py
-
-        scale : float
-            Scale of proposal distribution. Default: 0.5
-
-        Returns
-        -------
-        new_state : nqs.State
-            The updated state of the system.
-        """
-
-        # Advance RNG
-        next_gen = advance_PRNG_state(seed, state.delta)
-        rng = self._rng(next_gen)
-
-        # Sample proposal positions, i.e., move walkers
-        proposals = rng.normal(loc=state.positions, scale=self._scale)
-
-        # Sample log uniform rvs
-        log_unif = np.log(rng.random())
-
-        # Compute proposal log density
-        logp_proposal = self._rbm.logprob(proposals, v_bias, h_bias, kernel)
-
-        # Metroplis acceptance criterion
-        accept = log_unif < logp_proposal - state.logp
-
-        # If accept is True, yield proposal, otherwise keep old state
-        new_positions = proposals if accept else state.positions
-
-        # Create new state
-        new_logp = self._rbm.logprob(new_positions, v_bias, h_bias, kernel)
-        new_n_accepted = state.n_accepted + accept
-        new_delta = state.delta + 1
-        new_state = State(new_positions, new_logp, new_n_accepted, new_delta)
-
-        return new_state
-
-    def _lmh_step(self, state, v_bias, h_bias, kernel, seed):
-        """One step of the Langevin Metropolis-Hastings algorithm
-
-        Parameters
-        ----------
-        state : State
-            Current state of the system. See state.py
-        alpha :
-            Variational parameter
-        D : float
-            Diffusion constant. Default: 0.5
-        dt : float
-            Scale of proposal distribution. Default: 1.0
-        """
-
-        # Precompute
-        dt = self._scale**2
-        Ddt = 0.5 * dt
-        quarterDdt = 1 / (4 * Ddt)
-        sys_size = state.positions.shape
-
-        # Advance RNG
-        next_gen = advance_PRNG_state(seed, state.delta)
-        rng = self._rng(next_gen)
-
-        # Compute drift force at current positions
-        F = self._rbm.drift_force(state.positions, v_bias, h_bias, kernel)
-
-        # Sample proposal positions, i.e., move walkers
-        proposals = (
-            state.positions
-            + F * Ddt
-            + rng.normal(loc=0, scale=self._scale, size=sys_size)
+        system_info = pd.DataFrame(system_info, index=[0])
+        sample_results = self._sampler.sample(
+            self.state, params, nsamples, nchains, seed
         )
 
-        # Compute proposal log density
-        logp_prop = self._rbm.logprob(proposals, v_bias, h_bias, kernel)
+        # combine system info and sample results
 
-        # Green's function conditioned on proposals
-        F_prop = self._rbm.drift_force(proposals, v_bias, h_bias, kernel)
-        G_prop = -((state.positions - proposals - Ddt * F_prop) ** 2) * quarterDdt
+        self._results = pd.concat([system_info, sample_results], axis=1)
 
-        # Green's function conditioned on current positions
-        G_cur = -((proposals - state.positions - Ddt * F) ** 2) * quarterDdt
-
-        # Metroplis-Hastings ratio
-        ratio = logp_prop + np.sum(G_prop) - state.logp - np.sum(G_cur)
-
-        # Sample log uniform rvs
-        log_unif = np.log(rng.random())
-
-        # Metroplis acceptance criterion
-        accept = log_unif < ratio
-
-        # If accept is True, yield proposal, otherwise keep old state
-        new_positions = proposals if accept else state.positions
-
-        # Create new state
-        new_logp = self._rbm.logprob(new_positions, v_bias, h_bias, kernel)
-        new_n_accepted = state.n_accepted + accept
-        new_delta = state.delta + 1
-        new_state = State(new_positions, new_logp, new_n_accepted, new_delta)
-
-        return new_state
+        return self._results
 
     @property
     def scale(self):
-        return self._scale
+        return self._sampler.scale
 
     @scale.setter
     def scale(self, value):
-        self._scale = value
+        self._sampler.scale = value
 
     @property
     def results(self):
@@ -687,7 +480,7 @@ class NQS:
             return self._results
         except AttributeError:
             msg = "Unavailable, a call to sample must be made first"
-            raise SamplingNotPerformed(msg)
+            raise errors.SamplingNotPerformed(msg)
 
     @property
     def energies(self):
@@ -695,7 +488,7 @@ class NQS:
             return self._energies
         except AttributeError:
             msg = "Unavailable, a call to sample must be made first"
-            raise SamplingNotPerformed(msg)
+            raise errors.SamplingNotPerformed(msg)
 
     def to_csv(self, filename):
         """Write (full) results dataframe to csv.

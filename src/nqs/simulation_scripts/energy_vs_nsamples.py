@@ -14,7 +14,7 @@ nparticles = 2  # particles
 dim = 2  # dimensionality
 nhidden = 5  # hidden neurons
 
-system = nqs.NQS(
+system = nqs.RBMNQS(
     nparticles,
     dim,
     nhidden=nhidden,
@@ -34,7 +34,7 @@ system.tune(tune_iter=10_000,
             rtol=1e-05,
             atol=1e-08,
             seed=None,
-            mcmc_alg='rwm'
+            mcmc_alg='m'
             )
 """
 system.train(

@@ -8,12 +8,12 @@ scale = 3.0  # Scale of proposal distribution
 sigma2 = 1.0  # Variance of Gaussian layer in the RBM
 
 # Instantiate the model
-system = nqs.NQS(
+system = nqs.RBMNQS(
     nparticles,
     dim,
     nhidden=nhidden,
     interaction={False, True},  # Repulsion or not
-    mcmc_alg={"rwm", "lmh"},  # MCMC algorithm
+    mcmc_alg={"m", "mh"},  # MCMC algorithm
     nqs_repr={"psi", "psi2"},  # RBM representation
     backend={"numpy", "jax"},  # Closed-form or AD
     log=True,  # Show logger?
@@ -41,7 +41,6 @@ system.train(
 df = system.sample(
     int(2**18),  # No. of energy samples
     nchains=4,  # No. of Markov chains
-    mcmc_alg=None,  # Set MCMC algo. (optional)
     seed=None,  # Set for reproducibility
 )
 

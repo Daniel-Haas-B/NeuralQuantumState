@@ -27,12 +27,12 @@ training_cycles = [50_000, 100_000, 250_000, 500_000]
 dfs = []
 
 for max_iter in training_cycles:
-    system = nqs.NQS(
+    system = nqs.RBMNQS(
         nparticles,
         dim,
         nhidden=nhidden,
         interaction=False,  # TOTUNE True
-        mcmc_alg="rwm",  # TOTUNE "lmh"
+        mcmc_alg="m",  # TOTUNE "lmh"
         nqs_repr="psi",
         backend="numpy",
         log=True,

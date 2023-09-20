@@ -14,7 +14,7 @@ jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
 
 # Config
-output_filename = "../data/rwm_train_lmh_sample.csv"
+output_filename = "../data/m_train_lmh_sample.csv"
 nparticles = 1  # particles
 dim = 1  # dimensionality
 nhidden_lst = [1, 2, 3, 4]  # hidden neurons
@@ -33,7 +33,7 @@ for nhidden in nhidden_lst:
         dim,
         nhidden=nhidden,
         interaction=False,
-        mcmc_alg="rwm",
+        mcmc_alg="m",
         nqs_repr="psi",
         backend="numpy",
         log=True,

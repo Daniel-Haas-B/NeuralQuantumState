@@ -18,11 +18,11 @@ nparticles = 2  # particles # TOTUNE 1, 2, 3, 4
 dim = 2  # dimensionality # TOTUNE 1, 2, 3, 4
 nhidden = 2  # hidden neurons # TOTUNE 1, 2, 3, 4
 nsamples = int(2**18)
-nchains = 2
+nchains = 4
 eta = 0.05  # TOTUNE 0.05, 0.005
 
 training_cycles = [100_000]
-mcmc_alg = "rwm"
+mcmc_alg = "m"
 backend = "numpy"
 gradient_method = "adam"
 batch_size = 5_000
@@ -38,13 +38,13 @@ for max_iter in training_cycles:
         dim,
         nhidden=nhidden,
         interaction=False,  # TOTUNE True
-        mcmc_alg=mcmc_alg,  # TOTUNE "lmh"
         nqs_repr="psi",
         backend=backend,
         log=True,
     )
 
     system.init(sigma2=1.0, scale=3.0, seed=seed)  # 1.3 for lmh
+    system.set_sampler(mcmc_alg=mcmc_alg)
 
     system.train(
         max_iter=max_iter,

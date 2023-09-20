@@ -6,7 +6,7 @@ authors = ["Daniel <danielhaas.lima@gmail.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.11"
+python = "3.10.12"
 torch = "^2.0.1"
 torchvision = "^0.15.2"
 matplotlib = "^3.7.2"
@@ -19,6 +19,11 @@ tqdm = "^4.66.1"
 pathos = "^0.3.1"
 colorlog = "^6.7.0"
 seaborn = "^0.12.2"
+deepxde = "^1.9.2"
+numpy = "^1.25.2"
+jupyter = "^1.0.0"
+ipython = "^8.14.0"
+tensorflow = "^2.13.0"
 
 
 [tool.poetry.group.dev.dependencies]

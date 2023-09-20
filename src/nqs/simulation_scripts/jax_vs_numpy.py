@@ -23,20 +23,20 @@ interaction = True
 training_cycles = [10_000]  # , 20_000, 30_000, 40_000]
 data = {
     "max_iter": training_cycles,
-    "t_rwm_numpy": [],
+    "t_m_numpy": [],
     "t_lmh_numpy": [],
-    "t_rwm_jax": [],
+    "t_m_jax": [],
     "t_lmh_jax": [],
 }
 
-# Numpy, RWM
+# Numpy, m
 for max_iter in training_cycles:
     system = nqs.RBMNQS(
         nparticles,
         dim,
         nhidden=nhidden,
         interaction=interaction,
-        mcmc_alg="rwm",
+        mcmc_alg="m",
         nqs_repr="psi",
         backend="numpy",
         log=False,
@@ -57,7 +57,7 @@ for max_iter in training_cycles:
         early_stop=False,
     )
     t_end = time.time()
-    data["t_rwm_numpy"].append(t_end - t_start)
+    data["t_m_numpy"].append(t_end - t_start)
 
 
 # Numpy, LMH
@@ -91,14 +91,14 @@ for max_iter in training_cycles:
     data["t_lmh_numpy"].append(t_end - t_start)
 
 
-# JAX, RWM
+# JAX, m
 for max_iter in training_cycles:
     system = nqs.RBMNQS(
         nparticles,
         dim,
         nhidden=nhidden,
         interaction=interaction,
-        mcmc_alg="rwm",
+        mcmc_alg="m",
         nqs_repr="psi",
         backend="jax",
         log=False,
@@ -119,7 +119,7 @@ for max_iter in training_cycles:
         early_stop=False,
     )
     t_end = time.time()
-    data["t_rwm_jax"].append(t_end - t_start)
+    data["t_m_jax"].append(t_end - t_start)
 
 
 # JAX, LMH

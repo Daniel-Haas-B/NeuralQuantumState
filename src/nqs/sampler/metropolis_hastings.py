@@ -5,8 +5,9 @@ from utils import State
 
 
 class MetroHastings(Sampler):
-    def __init__(self, rbm, rng, logger=None):
+    def __init__(self, rbm, rng, scale, logger=None):
         super().__init__(rbm, rng, logger)
+        self._scale = scale
 
     def _step(self, state, v_bias, h_bias, kernel, seed):
         """One step of the Langevin Metropolis-Hastings algorithm

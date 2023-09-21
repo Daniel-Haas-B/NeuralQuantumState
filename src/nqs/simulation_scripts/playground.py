@@ -17,7 +17,7 @@ output_filename = "../data/playground.csv"
 nparticles = 2  # particles # TOTUNE 1, 2, 3, 4
 dim = 1  # dimensionality # TOTUNE 1, 2, 3, 4
 nhidden = 4  # hidden neurons # TOTUNE 1, 2, 3, 4
-nsamples = int(2**18)  # 2**18 = 262144
+nsamples = int(2**14)  # 2**18 = 262144
 nchains = 4
 eta = 0.05  # TOTUNE 0.05, 0.005
 
@@ -25,7 +25,7 @@ training_cycles = [100_000]  # this is cycles for the NN
 mcmc_alg = "m"
 backend = "numpy"
 gradient_method = "adam"
-batch_size = 5_000
+batch_size = 500
 detailed = True
 
 seed = 42
@@ -44,7 +44,7 @@ for max_iter in training_cycles:
     )
 
     system.init(sigma2=1.0, seed=seed)  # 1.3 for lmh
-    system.set_sampler(mcmc_alg=mcmc_alg, scale=3.0)
+    system.set_sampler(mcmc_alg=mcmc_alg, scale=0.9)
 
     system.train(
         max_iter=max_iter,

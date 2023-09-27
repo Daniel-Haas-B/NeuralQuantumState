@@ -1,3 +1,5 @@
+import numpy as np
+
 from .optimizer import Optimizer
 
 
@@ -21,8 +23,16 @@ class Gd(Optimizer):
         self.h_bias = h_bias
         self.kernel = kernel
 
+    def compute_sr_inv(self, grad):
+        # TODO: Compute the SR matrix based on the current state of the system
+        # This is a placeholder and should be replaced with the actual computation
+        return np.linalg.pinv(
+            np.eye(grad.shape[0])
+        )  # placeholder for the identity matrix
+
     def step(self, grads):
         """Update the parameters. Maybe performance bottleneck?"""
+
         params = [self.v_bias, self.h_bias, self.kernel]
         params = [param - self.eta * grad for param, grad in zip(params, grads)]
         self.v_bias, self.h_bias, self.kernel = params

@@ -46,6 +46,7 @@ class RBMNQS:
         log=True,
         logger_level="INFO",
         rng=None,
+        use_sr=False,
     ):
         """RBM Neural Network Quantum State"""
 
@@ -80,9 +81,9 @@ class RBMNQS:
 
         if backend == "numpy":
             if interaction:
-                self.rbm = IRBM(self._P, self._dim, factor=factor)
+                self.rbm = IRBM(self._P, self._dim, factor=factor, use_sr=use_sr)
             else:
-                self.rbm = NIRBM(factor=factor)
+                self.rbm = NIRBM(factor=factor, use_sr=use_sr)
         elif backend == "jax":
             if interaction:
                 self.rbm = JAXIRBM(self._P, self._dim, factor=factor)
@@ -199,11 +200,7 @@ class RBMNQS:
         self,
         max_iter=100_000,
         batch_size=1000,
-        optimizer="adam",
         eta=0.01,
-        beta1=0.9,
-        beta2=0.999,
-        epsilon=1e-8,
         early_stop=False,  # set to True later
         rtol=1e-05,
         atol=1e-08,
@@ -228,6 +225,9 @@ class RBMNQS:
         v_bias = self._v_bias
         h_bias = self._h_bias
         kernel = self._kernel
+        print("v_bias", v_bias.shape)
+        print("h_bias", h_bias.shape)
+        print("kernel", kernel.shape)
 
         # Reset n_accepted
         state = State(state.positions, state.logp, 0, state.delta)
@@ -244,7 +244,6 @@ class RBMNQS:
             t_range = range(max_iter)
 
         # initialize optimizer
-
         # if adam, it will also create the momentum objects,
         self._optimizer.init(
             v_bias, h_bias, kernel

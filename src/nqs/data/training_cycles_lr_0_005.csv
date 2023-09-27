@@ -1,2 +1,0 @@
-energy,std_error,variance,accept_rate,sem_energy,sem_std_error,sem_variance,sem_accept_rate,nparticles,dim,eta,scale,nvisible,nhidden,mcmc_alg,nsamples,training_cycles,training_batch
-1.0015932597626929,0.0036218081233936206,0.7196978919004265,0.33071279525756836,0.0006039467056618855,1.9213898409608823e-05,0.0026103948975846336,0.00046111533884957807,1,1,0.005,3.0,1,2,rwm,262144,100,5000

@@ -46,15 +46,13 @@ for max_iter in training_cycles:
 
     system.init(sigma2=1.0, seed=seed)  # 1.3 for lmh
     system.set_sampler(mcmc_alg=mcmc_alg, scale=3.0)
+    system.set_optimizer(
+        optimizer=optimizer, eta=eta, beta1=0.9, beta2=0.999, epsilon=1e-8
+    )
 
     system.train(
         max_iter=max_iter,
         batch_size=batch_size,  # 1_000
-        optimizer=optimizer,
-        eta=eta,
-        beta1=0.9,
-        beta2=0.999,
-        epsilon=1e-8,
         early_stop=False,
         seed=seed,
     )

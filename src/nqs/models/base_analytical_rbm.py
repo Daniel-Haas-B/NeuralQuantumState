@@ -98,19 +98,26 @@ class BaseRBM:
         F = 2 * self._grad_wf(r, v_bias, h_bias, kernel)
         return F
 
-    def grad_v_bias(self, r, v_bias, h_bias, kernel):
+    def grads(self, r, v_bias, h_bias, kernel):
+        """Gradients of the wave function w.r.t. the parameters"""
+        grad_v_bias = self._grad_v_bias(r, v_bias, h_bias, kernel)
+        grad_h_bias = self._grad_h_bias(r, v_bias, h_bias, kernel)
+        grad_kernel = self._grad_kernel(r, v_bias, h_bias, kernel)
+        return grad_v_bias, grad_h_bias, grad_kernel
+
+    def _grad_v_bias(self, r, v_bias, h_bias, kernel):
         """Gradient of wave function w.r.t. visible bias"""
         gr = (r - v_bias) * self._sigma2
         gr *= self._factor
         return gr  # .sum()
 
-    def grad_h_bias(self, r, v_bias, h_bias, kernel):
+    def _grad_h_bias(self, r, v_bias, h_bias, kernel):
         """Gradient of wave function w.r.t. hidden bias"""
         gr = expit(h_bias + (r @ kernel) * self._sigma2_factor)
         gr *= self._factor
         return gr  # .sum()
 
-    def grad_kernel(self, r, v_bias, h_bias, kernel):
+    def _grad_kernel(self, r, v_bias, h_bias, kernel):
         """Gradient of wave function w.r.t. weight matrix"""
         _expit = expit(h_bias + (r @ kernel) * self._sigma2_factor)
         gr = self._sigma2 * r[:, np.newaxis] @ _expit[:, np.newaxis].T

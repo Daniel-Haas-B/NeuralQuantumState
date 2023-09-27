@@ -115,22 +115,17 @@ class BaseJAXRBM:
         return F
 
     @partial(jax.jit, static_argnums=(0,))
-    def grad_v_bias(self, r, v_bias, h_bias, kernel):
-        """Gradient of wave function w.r.t. visible bias"""
+    def grads(self, r, v_bias, h_bias, kernel):
+        """Gradients of the wave function w.r.t. parameters"""
         grad_wf_v_bias = jax.grad(self.wf, argnums=1)
-        return grad_wf_v_bias(r, v_bias, h_bias, kernel)
-
-    @partial(jax.jit, static_argnums=(0,))
-    def grad_h_bias(self, r, v_bias, h_bias, kernel):
-        """Gradient of wave function w.r.t. hidden bias"""
         grad_wf_h_bias = jax.grad(self.wf, argnums=2)
-        return grad_wf_h_bias(r, v_bias, h_bias, kernel)
-
-    @partial(jax.jit, static_argnums=(0,))
-    def grad_kernel(self, r, v_bias, h_bias, kernel):
-        """Gradient of wave function w.r.t. weight matrix"""
         grad_wf_kernel = jax.grad(self.wf, argnums=3)
-        return grad_wf_kernel(r, v_bias, h_bias, kernel)
+
+        return (
+            grad_wf_v_bias(r, v_bias, h_bias, kernel),
+            grad_wf_h_bias(r, v_bias, h_bias, kernel),
+            grad_wf_kernel(r, v_bias, h_bias, kernel),
+        )
 
     @property
     def sigma2(self):

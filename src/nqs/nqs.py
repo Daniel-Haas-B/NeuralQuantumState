@@ -23,6 +23,7 @@ from tqdm.auto import tqdm
 from samplers.metropolis_hastings import MetroHastings
 from samplers.metropolis import Metropolis as Metro
 
+from optimizers import adam, gd
 
 # import sys
 # from abc import abstractmethod
@@ -51,6 +52,7 @@ class RBMNQS:
         self._check_logger(log, logger_level)
         self._log = log
         self.mcmc_alg = None
+        self._optimizer = None
 
         if self._log:
             self.logger = setup_logger(self.__class__.__name__, level=logger_level)
@@ -91,7 +93,6 @@ class RBMNQS:
             raise ValueError(msg)
 
         # set mcmc step
-
         # self._sampler = Sampler(self.rbm, self.rng, logger=self.logger)
 
         if self._log:
@@ -123,7 +124,28 @@ class RBMNQS:
             self.mcmc_alg = "lmh"
             self._sampler = MetroHastings(self.rbm, self.rng, scale, logger=self.logger)
         else:
-            msg = "Unsupported backend, only 'numpy' or 'jax' is allowed"
+            msg = "Unsupported sampler, only Metropolis 'm' or Metropolis-Hastings 'lmh' is allowed"
+            raise ValueError(msg)
+
+    def set_optimizer(self, optimizer, eta, **kwargs):
+        """
+        Set the optimizer algorithm to be used for param update.
+        """
+
+        if not isinstance(optimizer, str):
+            raise TypeError("'optimizer' must be passed as str")
+
+        if optimizer == "gd":
+            self._optimizer = gd.Gd(eta)  # dumb for now
+        elif optimizer == "adam":
+            beta1 = kwargs["beta1"] if "beta1" in kwargs else 0.9
+            beta2 = kwargs["beta2"] if "beta2" in kwargs else 0.999
+            epsilon = kwargs["epsilon"] if "epsilon" in kwargs else 1e-8
+            self._optimizer = adam.Adam(
+                eta, beta1=beta1, beta2=beta2, epsilon=epsilon
+            )  # dumb for now
+        else:
+            msg = "Unsupported optimizer, only adam 'adam' or gd 'gd' is allowed"
             raise ValueError(msg)
 
     def _is_initialized(self):
@@ -159,11 +181,9 @@ class RBMNQS:
 
         # Initialize visible bias
         self._v_bias = rng.standard_normal(size=self._nvisible) * 0.01
-        # self._v_bias = np.zeros(self._nvisible)
 
         # Initialize hidden bias
         self._h_bias = rng.standard_normal(size=self._nhidden) * 0.01
-        # self._h_bias = np.zeros(self._nhidden)
 
         # Initialize kernel (weight matrix)
         self._kernel = rng.standard_normal(size=(self._nvisible, self._nhidden))
@@ -225,18 +245,10 @@ class RBMNQS:
 
         # initialize optimizer
 
-        # Set parameters for Adam
-        if optimizer == "adam":
-            t = 0
-            # visible bias
-            m_v_bias = np.zeros_like(v_bias)
-            v_v_bias = np.zeros_like(v_bias)
-            # hidden bias
-            m_h_bias = np.zeros_like(h_bias)
-            v_h_bias = np.zeros_like(h_bias)
-            # kernel
-            m_kernel = np.zeros_like(kernel)
-            v_kernel = np.zeros_like(kernel)
+        # if adam, it will also create the momentum objects,
+        self._optimizer.init(
+            v_bias, h_bias, kernel
+        )  # this creates a copy of the parameters, maybe not efficient
 
         # Config
         did_early_stop = False
@@ -249,18 +261,25 @@ class RBMNQS:
 
         # Training
         for _ in t_range:
+            print
+            # sampler step
             state = self._sampler.step(state, v_bias, h_bias, kernel, seed_seq)
+
+            # getting and saving local energy
             loc_energy = self.rbm.local_energy(state.positions, v_bias, h_bias, kernel)
-            gr_v_bias = self.rbm.grad_v_bias(state.positions, v_bias, h_bias, kernel)
-            gr_h_bias = self.rbm.grad_h_bias(state.positions, v_bias, h_bias, kernel)
-            gr_kernel = self.rbm.grad_kernel(state.positions, v_bias, h_bias, kernel)
             energies.append(loc_energy)
+
+            # getting and saving gradients
+            gr_v_bias, gr_h_bias, gr_kernel = self.rbm.grads(
+                state.positions, v_bias, h_bias, kernel
+            )
+
             grads_v_bias.append(gr_v_bias)
             grads_h_bias.append(gr_h_bias)
             grads_kernel.append(gr_kernel)
 
             steps_before_optimize -= 1
-
+            # optimize
             if steps_before_optimize == 0:
                 # Expectation values
                 energies = np.array(energies)
@@ -272,6 +291,7 @@ class RBMNQS:
                 expval_grad_v_bias = np.mean(grads_v_bias, axis=0)
                 expval_grad_h_bias = np.mean(grads_h_bias, axis=0)
                 expval_grad_kernel = np.mean(grads_kernel, axis=0)
+
                 expval_energy_v_bias = np.mean(
                     energies.reshape(batch_size, 1) * grads_v_bias, axis=0
                 )
@@ -285,15 +305,25 @@ class RBMNQS:
                 # variance = np.mean(energies**2) - energy**2
 
                 # Gradients
-                final_gr_v_bias = 2 * (
-                    expval_energy_v_bias - expval_energy * expval_grad_v_bias
-                )
-                final_gr_h_bias = 2 * (
-                    expval_energy_h_bias - expval_energy * expval_grad_h_bias
-                )
-                final_gr_kernel = 2 * (
-                    expval_energy_kernel - expval_energy * expval_grad_kernel
-                )
+                expval_energies = [
+                    expval_energy_v_bias,
+                    expval_energy_h_bias,
+                    expval_energy_kernel,
+                ]
+                expval_grads = [
+                    expval_grad_v_bias,
+                    expval_grad_h_bias,
+                    expval_grad_kernel,
+                ]
+
+                final_grads = [
+                    2 * (expval_energy_param - expval_energy * expval_grad_param)
+                    for expval_energy_param, expval_grad_param in zip(
+                        expval_energies, expval_grads
+                    )
+                ]
+
+                # expval_energy_arr - expval_energy * expval_grad))
 
                 if early_stopping:
                     # make copies of current values before update
@@ -302,56 +332,15 @@ class RBMNQS:
                     kernel_old = copy.deepcopy(kernel)  # noqa
 
                 # Gradient descent
-                if optimizer == "gd":
-                    v_bias -= eta * final_gr_v_bias
-                    h_bias -= eta * final_gr_h_bias
-                    kernel -= eta * final_gr_kernel
+                v_bias, h_bias, kernel = self._optimizer.step(final_grads)
 
-                elif optimizer == "adam":
-                    t += 1
-                    # update visible bias
-                    m_v_bias = beta1 * m_v_bias + (1 - beta1) * final_gr_v_bias
-                    v_v_bias = beta2 * v_v_bias + (1 - beta2) * final_gr_v_bias**2
-                    m_hat_v_bias = m_v_bias / (1 - beta1**t)
-                    v_hat_v_bias = v_v_bias / (1 - beta2**t)
-                    v_bias -= eta * m_hat_v_bias / (np.sqrt(v_hat_v_bias) - epsilon)
-                    # update hidden bias
-                    m_h_bias = beta1 * m_h_bias + (1 - beta1) * final_gr_h_bias
-                    v_h_bias = beta2 * v_h_bias + (1 - beta2) * final_gr_h_bias**2
-                    m_hat_h_bias = m_h_bias / (1 - beta1**t)
-                    v_hat_h_bias = v_h_bias / (1 - beta2**t)
-                    h_bias -= eta * m_hat_h_bias / (np.sqrt(v_hat_h_bias) - epsilon)
-                    # update kernel
-                    m_kernel = beta1 * m_kernel + (1 - beta1) * final_gr_kernel
-                    v_kernel = beta2 * v_kernel + (1 - beta2) * final_gr_kernel**2
-                    m_hat_kernel = m_kernel / (1 - beta1**t)
-                    v_hat_kernel = v_kernel / (1 - beta2**t)
-                    kernel -= eta * m_hat_kernel / (np.sqrt(v_hat_kernel) - epsilon)
+                # if optimizer == "gd": but also adam. Should be generalized
 
                 energies = []
                 grads_v_bias = []
                 grads_h_bias = []
                 grads_kernel = []
                 steps_before_optimize = batch_size
-                """
-                if early_stopping:
-                    v_bias_converged = np.allclose(v_bias,
-                                                   v_bias_old,
-                                                   rtol=rtol,
-                                                   atol=atol)
-                    h_bias_converged = np.allclose(h_bias,
-                                                   h_bias_old,
-                                                   rtol=rtol,
-                                                   atol=atol)
-                    kernel_converged = np.allclose(kernel,
-                                                   kernel_old,
-                                                   rtol=rtol,
-                                                   atol=atol)
-
-                    if v_bias_converged and h_bias_converged and kernel_converged:
-                        did_early_stop = True
-                        break
-                """
 
         # early stop flag activated
         if did_early_stop:

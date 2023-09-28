@@ -227,9 +227,6 @@ class RBMNQS:
         v_bias = self._v_bias
         h_bias = self._h_bias
         kernel = self._kernel
-        print("v_bias", v_bias.shape)
-        print("h_bias", h_bias.shape)
-        print("kernel", kernel.shape)
 
         # Reset n_accepted
         state = State(state.positions, state.logp, 0, state.delta)

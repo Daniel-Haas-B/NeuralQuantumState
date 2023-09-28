@@ -19,14 +19,14 @@ output_filename = "../data/playground.csv"
 nparticles = 2
 dim = 3
 nhidden = 4
-nsamples = int(2**16)  # 2**18 = 262144
-nchains = 7
+nsamples = int(2**18)  # 2**18 = 262144
+nchains = 4
 eta = 0.05
 
 training_cycles = [100_000]  # this is cycles for the NN
-mcmc_alg = "m"
+mcmc_alg = "lmh"
 backend = "numpy"
-optimizer = "adam"
+optimizer = "gd"
 batch_size = 5_000
 detailed = True
 
@@ -42,7 +42,7 @@ for sr in [True, False]:
         nparticles,
         dim,
         nhidden=nhidden,
-        interaction=False,  # TOTUNE True
+        interaction=True,  # TOTUNE True
         nqs_repr="psi",
         backend=backend,
         log=True,
@@ -50,7 +50,7 @@ for sr in [True, False]:
     )
 
     system.init(sigma2=1.0, seed=seed)  # 1.3 for lmh
-    system.set_sampler(mcmc_alg=mcmc_alg, scale=3.0)
+    system.set_sampler(mcmc_alg=mcmc_alg, scale=1.0)
     system.set_optimizer(
         optimizer=optimizer, eta=eta, use_sr=True, beta1=0.9, beta2=0.999, epsilon=1e-8
     )

@@ -15,8 +15,8 @@ jax.config.update("jax_platform_name", "cpu")
 class NIRBM(BaseRBM):
     """Non-interacting with analytical"""
 
-    def __init__(self, sigma2=1.0, factor=0.5, use_sr=False):
-        super().__init__(sigma2=sigma2, factor=factor, use_sr=use_sr)
+    def __init__(self, sigma2=1.0, factor=0.5):
+        super().__init__(sigma2=sigma2, factor=factor)
 
     def potential(self, r):
         """Potential energy function"""
@@ -26,8 +26,8 @@ class NIRBM(BaseRBM):
 class IRBM(BaseRBM):
     """Interacting with analytical"""
 
-    def __init__(self, nparticles, dim, sigma2=1.0, factor=0.5, use_sr=False):
-        super().__init__(sigma2=sigma2, factor=factor, use_sr=use_sr)
+    def __init__(self, nparticles, dim, sigma2=1.0, factor=0.5):
+        super().__init__(sigma2=sigma2, factor=factor)
         self._N = nparticles
         self._dim = dim
 

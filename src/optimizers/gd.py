@@ -1,3 +1,5 @@
+import numpy as np
+
 from .optimizer import Optimizer
 
 
@@ -21,8 +23,17 @@ class Gd(Optimizer):
         self.h_bias = h_bias
         self.kernel = kernel
 
-    def step(self, grads):
+    def step(self, grads, sr_matrix=None):
         """Update the parameters. Maybe performance bottleneck?"""
+
+        # change last grad
+
+        # for the love of god change this later
+        if sr_matrix is not None:
+            grads[-1] = grads[-1].reshape(sr_matrix.shape[0], -1)
+            grads[-1] = np.linalg.pinv(sr_matrix) @ grads[-1]
+            grads[-1] = grads[-1].reshape(self.kernel.shape)
+
         params = [self.v_bias, self.h_bias, self.kernel]
         params = [param - self.eta * grad for param, grad in zip(params, grads)]
         self.v_bias, self.h_bias, self.kernel = params

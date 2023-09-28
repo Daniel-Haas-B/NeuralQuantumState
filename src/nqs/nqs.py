@@ -46,6 +46,7 @@ class RBMNQS:
         log=True,
         logger_level="INFO",
         rng=None,
+        use_sr=False,
     ):
         """RBM Neural Network Quantum State"""
 
@@ -53,6 +54,8 @@ class RBMNQS:
         self._log = log
         self.mcmc_alg = None
         self._optimizer = None
+        self.sr_matrix = None
+        self.use_sr = use_sr
 
         if self._log:
             self.logger = setup_logger(self.__class__.__name__, level=logger_level)
@@ -199,11 +202,7 @@ class RBMNQS:
         self,
         max_iter=100_000,
         batch_size=1000,
-        optimizer="adam",
         eta=0.01,
-        beta1=0.9,
-        beta2=0.999,
-        epsilon=1e-8,
         early_stop=False,  # set to True later
         rtol=1e-05,
         atol=1e-08,
@@ -244,7 +243,6 @@ class RBMNQS:
             t_range = range(max_iter)
 
         # initialize optimizer
-
         # if adam, it will also create the momentum objects,
         self._optimizer.init(
             v_bias, h_bias, kernel
@@ -266,6 +264,8 @@ class RBMNQS:
             state = self._sampler.step(state, v_bias, h_bias, kernel, seed_seq)
 
             # getting and saving local energy
+            # print("state.positions", state.positions.shape)
+
             loc_energy = self.rbm.local_energy(state.positions, v_bias, h_bias, kernel)
             energies.append(loc_energy)
 
@@ -290,7 +290,14 @@ class RBMNQS:
                 expval_energy = np.mean(energies)
                 expval_grad_v_bias = np.mean(grads_v_bias, axis=0)
                 expval_grad_h_bias = np.mean(grads_h_bias, axis=0)
-                expval_grad_kernel = np.mean(grads_kernel, axis=0)
+                expval_grad_kernel = np.mean(
+                    grads_kernel, axis=0
+                )  # we shall use this in SR. I think this is avg dlogpsi/dW
+
+                if self.use_sr:
+                    self.sr_matrix = self.rbm.compute_sr_matrix(
+                        expval_grad_kernel, grads_kernel
+                    )
 
                 expval_energy_v_bias = np.mean(
                     energies.reshape(batch_size, 1) * grads_v_bias, axis=0
@@ -323,8 +330,6 @@ class RBMNQS:
                     )
                 ]
 
-                # expval_energy_arr - expval_energy * expval_grad))
-
                 if early_stopping:
                     # make copies of current values before update
                     v_bias_old = copy.deepcopy(v_bias)  # noqa
@@ -332,7 +337,9 @@ class RBMNQS:
                     kernel_old = copy.deepcopy(kernel)  # noqa
 
                 # Gradient descent
-                v_bias, h_bias, kernel = self._optimizer.step(final_grads)
+                v_bias, h_bias, kernel = self._optimizer.step(
+                    final_grads, self.sr_matrix
+                )
 
                 # if optimizer == "gd": but also adam. Should be generalized
 
@@ -449,16 +456,20 @@ class RBMNQS:
             "mcmc_alg": self.mcmc_alg,
             "training_cycles": self._training_cycles,
             "training_batch": self._training_batch,
+            "sr": self.use_sr,
         }
 
         system_info = pd.DataFrame(system_info, index=[0])
         sample_results = self._sampler.sample(
             self.state, params, nsamples, nchains, seed
         )
+        system_info_repeated = system_info.loc[
+            system_info.index.repeat(len(sample_results))
+        ].reset_index(drop=True)
 
         # combine system info and sample results
 
-        self._results = pd.concat([system_info, sample_results], axis=1)
+        self._results = pd.concat([system_info_repeated, sample_results], axis=1)
 
         return self._results
 

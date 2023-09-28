@@ -45,7 +45,7 @@ class MetroHastings(Sampler):
         )
 
         # Compute proposal log density
-        logp_prop = self._rbm.logprob(proposals, v_bias, h_bias, kernel)
+        logp_proposal = self._rbm.logprob(proposals, v_bias, h_bias, kernel)
 
         # Green's function conditioned on proposals
         F_prop = self._rbm.drift_force(proposals, v_bias, h_bias, kernel)
@@ -55,13 +55,14 @@ class MetroHastings(Sampler):
         G_cur = -((proposals - state.positions - Ddt * F) ** 2) * quarterDdt
 
         # Metroplis-Hastings ratio
-        ratio = logp_prop + np.sum(G_prop) - state.logp - np.sum(G_cur)
+        ratio = logp_proposal + np.sum(G_prop) - state.logp - np.sum(G_cur)
 
         # Sample log uniform rvs
         log_unif = np.log(rng.random())
 
         # Metroplis acceptance criterion
         accept = log_unif < ratio
+
         # If accept is True, yield proposal, otherwise keep old state
         new_positions = proposals if accept else state.positions
 

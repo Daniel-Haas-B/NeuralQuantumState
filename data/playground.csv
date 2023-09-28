@@ -1,2 +1,2 @@
-energy,std_error,variance,accept_rate,sem_energy,sem_std_error,sem_variance,sem_accept_rate,nparticles,dim,eta,scale,nvisible,nhidden,mcmc_alg,nsamples,training_cycles,training_batch
-1.0011223870262276,0.0007043275700100382,0.006804992535081267,0.09988594055175781,0.0005394880590803694,1.1226766363679533e-05,4.907172722817748e-05,0.000395689422704235,2.0,1.0,0.01,3.0,2.0,4.0,m,262144,100000.0,5000.0
+energy,std_error,variance,accept_rate,sem_energy,sem_std_error,sem_variance,sem_accept_rate,nparticles,dim,eta,scale,nvisible,nhidden,mcmc_alg,nsamples,training_cycles,training_batch,sr
+3.0173172793949403,0.0005464199241284846,0.0028710619458429676,0.5797080993652344,0.00024833491845760306,1.1613222602634544e-05,2.1385742051345497e-05,0.00041172230993139717,2,3,0.01,1.0,6,4,lmh,65536,100000,5000,True

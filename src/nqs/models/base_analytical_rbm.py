@@ -100,8 +100,8 @@ class BaseRBM:
 
     def grads(self, r, v_bias, h_bias, kernel):
         """Gradients of the wave function w.r.t. the parameters"""
-        grad_v_bias = self._grad_v_bias(r, v_bias, h_bias, kernel)
         grad_h_bias = self._grad_h_bias(r, v_bias, h_bias, kernel)
+        grad_v_bias = self._grad_v_bias(r, v_bias, h_bias, kernel)
         grad_kernel = self._grad_kernel(r, v_bias, h_bias, kernel)
         return grad_v_bias, grad_h_bias, grad_kernel
 
@@ -122,7 +122,48 @@ class BaseRBM:
         _expit = expit(h_bias + (r @ kernel) * self._sigma2_factor)
         gr = self._sigma2 * r[:, np.newaxis] @ _expit[:, np.newaxis].T
         gr *= self._factor
-        return gr  # .sum()
+        # print("gr.shape", gr.shape)
+        # print("gr type", type(gr))
+
+        return gr
+
+    def compute_sr_matrix(self, expval_grad_kernel, grads_kernel, shift=1e-9):
+        """
+        WIP: for now this does not involve the averages because r will be a single sample
+        Compute the matrix for the stochastic reconfiguration algorithm
+            for now we do it only for the kernel
+            The expression here is for kernel element W_ij:
+                S_ij,kl = < (d/dW_ij log(psi)) (d/dW_kl log(psi)) > - < d/dW_ij log(psi) > < d/dW_kl log(psi) >
+          1. Compute the gradient ∂_W log(ψ) using the _grad_kernel function.
+            2. Compute the outer product of the gradient with itself: ∂_W log(ψ) ⊗ ∂_W log(ψ)
+            3. Compute the expectation value of the outer product over all the samples
+            4. Compute the expectation value of the gradient ∂_W log(ψ) over all the samples
+            5. Compute the outer product of the expectation value of the gradient with itself: <∂_W log(ψ)> ⊗ <∂_W log(ψ)>
+
+            OBS: < d/dW_ij log(psi) > is already done inside train of the RBM class but we need still the < (d/dW_ij log(psi)) (d/dW_kl log(psi)) >
+        """
+
+        # 1. Compute the gradient of log(psi) w.r.t. kernel for each sample r
+        # 2. Compute the outer product of gradient with itself for each sample r
+        # 3. Compute the mean of the outer product over all samples r
+        # print(" shape of grads_kernel", grads_kernel.shape)
+        # grads_kernel is a matrix of shape (n_samples, n_visible, n_hidden)
+        grads_kernel_outer = np.einsum("nij,nkl->nijkl", grads_kernel, grads_kernel)
+
+        expval_outer_grad_kernel = np.mean(grads_kernel_outer, axis=0)
+        # we shall use this in SR. I think this is avg dlogpsi/dW dlogpsi/dW
+        # print("grads_kernel_outer", grads_kernel_outer.shape)
+        # 6. Subtract the two results to get the S matrix
+        outer_expval_grad_kernel = np.array(
+            np.outer(expval_grad_kernel, expval_grad_kernel)
+        )
+        sr_mat = (
+            expval_outer_grad_kernel.reshape(outer_expval_grad_kernel.shape)
+            - outer_expval_grad_kernel
+        )
+        sr_mat = sr_mat + shift * np.eye(sr_mat.shape[0])
+        # print("sr_mat.shape", sr_mat.shape)
+        return sr_mat
 
     @property
     def sigma2(self):

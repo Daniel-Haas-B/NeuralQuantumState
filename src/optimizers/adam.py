@@ -4,7 +4,7 @@ from .optimizer import Optimizer
 
 
 class Adam(Optimizer):
-    """Gradient descent optimizer."""
+    """Adam optimizer."""
 
     def __init__(self, eta, **kwargs):
         """Initialize the optimizer.
@@ -52,16 +52,16 @@ class Adam(Optimizer):
         """Update the parameters."""
         self.t += 1  # increment time step
 
-        if sr_matrix is not None:
-            grads[-1] = grads[-1].reshape(sr_matrix.shape[0], -1)
-            grads[-1] = np.linalg.pinv(sr_matrix) @ grads[-1]
-            grads[-1] = grads[-1].reshape(self.kernel.shape)
-
         param_keys = ["v_bias", "h_bias", "kernel"]
         params = {key: getattr(self, key) for key in param_keys}
         m_params = {key: getattr(self, "m_" + key) for key in param_keys}
         v_params = {key: getattr(self, "v_" + key) for key in param_keys}
         grads_dict = {key: grad for key, grad in zip(param_keys, grads)}
+
+        if sr_matrix is not None:
+            grads_dict["kernel"] = grads_dict["kernel"].reshape(sr_matrix.shape[0], -1)
+            grads_dict["kernel"] = np.linalg.pinv(sr_matrix) @ grads_dict["kernel"]
+            grads_dict["kernel"] = grads_dict["kernel"].reshape(self.kernel.shape)
 
         for key in param_keys:
             # Update m and v with the new gradients

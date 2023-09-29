@@ -26,7 +26,7 @@ eta = 0.05
 training_cycles = [100_000]  # this is cycles for the NN
 mcmc_alg = "lmh"
 backend = "numpy"
-optimizer = "gd"
+optimizer = "adam"
 batch_size = 5_000
 detailed = True
 
@@ -40,7 +40,7 @@ import time
 # for max_iter in training_cycles:
 start = time.time()
 for i in range(5):
-    for sr in [True]:
+    for sr in [True, False]:
         system = nqs.RBM(
             nparticles,
             dim,
@@ -109,7 +109,7 @@ for i in range(5):
         dfs_mean.append(df_mean)
 end = time.time()
 print((end - start) / 5)
-exit()
+
 
 df_final = pd.concat(dfs_mean)
 # Save results

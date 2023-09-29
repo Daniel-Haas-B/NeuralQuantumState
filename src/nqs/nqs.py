@@ -164,14 +164,14 @@ class RBM:
             raise TypeError("'optimizer' must be passed as str")
 
         if optimizer == "gd":
-            self._optimizer = gd.Gd(eta)  # dumb for now
+            self._optimizer = gd.Gd(self._params, eta)  # dumb for now
         elif optimizer == "adam":
             beta1 = kwargs["beta1"] if "beta1" in kwargs else 0.9
             beta2 = kwargs["beta2"] if "beta2" in kwargs else 0.999
             epsilon = kwargs["epsilon"] if "epsilon" in kwargs else 1e-8
             self._optimizer = adam.Adam(
-                eta, beta1=beta1, beta2=beta2, epsilon=epsilon
-            )  # dumb for now
+                self._params, eta, beta1=beta1, beta2=beta2, epsilon=epsilon
+            )  # _params gets passed to construct the mom and v arrays
         else:
             msg = "Unsupported optimizer, only adam 'adam' or gd 'gd' is allowed"
             raise ValueError(msg)

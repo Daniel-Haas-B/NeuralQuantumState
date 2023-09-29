@@ -27,7 +27,7 @@ training_cycles = [50_000, 100_000, 250_000, 500_000]
 dfs = []
 
 for max_iter in training_cycles:
-    system = nqs.RBMNQS(
+    system = nqs.RBM(
         nparticles,
         dim,
         nhidden=nhidden,

@@ -8,7 +8,7 @@ scale = 3.0  # Scale of proposal distribution
 sigma2 = 1.0  # Variance of Gaussian layer in the RBM
 
 # Instantiate the model
-system = nqs.RBMNQS(
+system = nqs.RBM(
     nparticles,
     dim,
     nhidden=nhidden,

@@ -23,9 +23,7 @@ class Sampler:
 
         # TODO: accept biases and kernel as parameters and
         # assume they are optimized if passed
-        v_bias = params["v_bias"]
-        h_bias = params["h_bias"]
-        kernel = params["kernel"]
+        v_bias, h_bias, kernel = params.get(["v_bias", "h_bias", "kernel"])
         scale = self._scale
 
         nchains = check_and_set_nchains(nchains, self._logger)

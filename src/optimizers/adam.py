@@ -39,26 +39,26 @@ class Adam(Optimizer):
         self.v_bias = v_bias
         self.h_bias = h_bias
         self.kernel = kernel
+
+        # these are optimizer specific but the others should not be
         self.m_v_bias = np.zeros_like(v_bias)
         self.v_v_bias = np.zeros_like(v_bias)
-
         self.m_h_bias = np.zeros_like(h_bias)
         self.v_h_bias = np.zeros_like(h_bias)
-
         self.m_kernel = np.zeros_like(kernel)
         self.v_kernel = np.zeros_like(kernel)
 
-    def step(self, grads, sr_matrix=None):
-        """Update the parameters."""
+    def step(self, params, grads, sr_matrix=None):
+        """Update the parameters. Maybe performance bottleneck?"""
         self.t += 1  # increment time step
 
-        param_keys = ["v_bias", "h_bias", "kernel"]
-        params = {key: getattr(self, key) for key in param_keys}
+        param_keys = params.keys()
         m_params = {key: getattr(self, "m_" + key) for key in param_keys}
         v_params = {key: getattr(self, "v_" + key) for key in param_keys}
         grads_dict = {key: grad for key, grad in zip(param_keys, grads)}
 
         if sr_matrix is not None:
+            # we really need to change this later!
             grads_dict["kernel"] = grads_dict["kernel"].reshape(sr_matrix.shape[0], -1)
             grads_dict["kernel"] = np.linalg.pinv(sr_matrix) @ grads_dict["kernel"]
             grads_dict["kernel"] = grads_dict["kernel"].reshape(self.kernel.shape)
@@ -80,8 +80,7 @@ class Adam(Optimizer):
             params[key] -= self.eta * m_hat / (np.sqrt(v_hat) + self.epsilon)
 
             # Set the updated values back to the instance variables
-            setattr(self, key, params[key])
             setattr(self, "m_" + key, m_params[key])
             setattr(self, "v_" + key, v_params[key])
 
-        return params["v_bias"], params["h_bias"], params["kernel"]
+        return params

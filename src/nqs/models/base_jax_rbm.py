@@ -70,9 +70,9 @@ class BaseJAXRBM:
         return jnp.exp(self.logprob(r, v_bias, h_bias, kernel))
 
     @partial(jax.jit, static_argnums=(0,))
-    def logprob(self, r, v_bias, h_bias, kernel):
+    def logprob(self, r, params):
         """Log probability amplitude"""
-        psi2 = self._rbm_psi_repr * self._log_rbm(r, v_bias, h_bias, kernel).sum()
+        psi2 = self._rbm_psi_repr * self._log_rbm(r, params).sum()
         return psi2
 
     @partial(jax.jit, static_argnums=(0,))

@@ -34,7 +34,7 @@ from optimizers import adam, gd
 warnings.filterwarnings("ignore", message="divide by zero encountered")
 
 
-class RBMNQS:
+class NQS:
     def __init__(
         self,
         nparticles,
@@ -47,8 +47,9 @@ class RBMNQS:
         logger_level="INFO",
         rng=None,
         use_sr=False,
+        nqs_type=None,
     ):
-        """RBM Neural Network Quantum State"""
+        """Neural Network Quantum State"""
 
         self._check_logger(log, logger_level)
         self._log = log
@@ -56,6 +57,7 @@ class RBMNQS:
         self._optimizer = None
         self.sr_matrix = None
         self.use_sr = use_sr
+        self.nqs_type = nqs_type
 
         if self._log:
             self.logger = setup_logger(self.__class__.__name__, level=logger_level)
@@ -71,9 +73,9 @@ class RBMNQS:
             self.rng = default_rng
 
         if nqs_repr == "psi":
-            factor = 1.0
+            self.factor = 1.0
         elif nqs_repr == "psi2":
-            factor = 0.5
+            self.factor = 0.5
         else:
             msg = (
                 "The NQS can only represent the wave function itself "
@@ -81,36 +83,11 @@ class RBMNQS:
             )
             raise ValueError(msg)
 
-        if backend == "numpy":
-            if interaction:
-                self.rbm = IRBM(self._P, self._dim, factor=factor)
-            else:
-                self.rbm = NIRBM(factor=factor)
-        elif backend == "jax":
-            if interaction:
-                self.rbm = JAXIRBM(self._P, self._dim, factor=factor)
-            else:
-                self.rbm = JAXNIRBM(factor=factor)
-        else:
-            msg = "Unsupported backend, only 'numpy' or 'jax' is allowed"
-            raise ValueError(msg)
-
-        # set mcmc step
-        # self._sampler = Sampler(self.rbm, self.rng, logger=self.logger)
-
-        if self._log:
-            neuron_str = "neurons" if self._nhidden > 1 else "neuron"
-            msg = (
-                f"Neural Network Quantum State initialized as RBM with "
-                f"{self._nhidden} hidden {neuron_str}"
-            )
-            self.logger.info(msg)
-
         # flags
         self._is_initialized_ = False
         self._is_trained_ = False
         self._is_tuned_ = False
-        self._sampling_performed_ = False
+        self._sampling_performed
 
     def set_sampler(self, mcmc_alg, scale=0.5):
         """
@@ -134,19 +111,19 @@ class RBMNQS:
         """
         Set the optimizer algorithm to be used for param update.
         """
-
+        self._eta = eta
         if not isinstance(optimizer, str):
             raise TypeError("'optimizer' must be passed as str")
 
         if optimizer == "gd":
-            self._optimizer = gd.Gd(eta)  # dumb for now
+            self._optimizer = gd.Gd(self._params, eta)  # dumb for now
         elif optimizer == "adam":
             beta1 = kwargs["beta1"] if "beta1" in kwargs else 0.9
             beta2 = kwargs["beta2"] if "beta2" in kwargs else 0.999
             epsilon = kwargs["epsilon"] if "epsilon" in kwargs else 1e-8
             self._optimizer = adam.Adam(
-                eta, beta1=beta1, beta2=beta2, epsilon=epsilon
-            )  # dumb for now
+                self._params, eta, beta1=beta1, beta2=beta2, epsilon=epsilon
+            )  # _params gets passed to construct the mom and v arrays
         else:
             msg = "Unsupported optimizer, only adam 'adam' or gd 'gd' is allowed"
             raise ValueError(msg)
@@ -173,28 +150,115 @@ class RBMNQS:
         if not isinstance(logger_level, str):
             raise TypeError("'logger_level' must be passed as str")
 
+    def sample(self, nsamples, nchains=1, seed=None):
+        """helper for the sample method from the Sampler class"""
+
+        self._is_initialized()
+        self._is_trained()
+
+        system_info = {
+            "nparticles": self._P,
+            "dim": self._dim,
+            "eta": self._eta,
+            "nvisible": self._nvisible,
+            "nhidden": self._nhidden,
+            "mcmc_alg": self.mcmc_alg,
+            "nqs_type": self.nqs_type,
+            "training_cycles": self._training_cycles,
+            "training_batch": self._training_batch,
+            "sr": self.use_sr,
+        }
+
+        system_info = pd.DataFrame(system_info, index=[0])
+        sample_results = self._sampler.sample(
+            self.state, self._params, nsamples, nchains, seed
+        )
+        system_info_repeated = system_info.loc[
+            system_info.index.repeat(len(sample_results))
+        ].reset_index(drop=True)
+
+        self._results = pd.concat([system_info_repeated, sample_results], axis=1)
+
+        return self._results
+
+
+class RBM(NQS):
+    def __init__(
+        self,
+        nparticles,
+        dim,
+        nhidden=1,
+        interaction=False,
+        nqs_repr="psi2",
+        backend="numpy",
+        log=True,
+        logger_level="INFO",
+        rng=None,
+        use_sr=False,
+    ):
+        """RBM Neural Network Quantum State"""
+        super().__init__(
+            nparticles,
+            dim,
+            nhidden,
+            interaction,
+            nqs_repr,
+            backend,
+            log,
+            logger_level,
+            rng,
+            use_sr,
+            nqs_type="rbm",
+        )
+
+        self._nvisible = self._P * self._dim
+
+        if backend == "numpy":
+            if interaction:
+                self.rbm = IRBM(self._P, self._dim, factor=self.factor)
+            else:
+                self.rbm = NIRBM(factor=self.factor)
+        elif backend == "jax":
+            if interaction:
+                self.rbm = JAXIRBM(self._P, self._dim, factor=self.factor)
+            else:
+                self.rbm = JAXNIRBM(factor=self.factor)
+        else:
+            msg = "Unsupported backend, only 'numpy' or 'jax' is allowed"
+            raise ValueError(msg)
+
+        if self._log:
+            neuron_str = "neurons" if self._nhidden > 1 else "neuron"
+            msg = (
+                f"Neural Network Quantum State initialized as RBM with "
+                f"{self._nhidden} hidden {neuron_str}"
+            )
+            self.logger.info(msg)
+
     def init(self, sigma2=1.0, seed=None):
         """ """
         self.rbm.sigma2 = sigma2
-        # self.scale = scale
-        # print("init scale", self.scale)
+
         rng = self.rng(seed)
 
         r = rng.standard_normal(size=self._nvisible)
 
         # Initialize visible bias
-        self._v_bias = rng.standard_normal(size=self._nvisible) * 0.01
+        v_bias = rng.standard_normal(size=self._nvisible) * 0.01
+        h_bias = rng.standard_normal(size=self._nhidden) * 0.01
+        kernel = rng.standard_normal(size=(self._nvisible, self._nhidden))
+        kernel *= np.sqrt(1 / self._nvisible)
 
-        # Initialize hidden bias
-        self._h_bias = rng.standard_normal(size=self._nhidden) * 0.01
+        self._params = Parameter()
+        self._params.set(["v_bias", "h_bias", "kernel"], [v_bias, h_bias, kernel])
 
-        # Initialize kernel (weight matrix)
-        self._kernel = rng.standard_normal(size=(self._nvisible, self._nhidden))
-        # self._kernel *= np.sqrt(1 / self._nvisible)
-        self._kernel *= np.sqrt(1 / self._nvisible)
-        # self._kernel *= np.sqrt(2 / (self._nvisible + self._nhidden))
-
-        logp = self.rbm.logprob(r, self._v_bias, self._h_bias, self._kernel)
+        # make logprob deal with the generator later instead of indexing
+        logp = self.rbm.logprob(
+            r,
+            self._params.get(["v_bias"]),
+            self._params.get(["h_bias"]),
+            self._params.get(["kernel"]),
+        )
         self.state = State(r, logp, 0, 0)
         self._is_initialized_ = True
 
@@ -202,7 +266,6 @@ class RBMNQS:
         self,
         max_iter=100_000,
         batch_size=1000,
-        eta=0.01,
         early_stop=False,  # set to True later
         rtol=1e-05,
         atol=1e-08,
@@ -216,7 +279,6 @@ class RBMNQS:
         self._is_initialized()
         self._training_cycles = max_iter
         self._training_batch = batch_size
-        self._eta = eta
 
         if mcmc_alg is not None:
             self._sampler = Sampler(
@@ -224,9 +286,7 @@ class RBMNQS:
             )
 
         state = self.state
-        v_bias = self._v_bias
-        h_bias = self._h_bias
-        kernel = self._kernel
+        v_bias, h_bias, kernel = self._params.get(["v_bias", "h_bias", "kernel"])
 
         # Reset n_accepted
         state = State(state.positions, state.logp, 0, state.delta)
@@ -242,12 +302,6 @@ class RBMNQS:
         else:
             t_range = range(max_iter)
 
-        # initialize optimizer
-        # if adam, it will also create the momentum objects,
-        self._optimizer.init(
-            v_bias, h_bias, kernel
-        )  # this creates a copy of the parameters, maybe not efficient
-
         # Config
         did_early_stop = False
         seed_seq = generate_seed_sequence(seed, 1)[0]
@@ -259,7 +313,6 @@ class RBMNQS:
 
         # Training
         for _ in t_range:
-            print
             # sampler step
             state = self._sampler.step(state, v_bias, h_bias, kernel, seed_seq)
 
@@ -336,12 +389,9 @@ class RBMNQS:
                     h_bias_old = copy.deepcopy(h_bias)  # noqa
                     kernel_old = copy.deepcopy(kernel)  # noqa
 
-                # Gradient descent
-                v_bias, h_bias, kernel = self._optimizer.step(
-                    final_grads, self.sr_matrix
-                )
-
-                # if optimizer == "gd": but also adam. Should be generalized
+                # Descent
+                params = self._optimizer.step(self._params, final_grads, self.sr_matrix)
+                v_bias, h_bias, kernel = params.get(["v_bias", "h_bias", "kernel"])
 
                 energies = []
                 grads_v_bias = []
@@ -356,11 +406,9 @@ class RBMNQS:
         # msg: Early stopping, training converged
 
         # end
-        # Update shared values
+        # Update shared values. we separate them before because we want to keep the old values
         self.state = state
-        self._v_bias = v_bias
-        self._h_bias = h_bias
-        self._kernel = kernel
+        self._params.set(["v_bias", "h_bias", "kernel"], [v_bias, h_bias, kernel])
         # self.scale = scale
         self._is_trained_ = True
 
@@ -381,9 +429,8 @@ class RBMNQS:
 
         self._is_initialized()
         state = self.state
-        v_bias = self._v_bias
-        h_bias = self._h_bias
-        kernel = self._kernel
+        v_bias, h_bias, kernel = self._params.get(["v_bias", "h_bias", "kernel"])
+
         scale = self.scale
 
         if mcmc_alg is not None:
@@ -429,80 +476,22 @@ class RBMNQS:
 
         # Update shared values
         self.state = state
-        self._v_bias = v_bias
-        self._h_bias = h_bias
-        self._kernel = kernel
+        self._params.set(["v_bias", "h_bias", "kernel"], [v_bias, h_bias, kernel])
         self.scale = scale
         self._is_tuned_ = True
 
-    def sample(self, nsamples, nchains=1, seed=None):
-        """helper for the sample method from the Sampler class"""
 
-        self._is_initialized()
-        self._is_trained()
+class Parameter:
+    def __init__(self) -> None:
+        self.data = {}
 
-        params = {
-            "v_bias": self._v_bias,
-            "h_bias": self._h_bias,
-            "kernel": self._kernel,
-        }
+    def set(self, names, values):
+        for key, value in zip(names, values):
+            self.data[key] = value
 
-        system_info = {
-            "nparticles": self._P,
-            "dim": self._dim,
-            "eta": self._eta,
-            "nvisible": self._nvisible,
-            "nhidden": self._nhidden,
-            "mcmc_alg": self.mcmc_alg,
-            "training_cycles": self._training_cycles,
-            "training_batch": self._training_batch,
-            "sr": self.use_sr,
-        }
+    def get(self, names):
+        # note this can be a list of names
+        return [self.data[name] for name in names]
 
-        system_info = pd.DataFrame(system_info, index=[0])
-        sample_results = self._sampler.sample(
-            self.state, params, nsamples, nchains, seed
-        )
-        system_info_repeated = system_info.loc[
-            system_info.index.repeat(len(sample_results))
-        ].reset_index(drop=True)
-
-        # combine system info and sample results
-
-        self._results = pd.concat([system_info_repeated, sample_results], axis=1)
-
-        return self._results
-
-    # @property
-    # def scale(self):
-    #    return self._sampler.scale
-
-    # @scale.setter
-    # def scale(self, value):
-    #    self._sampler.scale = value
-
-    @property
-    def results(self):
-        try:
-            return self._results
-        except AttributeError:
-            msg = "Unavailable, a call to sample must be made first"
-            raise errors.SamplingNotPerformed(msg)
-
-    @property
-    def energies(self):
-        try:
-            return self._energies
-        except AttributeError:
-            msg = "Unavailable, a call to sample must be made first"
-            raise errors.SamplingNotPerformed(msg)
-
-    def to_csv(self, filename):
-        """Write (full) results dataframe to csv.
-
-        Parameters
-        ----------
-        filename : str
-            Output filename
-        """
-        self.results.to_csv(filename, index=False)
+    def keys(self):
+        return self.data.keys()

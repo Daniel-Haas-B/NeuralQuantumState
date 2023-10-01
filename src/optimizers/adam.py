@@ -62,6 +62,7 @@ class Adam(Optimizer):
 
             # Update parameters using Adam optimization formula
             current_value = params.get([key])[0]
+
             updated_value = current_value - self.eta * m_hat / (
                 np.sqrt(v_hat) + self.epsilon
             )

@@ -127,7 +127,7 @@ class BaseRBM:
 
         return gr
 
-    def compute_sr_matrix(self, expval_grad_kernel, grads_kernel, shift=1e-9):
+    def compute_sr_matrix(self, expval_grad_kernel, grads_kernel, shift=1e-4):
         """
         WIP: for now this does not involve the averages because r will be a single sample
         Compute the matrix for the stochastic reconfiguration algorithm

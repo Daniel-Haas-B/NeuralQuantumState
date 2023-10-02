@@ -9,7 +9,7 @@ class MetroHastings(Sampler):
     def __init__(self, rbm, rng, scale, logger=None):
         super().__init__(rbm, rng, scale, logger)
 
-    def _step(self, state, v_bias, h_bias, kernel, seed):
+    def _step(self, state, params, seed):
         """One step of the Langevin Metropolis-Hastings algorithm
 
         Parameters
@@ -35,6 +35,9 @@ class MetroHastings(Sampler):
         rng = self._rng(next_gen)
 
         # Compute drift force at current positions
+        v_bias, h_bias, kernel = params.get(
+            ["v_bias", "h_bias", "kernel"]
+        )  # for now! Change this please
         F = self._rbm.drift_force(state.positions, v_bias, h_bias, kernel)
 
         # Sample proposal positions, i.e., move walkers
@@ -112,5 +115,5 @@ class MetroHastings(Sampler):
 
         return scale
 
-    def step(self, state, v_bias, h_bias, kernel, seed):
-        return self._step(state, v_bias, h_bias, kernel, seed)
+    def step(self, state, params, seed):
+        return self._step(state, params, seed)

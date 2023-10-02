@@ -59,19 +59,28 @@ class BaseRBM:
         """Probability amplitude"""
         return np.exp(self.logprob(r, v_bias, h_bias, kernel))
 
-    def logprob(self, r, v_bias, h_bias, kernel):
+    def logprob(self, r, params):
         """Log probability amplitude"""
+        print("1")
+        print("params.type", type(params))
+        v_bias, h_bias, kernel = params.get(["v_bias", "h_bias", "kernel"])
+        print("2")
         psi2 = self._rbm_psi_repr * self._log_rbm(r, v_bias, h_bias, kernel).sum()
         return psi2
 
-    def _grad_wf(self, r, v_bias, h_bias, kernel):
+    def grad_wf(self, r, params):
+        """
+        #TODO: maybe we dont need even to pass the params
+        """
+        v_bias, h_bias, kernel = params.get(["v_bias", "h_bias", "kernel"])
         _expit = expit(h_bias + (r @ kernel) * self._sigma2_factor)
         gr = -(r - v_bias) + kernel @ _expit
         gr *= self._sigma2
         gr *= self._factor
         return gr
 
-    def _laplace_wf(self, r, v_bias, h_bias, kernel):
+    def laplacian_wf(self, r, params):
+        v_bias, h_bias, kernel = params.get(["v_bias", "h_bias", "kernel"])
         _expit = expit(h_bias + (r @ kernel) * self._sigma2_factor)
         _expos = expit(-h_bias - (r @ kernel) * self._sigma2_factor)
         kernel2 = kernel * kernel
@@ -79,19 +88,6 @@ class BaseRBM:
         gr = -self._sigma2 + self._sigma4 * kernel2 @ exp_prod
         gr *= self._factor
         return gr
-
-    def _local_kinetic_energy(self, r, v_bias, h_bias, kernel):
-        """Evaluate the local kinetic energy"""
-        _laplace = self._laplace_wf(r, v_bias, h_bias, kernel).sum()
-        _grad = self._grad_wf(r, v_bias, h_bias, kernel)
-        _grad2 = np.sum(_grad * _grad)
-        return -0.5 * (_laplace + _grad2)
-
-    def local_energy(self, r, v_bias, h_bias, kernel):
-        """Local energy of the system"""
-        ke = self._local_kinetic_energy(r, v_bias, h_bias, kernel)
-        pe = self.potential(r)
-        return ke + pe
 
     def drift_force(self, r, v_bias, h_bias, kernel):
         """Drift force at each particle's location"""

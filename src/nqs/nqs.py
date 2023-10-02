@@ -18,6 +18,8 @@ from nqs.models import IRBM, JAXIRBM, JAXNIRBM, NIRBM
 from numpy.random import default_rng
 from tqdm.auto import tqdm
 
+from physics.hamiltonians import HarmonicOscillator as HO
+
 # sys.path.insert(0, "../samplers/")
 
 from samplers.metropolis_hastings import MetroHastings
@@ -42,14 +44,15 @@ class NQS:
         nhidden=1,
         interaction=False,
         nqs_repr="psi2",
-        backend="numpy",
         log=True,
         logger_level="INFO",
         rng=None,
         use_sr=False,
         nqs_type=None,
     ):
-        """Neural Network Quantum State"""
+        """Neural Network Quantum State
+        #TODO: make NQS have a set_hamiltoian method, which takes a hamiltonian object
+        """
 
         self._check_logger(log, logger_level)
         self._log = log
@@ -58,16 +61,16 @@ class NQS:
         self.sr_matrix = None
         self.use_sr = use_sr
         self.nqs_type = nqs_type
+        self.hamiltoian = None
 
         if self._log:
             self.logger = setup_logger(self.__class__.__name__, level=logger_level)
         else:
             self.logger = None
 
-        self._P = nparticles
+        self._N = nparticles
         self._dim = dim
         self._nhidden = nhidden
-        self._nvisible = self._P * self._dim
 
         if rng is None:
             self.rng = default_rng
@@ -88,6 +91,21 @@ class NQS:
         self._is_trained_ = False
         self._is_tuned_ = False
         self._sampling_performed
+
+    def set_hamiltoian(self, type_, int_type, **kwargs):
+        """
+        Set the hamiltonian to be used for sampling.
+        For now we only support the Harmonic Oscillator.
+
+        If int_type is None, we assume non interacting particles.
+        """
+        if type_.lower() == "ho":
+            self.hamiltoian = HO(self._N, self._dim, int_type, **kwargs)
+
+        else:
+            raise NotImplementedError(
+                "Only the Harmonic Oscillator is supported for now."
+            )
 
     def set_sampler(self, mcmc_alg, scale=0.5):
         """
@@ -157,7 +175,7 @@ class NQS:
         self._is_trained()
 
         system_info = {
-            "nparticles": self._P,
+            "nparticles": self._N,
             "dim": self._dim,
             "eta": self._eta,
             "nvisible": self._nvisible,
@@ -203,6 +221,301 @@ class RBM(NQS):
             nhidden,
             interaction,
             nqs_repr,
+            log,
+            logger_level,
+            rng,
+            use_sr,
+            "rbm",
+        )
+
+        self._nvisible = self._N * self._dim
+        if backend == "numpy":
+            if interaction:
+                self.rbm = IRBM(self._N, self._dim, factor=self.factor)
+            else:
+                self.rbm = NIRBM(factor=self.factor)
+        elif backend == "jax":
+            if interaction:
+                self.rbm = JAXIRBM(self._N, self._dim, factor=self.factor)
+            else:
+                self.rbm = JAXNIRBM(factor=self.factor)
+        else:
+            msg = "Unsupported backend, only 'numpy' or 'jax' is allowed"
+            raise ValueError(msg)
+
+        if self._log:
+            neuron_str = "neurons" if self._nhidden > 1 else "neuron"
+            msg = (
+                f"Neural Network Quantum State initialized as RBM with "
+                f"{self._nhidden} hidden {neuron_str}"
+            )
+            self.logger.info(msg)
+
+    def init(self, sigma2=1.0, seed=None):
+        """ """
+        self.rbm.sigma2 = sigma2
+
+        rng = self.rng(seed)
+
+        r = rng.standard_normal(size=self._nvisible)
+
+        # Initialize visible bias
+        v_bias = rng.standard_normal(size=self._nvisible) * 0.01
+        h_bias = rng.standard_normal(size=self._nhidden) * 0.01
+        kernel = rng.standard_normal(size=(self._nvisible, self._nhidden))
+        kernel *= np.sqrt(1 / self._nvisible)
+
+        self._params = Parameter()
+        self._params.set(["v_bias", "h_bias", "kernel"], [v_bias, h_bias, kernel])
+
+        # make logprob deal with the generator later instead of indexing
+        logp = self.rbm.logprob(r, self._params)
+        self.state = State(r, logp, 0, 0)
+        self._is_initialized_ = True
+
+    def train(
+        self,
+        max_iter=100_000,
+        batch_size=1000,
+        early_stop=False,  # set to True later
+        rtol=1e-05,
+        atol=1e-08,
+        seed=None,
+        mcmc_alg=None,
+    ):
+        """
+        Train the NQS model using the specified gradient method.
+        """
+
+        self._is_initialized()
+        self._training_cycles = max_iter
+        self._training_batch = batch_size
+
+        if mcmc_alg is not None:
+            self._sampler = Sampler(
+                self.mcmc_alg, self.rbm, self.rng, logger=self.logger
+            )
+
+        state = self.state
+        v_bias, h_bias, kernel = self._params.get(["v_bias", "h_bias", "kernel"])
+
+        # Reset n_accepted
+        state = State(state.positions, state.logp, 0, state.delta)
+
+        if self._log:
+            t_range = tqdm(
+                range(max_iter),
+                desc="[Training progress]",
+                position=0,
+                leave=True,
+                colour="green",
+            )
+        else:
+            t_range = range(max_iter)
+
+        # Config
+        did_early_stop = False
+        seed_seq = generate_seed_sequence(seed, 1)[0]
+        steps_before_optimize = batch_size
+        energies = []
+        grads_v_bias = []
+        grads_h_bias = []
+        grads_kernel = []
+
+        # Training
+        for _ in t_range:
+            # sampler step
+            state = self._sampler.step(state, self._params, seed_seq)
+
+            # getting and saving local energy
+            # print("state.positions", state.positions.shape)
+
+            # loc_energy = self.rbm.local_energy(state.positions, v_bias, h_bias, kernel)
+            loc_energy = self.hamiltoian.local_energy(
+                self.rbm, state.positions, self._params
+            )
+            energies.append(loc_energy)
+
+            # getting and saving gradients
+            gr_v_bias, gr_h_bias, gr_kernel = self.rbm.grads(
+                state.positions, v_bias, h_bias, kernel
+            )
+
+            grads_v_bias.append(gr_v_bias)
+            grads_h_bias.append(gr_h_bias)
+            grads_kernel.append(gr_kernel)
+
+            steps_before_optimize -= 1
+            # optimize
+            if steps_before_optimize == 0:
+                # Expectation values
+                energies = np.array(energies)
+                grads_v_bias = np.array(grads_v_bias)
+                grads_h_bias = np.array(grads_h_bias)
+                grads_kernel = np.array(grads_kernel)
+
+                expval_energy = np.mean(energies)
+                expval_grad_v_bias = np.mean(grads_v_bias, axis=0)
+                expval_grad_h_bias = np.mean(grads_h_bias, axis=0)
+                expval_grad_kernel = np.mean(
+                    grads_kernel, axis=0
+                )  # we shall use this in SR. I think this is avg dlogpsi/dW
+
+                if self.use_sr:
+                    self.sr_matrix = self.rbm.compute_sr_matrix(
+                        expval_grad_kernel, grads_kernel
+                    )
+
+                expval_energy_v_bias = np.mean(
+                    energies.reshape(batch_size, 1) * grads_v_bias, axis=0
+                )
+                expval_energy_h_bias = np.mean(
+                    energies.reshape(batch_size, 1) * grads_h_bias, axis=0
+                )
+                expval_energy_kernel = np.mean(
+                    energies.reshape(batch_size, 1, 1) * grads_kernel, axis=0
+                )
+
+                # variance = np.mean(energies**2) - energy**2
+
+                # Gradients
+                expval_energies = [
+                    expval_energy_v_bias,
+                    expval_energy_h_bias,
+                    expval_energy_kernel,
+                ]
+                expval_grads = [
+                    expval_grad_v_bias,
+                    expval_grad_h_bias,
+                    expval_grad_kernel,
+                ]
+
+                final_grads = [
+                    2 * (expval_energy_param - expval_energy * expval_grad_param)
+                    for expval_energy_param, expval_grad_param in zip(
+                        expval_energies, expval_grads
+                    )
+                ]
+
+                if early_stopping:
+                    # make copies of current values before update
+                    v_bias_old = copy.deepcopy(v_bias)  # noqa
+                    h_bias_old = copy.deepcopy(h_bias)  # noqa
+                    kernel_old = copy.deepcopy(kernel)  # noqa
+
+                # Descent
+                params = self._optimizer.step(self._params, final_grads, self.sr_matrix)
+                v_bias, h_bias, kernel = params.get(["v_bias", "h_bias", "kernel"])
+
+                energies = []
+                grads_v_bias = []
+                grads_h_bias = []
+                grads_kernel = []
+                steps_before_optimize = batch_size
+
+        # early stop flag activated
+        if did_early_stop:
+            msg = "Early stopping, training converged"
+            self.logger.info(msg)
+        # msg: Early stopping, training converged
+
+        # end
+        # Update shared values. we separate them before because we want to keep the old values
+        self.state = state
+        self._params.set(["v_bias", "h_bias", "kernel"], [v_bias, h_bias, kernel])
+        # self.scale = scale
+        self._is_trained_ = True
+
+    def tune(
+        self,
+        tune_iter=20_000,
+        tune_interval=500,
+        early_stop=False,  # set to True later
+        rtol=1e-05,
+        atol=1e-08,
+        seed=None,
+        mcmc_alg=None,
+    ):
+        """
+        BROKEN NOW due to self.scale
+        Tune proposal scale so that the acceptance rate is around 0.5.
+        """
+
+        self._is_initialized()
+        state = self.state
+        v_bias, h_bias, kernel = self._params.get(["v_bias", "h_bias", "kernel"])
+
+        scale = self.scale
+
+        if mcmc_alg is not None:
+            self._sampler = Sampler(self.mcmc_alg, self.rbm, self.rng, self._log)
+
+        # Used to throw warnings if tuned alg mismatch chosen alg
+        # in other procedures
+        self._tuned_mcmc_alg = self.mcmc_alg
+
+        # Config
+        # did_early_stop = False
+        seed_seq = generate_seed_sequence(seed, 1)[0]
+
+        # Reset n_accepted
+        state = State(state.positions, state.logp, 0, state.delta)
+
+        if self._log:
+            t_range = tqdm(
+                range(tune_iter),
+                desc="[Tuning progress]",
+                position=0,
+                leave=True,
+                colour="green",
+            )
+        else:
+            t_range = range(tune_iter)
+
+        steps_before_tune = tune_interval
+
+        for i in t_range:
+            state = self._sampler.step(state, v_bias, h_bias, kernel, seed_seq)
+            steps_before_tune -= 1
+
+            if steps_before_tune == 0:
+                # Tune proposal scale
+                old_scale = scale
+                accept_rate = state.n_accepted / tune_interval
+                scale = self._sampler.tune_scale(old_scale, accept_rate)
+
+                # Reset
+                steps_before_tune = tune_interval
+                state = State(state.positions, state.logp, 0, state.delta)
+
+        # Update shared values
+        self.state = state
+        self._params.set(["v_bias", "h_bias", "kernel"], [v_bias, h_bias, kernel])
+        self.scale = scale
+        self._is_tuned_ = True
+
+
+class FFNN(NQS):
+    def __init__(
+        self,
+        nparticles,
+        dim,
+        nhidden=1,
+        interaction=False,
+        nqs_repr="psi2",
+        backend="numpy",
+        log=True,
+        logger_level="INFO",
+        rng=None,
+        use_sr=False,
+    ):
+        """RBM Neural Network Quantum State"""
+        super().__init__(
+            nparticles,
+            dim,
+            nhidden,
+            interaction,
+            nqs_repr,
             backend,
             log,
             logger_level,
@@ -211,16 +524,16 @@ class RBM(NQS):
             nqs_type="rbm",
         )
 
-        self._nvisible = self._P * self._dim
+        self._nvisible = self._N * self._dim
 
         if backend == "numpy":
             if interaction:
-                self.rbm = IRBM(self._P, self._dim, factor=self.factor)
+                self.rbm = IRBM(self._N, self._dim, factor=self.factor)
             else:
                 self.rbm = NIRBM(factor=self.factor)
         elif backend == "jax":
             if interaction:
-                self.rbm = JAXIRBM(self._P, self._dim, factor=self.factor)
+                self.rbm = JAXIRBM(self._N, self._dim, factor=self.factor)
             else:
                 self.rbm = JAXNIRBM(factor=self.factor)
         else:
@@ -314,12 +627,16 @@ class RBM(NQS):
         # Training
         for _ in t_range:
             # sampler step
-            state = self._sampler.step(state, v_bias, h_bias, kernel, seed_seq)
+            state = self._sampler.step(
+                self.rbm, state, v_bias, h_bias, kernel, seed_seq
+            )
 
             # getting and saving local energy
             # print("state.positions", state.positions.shape)
 
-            loc_energy = self.rbm.local_energy(state.positions, v_bias, h_bias, kernel)
+            loc_energy = self.hamiltoian.local_energy(
+                self.rbm, state.positions, self._params
+            )
             energies.append(loc_energy)
 
             # getting and saving gradients
@@ -487,11 +804,22 @@ class Parameter:
 
     def set(self, names, values):
         for key, value in zip(names, values):
-            self.data[key] = value
+            self.data[key] = [value]  # Store values as lists
 
     def get(self, names):
-        # note this can be a list of names
+        # Return the lists (chains) for each name
         return [self.data[name] for name in names]
 
     def keys(self):
         return self.data.keys()
+
+    def parallelize(self, nchains):
+        """
+        will make something like
+            v_bias = [v_bias, v_bias, v_bias]
+            h_bias = [h_bias, h_bias, h_bias]
+            kernel = [kernel, kernel, kernel]
+        If self.data = {'v_bias': v_bias, 'h_bias': h_bias, 'kernel': kernel}
+        """
+        for key in self.data.keys():
+            self.data[key] = self.data[key] * nchains

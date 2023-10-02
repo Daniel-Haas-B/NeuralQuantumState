@@ -1,4 +1,4 @@
-from abc import abstractmethod
+# from abc import abstractmethod
 from functools import partial
 
 import jax
@@ -15,10 +15,13 @@ jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
 
 
-class BaseFFNN:
-    """Base class for creating a quantum system where the wave function is
+class FFNN:
+    """
+    WIP
+    Base class for creating a quantum system where the wave function is
     represented by a FFNN.
-
+    There will be no analytical expressions for the derivatives, so we
+    should use numerical differentiation instead.
     The implementation assumes a logarithmic wave function.
     """
 
@@ -56,13 +59,13 @@ class BaseFFNN:
         """Evaluate the wave function"""
         return self._factor * self._log_ffnn(r, params).sum()
 
-    @abstractmethod
-    def potential(self):
-        """Potential energy function.
-
-        To be overwritten by subclass.
+    @partial(jax.jit, static_argnums=(0,))
+    def potential(self, r):
+        """Potential energy function
+        This assumes non interacting particles!
+        #TODO: add interaction
         """
-        raise NotImplementedError
+        return 0.5 * jnp.sum(r * r)
 
     @partial(jax.jit, static_argnums=(0,))
     def pdf(self, r, params):
@@ -78,67 +81,36 @@ class BaseFFNN:
         """Gradient of the wave function wrt position"""
         return
 
-    def _laplace_wf(self, r, params):
+    def laplacian_wf(self, r, params):
         """Laplacian of the wave function"""
 
         return
 
     def _local_kinetic_energy(self, r, params):
         """Evaluate the local kinetic energy"""
-        _laplace = self._laplace_wf(r, params).sum()
+        _laplace = self.laplacian_wf(r, params).sum()
         _grad = self._grad_wf(r, params)
         _grad2 = np.sum(_grad * _grad)
         return -0.5 * (_laplace + _grad2)
 
+    @partial(jax.jit, static_argnums=(0,))
     def local_energy(self, r, params):
         """Local energy of the system"""
-        ke = self._local_kinetic_energy(r, params)
+
+        def ke_closure(r):
+            return self._local_kinetic_energy(r, params)
+
+        ke = jnp.sum(ke_closure(r))
         pe = self.potential(r)
+
         return ke + pe
 
-    def drift_force(self, r, params):
-        """Drift force at each particle's location"""
-        F = 2 * self._grad_wf(r, params)
-        return F
+    # def drift_force(self, r, params):
+    #     """Drift force at each particle's location"""
+    #     F = 2 * self._grad_wf(r, params)
+    #     return F
 
     def grads(self, r, params):
         """Gradients of the wave function w.r.t. the parameters"""
 
         return
-
-    def compute_sr_matrix(self, expval_grads, grads, shift=1e-4):
-        """
-        WIP: for now this does not involve the averages because r will be a single sample
-        Compute the matrix for the stochastic reconfiguration algorithm
-            for now we do it only for the kernel
-            The expression here is for kernel element W_ij:
-                S_ij,kl = < (d/dW_ij log(psi)) (d/dW_kl log(psi)) > - < d/dW_ij log(psi) > < d/dW_kl log(psi) >
-          1. Compute the gradient ∂_W log(ψ) using the _grad_kernel function.
-            2. Compute the outer product of the gradient with itself: ∂_W log(ψ) ⊗ ∂_W log(ψ)
-            3. Compute the expectation value of the outer product over all the samples
-            4. Compute the expectation value of the gradient ∂_W log(ψ) over all the samples
-            5. Compute the outer product of the expectation value of the gradient with itself: <∂_W log(ψ)> ⊗ <∂_W log(ψ)>
-
-            OBS: < d/dW_ij log(psi) > is already done inside train of the RBM class but we need still the < (d/dW_ij log(psi)) (d/dW_kl log(psi)) >
-        """
-
-        grads_outer = np.einsum("nij,nkl->nijkl", grads, grads)
-        expval_outer_grad_kernel = np.mean(grads_outer, axis=0)
-
-        outer_expval_grad = np.array(np.outer(expval_grads, expval_grads))
-        sr_mat = (
-            expval_outer_grad_kernel.reshape(outer_expval_grad.shape)
-            - outer_expval_grad
-        )
-        sr_mat = sr_mat + shift * np.eye(sr_mat.shape[0])
-        # print("sr_mat.shape", sr_mat.shape)
-        return sr_mat
-
-    @property
-    def sigma2(self):
-        return self._sigma2
-
-    @sigma2.setter
-    def sigma2(self, value):
-        self._sigma2 = value
-        self._precompute()

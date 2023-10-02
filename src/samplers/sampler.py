@@ -47,12 +47,12 @@ class Sampler:
             # Handle iterables
             nsamples = (nsamples,) * nchains
             state = (state,) * nchains
-
+            params = (params,) * nchains
             # v_bias = (v_bias,) * nchains
             # h_bias = (h_bias,) * nchains
             # kernel = (kernel,) * nchains
-            params.parallelize(nchains)
-            print("PARALLELIZED PARAMS")
+            # params.parallelize(nchains)
+            # print("PARALLELIZED PARAMS")
             scale = (scale,) * nchains
             chain_ids = range(nchains)
 
@@ -100,7 +100,7 @@ class Sampler:
             # energies[i] = self._rbm.local_energy(
             #    state.positions, v_bias, h_bias, kernel
             # )
-            energies[i] = self.hamiltoian.local_energy(
+            energies[i] = self.hamiltonian.local_energy(
                 self._rbm, state.positions, params
             )
 

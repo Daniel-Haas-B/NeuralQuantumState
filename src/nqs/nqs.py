@@ -51,7 +51,7 @@ class NQS:
         nqs_type=None,
     ):
         """Neural Network Quantum State
-        #TODO: make NQS have a set_hamiltoian method, which takes a hamiltonian object
+        #TODO: make NQS have a set_hamiltonian method, which takes a hamiltonian object
         """
 
         self._check_logger(log, logger_level)
@@ -61,7 +61,7 @@ class NQS:
         self.sr_matrix = None
         self.use_sr = use_sr
         self.nqs_type = nqs_type
-        self.hamiltoian = None
+        self.hamiltonian = None
 
         if self._log:
             self.logger = setup_logger(self.__class__.__name__, level=logger_level)
@@ -92,7 +92,7 @@ class NQS:
         self._is_tuned_ = False
         self._sampling_performed
 
-    def set_hamiltoian(self, type_, int_type, **kwargs):
+    def set_hamiltonian(self, type_, int_type, **kwargs):
         """
         Set the hamiltonian to be used for sampling.
         For now we only support the Harmonic Oscillator.
@@ -100,7 +100,7 @@ class NQS:
         If int_type is None, we assume non interacting particles.
         """
         if type_.lower() == "ho":
-            self.hamiltoian = HO(self._N, self._dim, int_type, **kwargs)
+            self.hamiltonian = HO(self._N, self._dim, int_type, **kwargs)
 
         else:
             raise NotImplementedError(
@@ -331,7 +331,7 @@ class RBM(NQS):
             # print("state.positions", state.positions.shape)
 
             # loc_energy = self.rbm.local_energy(state.positions, v_bias, h_bias, kernel)
-            loc_energy = self.hamiltoian.local_energy(
+            loc_energy = self.hamiltonian.local_energy(
                 self.rbm, state.positions, self._params
             )
             energies.append(loc_energy)
@@ -634,7 +634,7 @@ class FFNN(NQS):
             # getting and saving local energy
             # print("state.positions", state.positions.shape)
 
-            loc_energy = self.hamiltoian.local_energy(
+            loc_energy = self.hamiltonian.local_energy(
                 self.rbm, state.positions, self._params
             )
             energies.append(loc_energy)
@@ -804,22 +804,27 @@ class Parameter:
 
     def set(self, names, values):
         for key, value in zip(names, values):
-            self.data[key] = [value]  # Store values as lists
+            self.data[key] = value
 
     def get(self, names):
-        # Return the lists (chains) for each name
+        # note this can be a list of names
         return [self.data[name] for name in names]
 
     def keys(self):
         return self.data.keys()
 
-    def parallelize(self, nchains):
-        """
-        will make something like
-            v_bias = [v_bias, v_bias, v_bias]
-            h_bias = [h_bias, h_bias, h_bias]
-            kernel = [kernel, kernel, kernel]
-        If self.data = {'v_bias': v_bias, 'h_bias': h_bias, 'kernel': kernel}
-        """
-        for key in self.data.keys():
-            self.data[key] = self.data[key] * nchains
+    # def parallelize(self, nchains):
+    #     """
+    #     will make something like
+    #         v_bias = (v_bias,) * nchains
+    #         h_bias = (h_bias,) * nchains
+    #         kernel = (kernel,) * nchains
+    #     If self.data = {'v_bias': v_bias, 'h_bias': h_bias, 'kernel': kernel}
+    #     """
+    #     for key in self.data.keys():
+    #         self.data[key] = (self.data[key],) * nchains
+    #     return self.data
+
+    # Implementing the __iter__ method
+    # def __iter__(self):
+    #     return iter(self.data.items())

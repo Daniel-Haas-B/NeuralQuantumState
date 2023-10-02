@@ -61,10 +61,7 @@ class BaseRBM:
 
     def logprob(self, r, params):
         """Log probability amplitude"""
-        print("1")
-        print("params.type", type(params))
         v_bias, h_bias, kernel = params.get(["v_bias", "h_bias", "kernel"])
-        print("2")
         psi2 = self._rbm_psi_repr * self._log_rbm(r, v_bias, h_bias, kernel).sum()
         return psi2
 
@@ -81,6 +78,7 @@ class BaseRBM:
 
     def laplacian_wf(self, r, params):
         v_bias, h_bias, kernel = params.get(["v_bias", "h_bias", "kernel"])
+        # v_bias, h_bias, kernel = params["v_bias"], params["h_bias"], params["kernel"]
         _expit = expit(h_bias + (r @ kernel) * self._sigma2_factor)
         _expos = expit(-h_bias - (r @ kernel) * self._sigma2_factor)
         kernel2 = kernel * kernel

@@ -54,7 +54,7 @@ for sr in [False, True]:
 
     system.init(sigma2=1.0, seed=seed)  # 1.3 for lmh
     system.set_sampler(mcmc_alg=mcmc_alg, scale=1.0)
-    system.set_hamiltoian(type_="ho", int_type="coulomb", backend="numpy")
+    system.set_hamiltonian(type_="ho", int_type="coulomb", backend="numpy")
     system.set_optimizer(
         optimizer=optimizer,
         eta=eta,

@@ -97,15 +97,18 @@ class NQS:
         Set the hamiltonian to be used for sampling.
         For now we only support the Harmonic Oscillator.
 
+        Hamiltonian also needs to be propagated to the sampler.
+
         If int_type is None, we assume non interacting particles.
         """
         if type_.lower() == "ho":
             self.hamiltonian = HO(self._N, self._dim, int_type, **kwargs)
-
         else:
             raise NotImplementedError(
                 "Only the Harmonic Oscillator is supported for now."
             )
+
+        self._sampler.set_hamiltonian(self.hamiltonian)
 
     def set_sampler(self, mcmc_alg, scale=0.5):
         """

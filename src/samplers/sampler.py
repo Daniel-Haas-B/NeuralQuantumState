@@ -130,6 +130,9 @@ class Sampler:
         """
         raise NotImplementedError("Subclasses must implement this method.")
 
+    def set_hamiltonian(self, hamiltonian):
+        self.hamiltonian = hamiltonian
+
     @property
     def scale(self):
         return self._scale

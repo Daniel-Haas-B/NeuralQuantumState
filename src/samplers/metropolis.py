@@ -37,6 +37,8 @@ class Metropolis(Sampler):
         log_unif = np.log(rng.random())
 
         # Compute proposal log density
+        print("proposals", proposals)
+        print("params", params)
         logp_proposal = self._rbm.logprob(proposals, params)
 
         # Metroplis acceptance criterion

@@ -8,6 +8,7 @@ class BaseRBM:
     """Base class for creating a quantum system where the wave function is
     represented by a gaussian-binary restricted Boltzmann machine.
 
+    I think this guy should have all params
     The implementation assumes a logarithmic wave function.
     """
 
@@ -16,6 +17,7 @@ class BaseRBM:
         self._factor = factor
         self._rbm_psi_repr = 2 * self._factor
         self._precompute()
+        self.params = None
 
     def _precompute(self):
         self._sigma4 = self._sigma2 * self._sigma2
@@ -78,25 +80,21 @@ class BaseRBM:
 
     def laplacian_wf(self, r, params):
         v_bias, h_bias, kernel = params.get(["v_bias", "h_bias", "kernel"])
-        # v_bias, h_bias, kernel = params["v_bias"], params["h_bias"], params["kernel"]
+
         _expit = expit(h_bias + (r @ kernel) * self._sigma2_factor)
         _expos = expit(-h_bias - (r @ kernel) * self._sigma2_factor)
-        kernel2 = kernel * kernel
+        kernel2 = np.square(kernel)
         exp_prod = _expos * _expit
         gr = -self._sigma2 + self._sigma4 * kernel2 @ exp_prod
         gr *= self._factor
         return gr
 
-    def drift_force(self, r, v_bias, h_bias, kernel):
-        """Drift force at each particle's location"""
-        F = 2 * self._grad_wf(r, v_bias, h_bias, kernel)
-        return F
-
     def grads(self, r, v_bias, h_bias, kernel):
         """Gradients of the wave function w.r.t. the parameters"""
-        grad_h_bias = self._grad_h_bias(r, v_bias, h_bias, kernel)
+        _expit = expit(h_bias + (r @ kernel) * self._sigma2_factor)
+        grad_h_bias = self._grad_h_bias(r, _expit)
+        grad_kernel = self._grad_kernel(r, _expit)
         grad_v_bias = self._grad_v_bias(r, v_bias, h_bias, kernel)
-        grad_kernel = self._grad_kernel(r, v_bias, h_bias, kernel)
         return grad_v_bias, grad_h_bias, grad_kernel
 
     def _grad_v_bias(self, r, v_bias, h_bias, kernel):
@@ -105,19 +103,14 @@ class BaseRBM:
         gr *= self._factor
         return gr  # .sum()
 
-    def _grad_h_bias(self, r, v_bias, h_bias, kernel):
+    def _grad_h_bias(self, r, _expit):
         """Gradient of wave function w.r.t. hidden bias"""
-        gr = expit(h_bias + (r @ kernel) * self._sigma2_factor)
-        gr *= self._factor
-        return gr  # .sum()
+        return self._factor * _expit  # .sum()
 
-    def _grad_kernel(self, r, v_bias, h_bias, kernel):
+    def _grad_kernel(self, r, _expit):
         """Gradient of wave function w.r.t. weight matrix"""
-        _expit = expit(h_bias + (r @ kernel) * self._sigma2_factor)
         gr = self._sigma2 * r[:, np.newaxis] @ _expit[:, np.newaxis].T
         gr *= self._factor
-        # print("gr.shape", gr.shape)
-        # print("gr type", type(gr))
 
         return gr
 

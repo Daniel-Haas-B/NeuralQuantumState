@@ -19,7 +19,7 @@ output_filename = "../data/playground.csv"
 nparticles = 2
 dim = 2
 nhidden = 4
-nsamples = int(2**18)  # 2**18 = 262144
+nsamples = int(2**14)  # 2**18 = 262144
 nchains = 8
 eta = 0.05
 
@@ -29,7 +29,7 @@ backend = "numpy"
 optimizer = "gd"
 batch_size = 1_000
 detailed = True
-wf_type = "rbm"
+
 seed = 42
 
 dfs_mean = []
@@ -41,30 +41,23 @@ import time
 start = time.time()
 # for i in range(5):
 for sr in [False, True]:
-    system = nqs.NQS(
+    system = nqs.RBM(
+        nparticles,
+        dim,
+        nhidden=nhidden,
+        interaction=False,  # TOTUNE True
         nqs_repr="psi",
         backend=backend,
         log=True,
-        logger_level="INFO",
         use_sr=sr,
-        seed=seed,
     )
 
-    system.set_wf(
-        wf_type,
-        nparticles,
-        dim,
-        nhidden=nhidden,  # all after this is kwargs. In this example it is RBM dependent
-        sigma2=1.0,
-    )
-
-    # system.init(sigma2=1.0)  # i dont like this here. It is not clear what is initialized
+    system.init(sigma2=1.0, seed=seed)  # 1.3 for lmh
     system.set_sampler(mcmc_alg=mcmc_alg, scale=1.0)
-    system.set_hamiltonian(type_="ho", int_type="Coulomb")
     system.set_optimizer(
         optimizer=optimizer,
         eta=eta,
-        use_sr=True,  # I think this guy does nothing
+        use_sr=True,
         beta1=0.9,
         beta2=0.999,
         epsilon=1e-8,
@@ -129,9 +122,6 @@ df_all = pd.concat(df_all)
 
 # energy with sr
 sns.lineplot(data=df_all, x="chain_id", y="energy", hue="sr")
-# ylim
-plt.ylim(2.9, 3.6)
-
 plt.xlabel("Chain")
 plt.ylabel("Energy")
 plt.show()

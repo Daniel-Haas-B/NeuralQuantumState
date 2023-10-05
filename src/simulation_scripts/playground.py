@@ -41,19 +41,16 @@ import time
 start = time.time()
 # for i in range(5):
 for sr in [False, True]:
-    system = nqs.RBM(
-        nparticles,
-        dim,
-        nhidden=nhidden,
-        interaction=False,  # TOTUNE True
+    system = nqs.NQS(
         nqs_repr="psi",
         backend=backend,
         log=True,
         use_sr=sr,
     )
 
-    system.init(sigma2=1.0, seed=seed)  # 1.3 for lmh
+    system.set_wf("rbm", nparticles, dim, nhidden=nhidden, sigma2=1.0)
     system.set_sampler(mcmc_alg=mcmc_alg, scale=1.0)
+    system.set_hamiltonian("HO", int_type="Coulomb")
     system.set_optimizer(
         optimizer=optimizer,
         eta=eta,

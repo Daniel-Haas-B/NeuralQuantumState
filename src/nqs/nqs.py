@@ -224,7 +224,7 @@ class NQS:
         seed_seq = generate_seed_sequence(self._seed, 1)[0]
 
         energies = []
-        grads_lists = [[] for _ in range(len(params.keys()))]  # list of lists of grads
+        grads_lists = []  # list of lists of grads
         exp_grads_lists = [
             [] for _ in range(len(params.keys()))
         ]  # list of lists of expected values
@@ -238,7 +238,7 @@ class NQS:
             energies.append(loc_energy)
 
             grads = self.wf.grads(state.positions)
-            grads_lists = [grads_lists[i].append(grads[i]) for i in range(len(grads))]
+            grads_lists = [grads[i] for i in range(len(grads))]
 
             steps_before_optimize -= 1
 
@@ -254,9 +254,9 @@ class NQS:
                         grads_lists, exp_grads_lists
                     )
 
-                for i, grad in enumerate(grads):
+                for energy, grad in zip(energies, grads):
                     exp_energies_list.append(
-                        np.mean(energies.reshape(batch_size, 1) * grad, axis=0)
+                        np.mean(energy.reshape(batch_size, 1) * grad, axis=0)
                     )
 
                 final_grads = [

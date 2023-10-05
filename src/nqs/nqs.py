@@ -221,66 +221,121 @@ class NQS:
         state = self.wf.state
         state = State(state.positions, state.logp, 0, state.delta)
         params = self.wf.params
+        v_bias, h_bias, kernel = params.get(["v_bias", "h_bias", "kernel"])
 
+        param_keys = params.keys()
         seed_seq = generate_seed_sequence(self._seed, 1)[0]
 
         energies = []
-        grads_lists = []  # list of lists of grads
-        exp_grads_lists = [
-            [] for _ in range(len(params.keys()))
-        ]  # list of lists of expected values
-        exp_energies_list = []
+        grads_dict = {key: [] for key in param_keys}
+        grads_v_bias = []
+        grads_h_bias = []
+        grads_kernel = []
+
         steps_before_optimize = batch_size
         for _ in t_range:
             state = self._sampler.step(state, params, seed_seq)
-            loc_energy = self.hamiltonian.local_energy(
-                self.wf, state.positions
-            )  # i dont think we need to pass the params here verify!
-            energies.append(loc_energy)
 
+            loc_energy = self.hamiltonian.local_energy(self.wf, state.positions)
+            energies.append(loc_energy)
+            gr_v_bias, gr_h_bias, gr_kernel = self.wf.grads(state.positions)
             grads = self.wf.grads(state.positions)
-            grads_lists = [grads[i] for i in range(len(grads))]
+
+            grads_v_bias.append(gr_v_bias)
+            grads_h_bias.append(gr_h_bias)
+            grads_kernel.append(gr_kernel)
+            for i, key in enumerate(param_keys):
+                grads_dict[key].append(grads[i])
+
+            # print("grads_dict[v_bias]", np.array(grads_dict["v_bias"]))
+            # print("grads_v_bias", np.array(grads_v_bias))
 
             steps_before_optimize -= 1
-
             if steps_before_optimize == 0:
                 energies = np.array(energies)  # dont know why
                 expval_energy = np.mean(energies)
-                for i, grad in enumerate(grads):
-                    grad = np.array(grad)
-                    exp_grads_lists[i].append(np.mean(grad, axis=0))
+
+                # raise ValueError("Gradients are not the same")
+                grads_dict["v_bias"] = np.array(grads_dict["v_bias"])
+                grads_dict["h_bias"] = np.array(grads_dict["h_bias"])
+                grads_dict["kernel"] = np.array(grads_dict["kernel"])
+
+                expval_grad_dict = {
+                    key: np.mean(grads_dict[key], axis=0) for key in param_keys
+                }
+                # expval_grad_v_bias = expval_grad_dict["v_bias"]
+                # expval_grad_h_bias = expval_grad_dict["h_bias"]
+                # expval_grad_kernel = expval_grad_dict["kernel"]
 
                 if self.use_sr:
-                    self.sr_matrix = self.compute_sr_matrix(
-                        grads_lists, exp_grads_lists
+                    self.sr_matrix = self.wf.compute_sr_matrix(
+                        expval_grad_dict["kernel"], grads_dict["kernel"]
                     )
 
-                for i, grad in enumerate(grads):
                     # reshape dim is batch_size, 1 if grad is 1d and batch_size, 1, 1 if grad is 2d
-                    print("grad ndim", grad.ndim)
-                    temp_energies = (
-                        energies.reshape(batch_size, 1)
-                        if grad.ndim == 1
-                        else energies.reshape(batch_size, 1, 1)
-                    )
-                    print("temp_energies", temp_energies.shape)
-                    exp_energies_list.append(np.mean(temp_energies * grad, axis=0))
 
-                final_grads = [
-                    2 * (exp_energies_list[i] - expval_energy * exp_grads_lists[i])
+                temp_grads = [
+                    energies.reshape(batch_size, 1) * grads_dict[key]
+                    if grads_dict[key].ndim == 1
+                    else energies.reshape(batch_size, 1, 1) * grads_dict[key]
+                    for key in param_keys
                 ]
 
-                # descent
-                params = self._optimizer.step(params, final_grads, self.sr_matrix)
+                expval_evergies_dict = {
+                    key: np.mean(temp_grads[i], axis=0)
+                    for i, key in enumerate(param_keys)
+                }
+
+                expval_energy_v_bias = expval_evergies_dict["v_bias"]
+                expval_energy_h_bias = expval_evergies_dict["h_bias"]
+                expval_energy_kernel = expval_evergies_dict["kernel"]
+                # expval_energy_v_bias = np.mean(
+                #    energies.reshape(batch_size, 1) * grads_v_bias, axis=0
+                # )
+                # expval_energy_h_bias = np.mean(
+                #     energies.reshape(batch_size, 1) * grads_h_bias, axis=0
+                # )
+                # expval_energy_kernel = np.mean(
+                #     energies.reshape(batch_size, 1, 1) * grads_kernel, axis=0
+                # )
+
+                # Gradients
+                expval_energies = [
+                    expval_energy_v_bias,
+                    expval_energy_h_bias,
+                    expval_energy_kernel,
+                ]
+                expval_grads = [
+                    expval_grad_dict["v_bias"],
+                    expval_grad_dict["h_bias"],
+                    expval_grad_dict["kernel"],
+                ]
+
+                final_grads = [
+                    2 * (expval_energy_param - expval_energy * expval_grad_param)
+                    for expval_energy_param, expval_grad_param in zip(
+                        expval_energies, expval_grads
+                    )
+                ]
+
+                # Descent
+                params = self._optimizer.step(
+                    self.wf.params, final_grads, self.sr_matrix
+                )
+                v_bias, h_bias, kernel = params.get(["v_bias", "h_bias", "kernel"])
+
+                energies = []
+                grads_v_bias = []
+                grads_h_bias = []
+                grads_kernel = []
+                grads_dict = {key: [] for key in param_keys}
 
                 steps_before_optimize = batch_size
-                energies = []
-                grads_lists = [[] for _ in range(len(params.keys()))]
-                exp_grads_lists = [[] for _ in range(len(params.keys()))]
             # append specific gradien
 
         self.state = state
-        self.wf.params.set(params)
+        self.wf.params.set(["v_bias", "h_bias", "kernel"], [v_bias, h_bias, kernel])
+
         # self.scale = scale
         self._is_trained_ = True
 
@@ -294,8 +349,8 @@ class NQS:
             "nparticles": self._N,
             "dim": self._dim,
             "eta": self._eta,
-            "nvisible": self._nvisible,
-            "nhidden": self._nhidden,
+            # "nvisible": self._nvisible,
+            # "nhidden": self._nhidden,
             "mcmc_alg": self.mcmc_alg,
             "nqs_type": self.nqs_type,
             "training_cycles": self._training_cycles,
@@ -374,120 +429,6 @@ class RBM(BaseRBM):
                 f"{self._nhidden} hidden {neuron_str}"
             )
             self.logger.info(msg)
-
-    # def train(
-    #     self,
-    #     sampler,
-    #     t_range,
-    #     batch_size=1000,
-    #     early_stop=False,  # set to True later
-    #     rtol=1e-05,  # this is the relative tolerance
-    #     atol=1e-08,  # this is the absolute tolerance
-    #     seed=None,
-    # ):
-    #     """
-    #     Specific part of the training for the RBM
-    #     """
-
-    #     # Reset n_accepted
-    #     # state = State(state.positions, state.logp, 0, state.delta)
-
-    #     # Config
-    #     did_early_stop = False
-
-    #     steps_before_optimize = batch_size
-
-    #     grads_v_bias = []
-    #     grads_h_bias = []
-    #     grads_kernel = []
-
-    #     # Training
-    #     for _ in t_range:
-    #         # sampler step
-    #         grads_v_bias.append(gr_v_bias)
-    #         grads_h_bias.append(gr_h_bias)
-    #         grads_kernel.append(gr_kernel)
-
-    #         steps_before_optimize -= 1
-    #         # optimize
-    #         if steps_before_optimize == 0:
-    #             # Expectation values
-    #             energies = np.array(energies)
-    #             grads_v_bias = np.array(grads_v_bias)
-    #             grads_h_bias = np.array(grads_h_bias)
-    #             grads_kernel = np.array(grads_kernel)
-
-    #             expval_energy = np.mean(energies)
-    #             expval_grad_v_bias = np.mean(grads_v_bias, axis=0)
-    #             expval_grad_h_bias = np.mean(grads_h_bias, axis=0)
-    #             expval_grad_kernel = np.mean(
-    #                 grads_kernel, axis=0
-    #             )  # we shall use this in SR. I think this is avg dlogpsi/dW
-
-    #             if self.use_sr:
-    #                 self.sr_matrix = self.compute_sr_matrix(
-    #                     expval_grad_kernel, grads_kernel
-    #                 )
-
-    #             expval_energy_v_bias = np.mean(
-    #                 energies.reshape(batch_size, 1) * grads_v_bias, axis=0
-    #             )
-    #             expval_energy_h_bias = np.mean(
-    #                 energies.reshape(batch_size, 1) * grads_h_bias, axis=0
-    #             )
-    #             expval_energy_kernel = np.mean(
-    #                 energies.reshape(batch_size, 1, 1) * grads_kernel, axis=0
-    #             )
-
-    #             # Gradients
-    #             expval_energies = [
-    #                 expval_energy_v_bias,
-    #                 expval_energy_h_bias,
-    #                 expval_energy_kernel,
-    #             ]
-    #             expval_grads = [
-    #                 expval_grad_v_bias,
-    #                 expval_grad_h_bias,
-    #                 expval_grad_kernel,
-    #             ]
-
-    #             final_grads = [
-    #                 2 * (expval_energy_param - expval_energy * expval_grad_param)
-    #                 for expval_energy_param, expval_grad_param in zip(
-    #                     expval_energies, expval_grads
-    #                 )
-    #             ]
-
-    #             if early_stopping:
-    #                 # make copies of current values before update
-    #                 v_bias_old = copy.deepcopy(v_bias)  # noqa
-    #                 h_bias_old = copy.deepcopy(h_bias)  # noqa
-    #                 kernel_old = copy.deepcopy(kernel)  # noqa
-
-    #             # Descent
-    #             params = self._optimizer.step(
-    #                 self.wf.params, final_grads, self.sr_matrix
-    #             )
-    #             v_bias, h_bias, kernel = params.get(["v_bias", "h_bias", "kernel"])
-
-    #             energies = []
-    #             grads_v_bias = []
-    #             grads_h_bias = []
-    #             grads_kernel = []
-    #             steps_before_optimize = batch_size
-
-    #     # early stop flag activated
-    #     if did_early_stop:
-    #         msg = "Early stopping, training converged"
-    #         self.logger.info(msg)
-
-    # # msg: Early stopping, training converged
-
-    # # end
-    # # Update shared values. we separate them before because we want to keep the old values
-    # # self.state = state
-    # # self.params.set(["v_bias", "h_bias", "kernel"], [v_bias, h_bias, kernel])
-    # # self.scale = scale
 
     # def tune(
     #     self,

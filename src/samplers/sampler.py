@@ -97,9 +97,7 @@ class Sampler:
 
         for i in t_range:
             state = self._step(state, params, seed)
-            energies[i] = self.hamiltonian.local_energy(
-                self._wf, state.positions, params
-            )
+            energies[i] = self.hamiltonian.local_energy(self._wf, state.positions)
 
         if self._logger is not None:
             t_range.clear()

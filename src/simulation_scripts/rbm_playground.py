@@ -19,7 +19,7 @@ output_filename = "../data/playground.csv"
 nparticles = 2
 dim = 2
 nhidden = 4
-nsamples = int(2**18)  # 2**18 = 262144
+nsamples = int(2**11)  # 2**18 = 262144
 nchains = 8
 eta = 0.05
 
@@ -96,8 +96,8 @@ for sr in [False, True]:
                 "dim",
                 "eta",
                 "scale",
-                "nvisible",
-                "nhidden",
+                # "nvisible",
+                # "nhidden",
                 "mcmc_alg",
                 "nqs_type",
                 "nsamples",

@@ -1,10 +1,10 @@
-import copy
+# import copy
 import sys
 import warnings
 
 sys.path.insert(0, "../src/")
 # print(sys.path)
-from nqs.utils import early_stopping
+# from nqs.utils import early_stopping
 from nqs.utils import errors
 from nqs.utils import generate_seed_sequence
 from nqs.utils import setup_logger
@@ -61,11 +61,12 @@ class NQS:
         self.use_sr = use_sr
         self.nqs_type = None
         self.hamiltonian = None
-
+        self._backend = backend
         self.mcmc_alg = None
         self._optimizer = None
         self.sr_matrix = None
         self.wf = None
+        self._seed = seed
 
         if self._log:
             self.logger = setup_logger(self.__class__.__name__, level=logger_level)
@@ -96,13 +97,26 @@ class NQS:
         """
         Set the wave function to be used for sampling.
         For now we only support the RBM.
+        Successfully setting the wave function will also initialize it.
         """
         self._N = nparticles
         self._dim = dim
         if wf_type.lower() == "rbm":
-            self.wf = RBM(nparticles, dim, kwargs["nhidden"], kwargs["sigma2"])
+            print("Setting WF as RBM")
+            self.wf = RBM(
+                nparticles,
+                dim,
+                kwargs["nhidden"],
+                kwargs["sigma2"],
+                log=self._log,
+                logger=self.logger,
+                rng=self.rng(self._seed),
+            )
+
         else:
             raise NotImplementedError("Only the RBM is supported for now.")
+
+        self._is_initialized_ = True
 
     def set_hamiltonian(self, type_, int_type, **kwargs):
         """
@@ -130,11 +144,11 @@ class NQS:
         if not isinstance(mcmc_alg, str):
             raise TypeError("'mcmc_alg' must be passed as str")
 
-        if mcmc_alg == "m":
-            self.mcmc_alg = "m"
+        self.mcmc_alg = mcmc_alg
+
+        if self.mcmc_alg == "m":
             self._sampler = Metro(self.wf, self.rng, scale, logger=self.logger)
-        elif mcmc_alg == "lmh":
-            self.mcmc_alg = "lmh"
+        elif self.mcmc_alg == "lmh":
             self._sampler = MetroHastings(self.wf, self.rng, scale, logger=self.logger)
         else:
             msg = "Unsupported sampler, only Metropolis 'm' or Metropolis-Hastings 'lmh' is allowed"
@@ -185,9 +199,83 @@ class NQS:
 
     def train(self, max_iter, batch_size, early_stop, **kwargs):
         """
-        A helper for the wf train method
+        Train the wave function parameters.
         """
-        self.wf.train(max_iter, batch_size, early_stop, **kwargs)
+        self._is_initialized()
+
+        self._training_cycles = max_iter
+        self._training_batch = batch_size
+
+        if self._log:
+            t_range = tqdm(
+                range(max_iter),
+                desc="[Training progress]",
+                position=0,
+                leave=True,
+                colour="green",
+            )
+        else:
+            t_range = range(max_iter)
+
+        state = self.wf.state
+        state = State(state.positions, state.logp, 0, state.delta)
+        params = self.wf.params
+
+        seed_seq = generate_seed_sequence(self._seed, 1)[0]
+
+        energies = []
+        grads_lists = [[] for _ in range(len(params.keys()))]  # list of lists of grads
+        exp_grads_lists = [
+            [] for _ in range(len(params.keys()))
+        ]  # list of lists of expected values
+        exp_energies_list = []
+        steps_before_optimize = batch_size
+        for _ in t_range:
+            state = self._sampler.step(state, params, seed_seq)
+            loc_energy = self.hamiltonian.local_energy(
+                self.wf, state.positions
+            )  # i dont think we need to pass the params here verify!
+            energies.append(loc_energy)
+
+            grads = self.wf.grads(state.positions)
+            grads_lists = [grads_lists[i].append(grads[i]) for i in range(len(grads))]
+
+            steps_before_optimize -= 1
+
+            if steps_before_optimize == 0:
+                energies = np.array(energies)  # dont know why
+                expval_energy = np.mean(energies)
+                for i, grad in enumerate(grads):
+                    grad = np.array(grad)
+                    exp_grads_lists[i].append(np.mean(grad, axis=0))
+
+                if self.use_sr:
+                    self.sr_matrix = self.compute_sr_matrix(
+                        grads_lists, exp_grads_lists
+                    )
+
+                for i, grad in enumerate(grads):
+                    exp_energies_list.append(
+                        np.mean(energies.reshape(batch_size, 1) * grad, axis=0)
+                    )
+
+                final_grads = [
+                    2 * (exp_energies_list[i] - expval_energy * exp_grads_lists[i])
+                ]
+
+                # descent
+                params = self._optimizer.step(params, final_grads, self.sr_matrix)
+
+                steps_before_optimize = batch_size
+                energies = []
+                grads_lists = [[] for _ in range(len(params.keys()))]
+                exp_grads_lists = [[] for _ in range(len(params.keys()))]
+            # append specific gradien
+
+        self.state = state
+        self.wf.params.set(params)
+        # self.scale = scale
+        self._is_trained_ = True
 
     def sample(self, nsamples, nchains=1, seed=None):
         """helper for the sample method from the Sampler class"""
@@ -227,21 +315,37 @@ class RBM(BaseRBM):
         nparticles,
         dim,
         nhidden=1,
-        interaction=False,
         factor=1.0,
-        backend="numpy",
-        log=True,
-        logger_level="INFO",
+        sigma2=1.0,
         rng=None,
         use_sr=False,
+        log=False,
+        logger=None,
+        logger_level="INFO",
     ):
         """RBM Neural Network Quantum State"""
-
-        super().__init__(factor)
+        super().__init__(factor, sigma2)
 
         self._N = nparticles
+        self._dim = dim
         self._nvisible = self._N * self._dim
-        self._backend = backend
+        self._nhidden = nhidden
+        self.logger = logger
+
+        r = rng.standard_normal(size=self._nvisible)
+
+        # Initialize visible bias
+        v_bias = rng.standard_normal(size=self._nvisible) * 0.01
+        h_bias = rng.standard_normal(size=self._nhidden) * 0.01
+        kernel = rng.standard_normal(size=(self._nvisible, self._nhidden))
+        kernel *= np.sqrt(1 / self._nvisible)
+
+        self.params = Parameter()
+        self.params.set(["v_bias", "h_bias", "kernel"], [v_bias, h_bias, kernel])
+        self.log = log
+        logp = self.logprob(r)
+        self.state = State(r, logp, 0, 0)
+
         # if backend == "numpy":
         #    if interaction:
         #        self.rbm = IRBM(self._N, self._dim, factor=self.factor)
@@ -256,7 +360,7 @@ class RBM(BaseRBM):
         #    msg = "Unsupported backend, only 'numpy' or 'jax' is allowed"
         #    raise ValueError(msg)
 
-        if self._log:
+        if self.log:
             neuron_str = "neurons" if self._nhidden > 1 else "neuron"
             msg = (
                 f"Neural Network Quantum State initialized as RBM with "
@@ -264,183 +368,118 @@ class RBM(BaseRBM):
             )
             self.logger.info(msg)
 
-    def init(self, sigma2=1.0, seed=None):
-        """ """
-        # self.rbm.sigma2 = sigma2
-        self.sigma2 = sigma2  # changing the sigma2 of the wavefunction
-        rng = self.rng(seed)
+    # def train(
+    #     self,
+    #     sampler,
+    #     t_range,
+    #     batch_size=1000,
+    #     early_stop=False,  # set to True later
+    #     rtol=1e-05,  # this is the relative tolerance
+    #     atol=1e-08,  # this is the absolute tolerance
+    #     seed=None,
+    # ):
+    #     """
+    #     Specific part of the training for the RBM
+    #     """
 
-        r = rng.standard_normal(size=self._nvisible)
+    #     # Reset n_accepted
+    #     # state = State(state.positions, state.logp, 0, state.delta)
 
-        # Initialize visible bias
-        v_bias = rng.standard_normal(size=self._nvisible) * 0.01
-        h_bias = rng.standard_normal(size=self._nhidden) * 0.01
-        kernel = rng.standard_normal(size=(self._nvisible, self._nhidden))
-        kernel *= np.sqrt(1 / self._nvisible)
+    #     # Config
+    #     did_early_stop = False
 
-        self.wf.params = Parameter()
-        self.wf.params.set(["v_bias", "h_bias", "kernel"], [v_bias, h_bias, kernel])
+    #     steps_before_optimize = batch_size
 
-        # make logprob deal with the generator later instead of indexing
-        # logp = self.rbm.logprob(r, self._params)
-        logp = self.logprob(r, self.wf.params)
-        self.state = State(r, logp, 0, 0)
-        self._is_initialized_ = True
+    #     grads_v_bias = []
+    #     grads_h_bias = []
+    #     grads_kernel = []
 
-    def train(
-        self,
-        max_iter=100_000,
-        batch_size=1000,
-        early_stop=False,  # set to True later
-        rtol=1e-05,  # this is the relative tolerance
-        atol=1e-08,  # this is the absolute tolerance
-        seed=None,
-        mcmc_alg=None,
-    ):
-        """
-        Train the NQS model using the specified gradient method.
-        """
+    #     # Training
+    #     for _ in t_range:
+    #         # sampler step
+    #         grads_v_bias.append(gr_v_bias)
+    #         grads_h_bias.append(gr_h_bias)
+    #         grads_kernel.append(gr_kernel)
 
-        self._is_initialized()
-        self._training_cycles = max_iter
-        self._training_batch = batch_size
+    #         steps_before_optimize -= 1
+    #         # optimize
+    #         if steps_before_optimize == 0:
+    #             # Expectation values
+    #             energies = np.array(energies)
+    #             grads_v_bias = np.array(grads_v_bias)
+    #             grads_h_bias = np.array(grads_h_bias)
+    #             grads_kernel = np.array(grads_kernel)
 
-        if mcmc_alg is not None:
-            self._sampler = Sampler(
-                self.mcmc_alg, self.rbm, self.rng, logger=self.logger
-            )
+    #             expval_energy = np.mean(energies)
+    #             expval_grad_v_bias = np.mean(grads_v_bias, axis=0)
+    #             expval_grad_h_bias = np.mean(grads_h_bias, axis=0)
+    #             expval_grad_kernel = np.mean(
+    #                 grads_kernel, axis=0
+    #             )  # we shall use this in SR. I think this is avg dlogpsi/dW
 
-        state = self.state
-        v_bias, h_bias, kernel = self.wf.params.get(["v_bias", "h_bias", "kernel"])
+    #             if self.use_sr:
+    #                 self.sr_matrix = self.compute_sr_matrix(
+    #                     expval_grad_kernel, grads_kernel
+    #                 )
 
-        # Reset n_accepted
-        state = State(state.positions, state.logp, 0, state.delta)
+    #             expval_energy_v_bias = np.mean(
+    #                 energies.reshape(batch_size, 1) * grads_v_bias, axis=0
+    #             )
+    #             expval_energy_h_bias = np.mean(
+    #                 energies.reshape(batch_size, 1) * grads_h_bias, axis=0
+    #             )
+    #             expval_energy_kernel = np.mean(
+    #                 energies.reshape(batch_size, 1, 1) * grads_kernel, axis=0
+    #             )
 
-        if self._log:
-            t_range = tqdm(
-                range(max_iter),
-                desc="[Training progress]",
-                position=0,
-                leave=True,
-                colour="green",
-            )
-        else:
-            t_range = range(max_iter)
+    #             # Gradients
+    #             expval_energies = [
+    #                 expval_energy_v_bias,
+    #                 expval_energy_h_bias,
+    #                 expval_energy_kernel,
+    #             ]
+    #             expval_grads = [
+    #                 expval_grad_v_bias,
+    #                 expval_grad_h_bias,
+    #                 expval_grad_kernel,
+    #             ]
 
-        # Config
-        did_early_stop = False
-        seed_seq = generate_seed_sequence(seed, 1)[0]
-        steps_before_optimize = batch_size
-        energies = []
-        grads_v_bias = []
-        grads_h_bias = []
-        grads_kernel = []
+    #             final_grads = [
+    #                 2 * (expval_energy_param - expval_energy * expval_grad_param)
+    #                 for expval_energy_param, expval_grad_param in zip(
+    #                     expval_energies, expval_grads
+    #                 )
+    #             ]
 
-        # Training
-        for _ in t_range:
-            # sampler step
-            state = self._sampler.step(state, self.wf.params, seed_seq)
+    #             if early_stopping:
+    #                 # make copies of current values before update
+    #                 v_bias_old = copy.deepcopy(v_bias)  # noqa
+    #                 h_bias_old = copy.deepcopy(h_bias)  # noqa
+    #                 kernel_old = copy.deepcopy(kernel)  # noqa
 
-            # getting and saving local energy
-            # print("state.positions", state.positions.shape)
+    #             # Descent
+    #             params = self._optimizer.step(
+    #                 self.wf.params, final_grads, self.sr_matrix
+    #             )
+    #             v_bias, h_bias, kernel = params.get(["v_bias", "h_bias", "kernel"])
 
-            # loc_energy = self.rbm.local_energy(state.positions, v_bias, h_bias, kernel)
-            loc_energy = self.hamiltonian.local_energy(
-                self.rbm, state.positions, self.wf.params
-            )
-            energies.append(loc_energy)
+    #             energies = []
+    #             grads_v_bias = []
+    #             grads_h_bias = []
+    #             grads_kernel = []
+    #             steps_before_optimize = batch_size
 
-            # getting and saving gradients
-            gr_v_bias, gr_h_bias, gr_kernel = self.grads(
-                state.positions, v_bias, h_bias, kernel
-            )
+    #     # early stop flag activated
+    #     if did_early_stop:
+    #         msg = "Early stopping, training converged"
+    #         self.logger.info(msg)
+    # msg: Early stopping, training converged
 
-            grads_v_bias.append(gr_v_bias)
-            grads_h_bias.append(gr_h_bias)
-            grads_kernel.append(gr_kernel)
-
-            steps_before_optimize -= 1
-            # optimize
-            if steps_before_optimize == 0:
-                # Expectation values
-                energies = np.array(energies)
-                grads_v_bias = np.array(grads_v_bias)
-                grads_h_bias = np.array(grads_h_bias)
-                grads_kernel = np.array(grads_kernel)
-
-                expval_energy = np.mean(energies)
-                expval_grad_v_bias = np.mean(grads_v_bias, axis=0)
-                expval_grad_h_bias = np.mean(grads_h_bias, axis=0)
-                expval_grad_kernel = np.mean(
-                    grads_kernel, axis=0
-                )  # we shall use this in SR. I think this is avg dlogpsi/dW
-
-                if self.use_sr:
-                    self.sr_matrix = self.compute_sr_matrix(
-                        expval_grad_kernel, grads_kernel
-                    )
-
-                expval_energy_v_bias = np.mean(
-                    energies.reshape(batch_size, 1) * grads_v_bias, axis=0
-                )
-                expval_energy_h_bias = np.mean(
-                    energies.reshape(batch_size, 1) * grads_h_bias, axis=0
-                )
-                expval_energy_kernel = np.mean(
-                    energies.reshape(batch_size, 1, 1) * grads_kernel, axis=0
-                )
-
-                # variance = np.mean(energies**2) - energy**2
-
-                # Gradients
-                expval_energies = [
-                    expval_energy_v_bias,
-                    expval_energy_h_bias,
-                    expval_energy_kernel,
-                ]
-                expval_grads = [
-                    expval_grad_v_bias,
-                    expval_grad_h_bias,
-                    expval_grad_kernel,
-                ]
-
-                final_grads = [
-                    2 * (expval_energy_param - expval_energy * expval_grad_param)
-                    for expval_energy_param, expval_grad_param in zip(
-                        expval_energies, expval_grads
-                    )
-                ]
-
-                if early_stopping:
-                    # make copies of current values before update
-                    v_bias_old = copy.deepcopy(v_bias)  # noqa
-                    h_bias_old = copy.deepcopy(h_bias)  # noqa
-                    kernel_old = copy.deepcopy(kernel)  # noqa
-
-                # Descent
-                params = self._optimizer.step(
-                    self.wf.params, final_grads, self.sr_matrix
-                )
-                v_bias, h_bias, kernel = params.get(["v_bias", "h_bias", "kernel"])
-
-                energies = []
-                grads_v_bias = []
-                grads_h_bias = []
-                grads_kernel = []
-                steps_before_optimize = batch_size
-
-        # early stop flag activated
-        if did_early_stop:
-            msg = "Early stopping, training converged"
-            self.logger.info(msg)
-        # msg: Early stopping, training converged
-
-        # end
-        # Update shared values. we separate them before because we want to keep the old values
-        self.state = state
-        self.wf.params.set(["v_bias", "h_bias", "kernel"], [v_bias, h_bias, kernel])
-        # self.scale = scale
-        self._is_trained_ = True
+    # end
+    # Update shared values. we separate them before because we want to keep the old values
+    # self.state = state
+    # self.params.set(["v_bias", "h_bias", "kernel"], [v_bias, h_bias, kernel])
+    # self.scale = scale
 
     def tune(
         self,
@@ -453,11 +492,10 @@ class RBM(BaseRBM):
         mcmc_alg=None,
     ):
         """
-        BROKEN NOW due to self.scale
+        !! BROKEN NOW due to self.scale
         Tune proposal scale so that the acceptance rate is around 0.5.
         """
 
-        self._is_initialized()
         state = self.state
         v_bias, h_bias, kernel = self.wf.params.get(["v_bias", "h_bias", "kernel"])
 

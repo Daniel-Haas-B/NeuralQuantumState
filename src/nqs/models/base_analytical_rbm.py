@@ -61,25 +61,25 @@ class BaseRBM:
         """Probability amplitude"""
         return np.exp(self.logprob(r, v_bias, h_bias, kernel))
 
-    def logprob(self, r, params):
+    def logprob(self, r):
         """Log probability amplitude"""
-        v_bias, h_bias, kernel = params.get(["v_bias", "h_bias", "kernel"])
+        v_bias, h_bias, kernel = self.params.get(["v_bias", "h_bias", "kernel"])
         psi2 = self._rbm_psi_repr * self._log_rbm(r, v_bias, h_bias, kernel).sum()
         return psi2
 
-    def grad_wf(self, r, params):
+    def grad_wf(self, r):
         """
         #TODO: maybe we dont need even to pass the params
         """
-        v_bias, h_bias, kernel = params.get(["v_bias", "h_bias", "kernel"])
+        v_bias, h_bias, kernel = self.params.get(["v_bias", "h_bias", "kernel"])
         _expit = expit(h_bias + (r @ kernel) * self._sigma2_factor)
         gr = -(r - v_bias) + kernel @ _expit
         gr *= self._sigma2
         gr *= self._factor
         return gr
 
-    def laplacian_wf(self, r, params):
-        v_bias, h_bias, kernel = params.get(["v_bias", "h_bias", "kernel"])
+    def laplacian_wf(self, r):
+        v_bias, h_bias, kernel = self.params.get(["v_bias", "h_bias", "kernel"])
 
         _expit = expit(h_bias + (r @ kernel) * self._sigma2_factor)
         _expos = expit(-h_bias - (r @ kernel) * self._sigma2_factor)
@@ -89,8 +89,9 @@ class BaseRBM:
         gr *= self._factor
         return gr
 
-    def grads(self, r, v_bias, h_bias, kernel):
+    def grads(self, r):
         """Gradients of the wave function w.r.t. the parameters"""
+        v_bias, h_bias, kernel = self.params.get(["v_bias", "h_bias", "kernel"])
         _expit = expit(h_bias + (r @ kernel) * self._sigma2_factor)
         grad_h_bias = self._grad_h_bias(r, _expit)
         grad_kernel = self._grad_kernel(r, _expit)

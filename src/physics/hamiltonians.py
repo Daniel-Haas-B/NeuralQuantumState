@@ -33,12 +33,12 @@ class HarmonicOscillator:
 
         # Interaction
         if self._backend == "numpy":
-            if self._int_type == "coulomb":
+            if self._int_type == "Coulomb":
                 r_cpy = copy.deepcopy(r).reshape(self._N, self._dim)
                 r_dist = np.linalg.norm(r_cpy[None, ...] - r_cpy[:, None], axis=-1)
                 v_int = np.sum(np.triu(1 / r_dist, k=1))
-            else:
-                raise ValueError("Invalid interaction type")
+            elif self._int_type is not None:
+                raise ValueError("Invalid interaction type:", self._int_type)
 
         elif self._backend == "jax":
             raise NotImplementedError
@@ -49,16 +49,16 @@ class HarmonicOscillator:
 
         return v_trap + v_int
 
-    def _local_kinetic_energy(self, wf, r, params):
+    def _local_kinetic_energy(self, wf, r):
         """Evaluate the local kinetic energy of the system"""
-        _laplace = wf.laplacian_wf(r, params).sum()
-        _grad = wf.grad_wf(r, params)
+        _laplace = wf.laplacian_wf(r).sum()
+        _grad = wf.grad_wf(r)
         _grad2 = np.sum(_grad * _grad)
         return -0.5 * (_laplace + _grad2)
 
-    def local_energy(self, wf, r, params):
+    def local_energy(self, wf, r):
         """Local energy of the system"""
-        ke = self._local_kinetic_energy(wf, r, params)
+        ke = self._local_kinetic_energy(wf, r)
         pe = self.potential(r)
         return pe + ke
 

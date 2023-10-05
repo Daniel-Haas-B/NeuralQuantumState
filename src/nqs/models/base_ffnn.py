@@ -45,7 +45,7 @@ class FFNN:
         """
         return jnp.logaddexp(x, 0)
 
-    def _log_ffnn(self, r, params):
+    def _log_ffnn(self, r):
         """Logarithmic FFNN
         r: input
         params: class containing the weights and biases of the network in the form

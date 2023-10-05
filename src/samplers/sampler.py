@@ -12,8 +12,8 @@ from tqdm.auto import tqdm  # progress bar
 
 
 class Sampler:
-    def __init__(self, rbm, rng, scale, logger=None):
-        self._rbm = rbm
+    def __init__(self, wf, rng, scale, logger=None):
+        self._wf = wf
         self._rng = rng
         self._scale = scale  # to be set by child class
         self._logger = logger
@@ -97,11 +97,8 @@ class Sampler:
 
         for i in t_range:
             state = self._step(state, params, seed)
-            # energies[i] = self._rbm.local_energy(
-            #    state.positions, v_bias, h_bias, kernel
-            # )
             energies[i] = self.hamiltonian.local_energy(
-                self._rbm, state.positions, params
+                self._wf, state.positions, params
             )
 
         if self._logger is not None:

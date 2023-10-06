@@ -16,7 +16,7 @@ jax.config.update("jax_platform_name", "cpu")
 
 # Config
 output_filename = "../data/playground.csv"
-nparticles = 2
+nparticles = 10
 dim = 2
 nhidden = 4
 nsamples = int(2**11)  # 2**18 = 262144
@@ -58,13 +58,11 @@ for sr in [False, True]:
         sigma2=1.0,
     )
 
-    # system.init(sigma2=1.0)  # i dont like this here. It is not clear what is initialized
     system.set_sampler(mcmc_alg=mcmc_alg, scale=1.0)
     system.set_hamiltonian(type_="ho", int_type="Coulomb")
     system.set_optimizer(
         optimizer=optimizer,
         eta=eta,
-        use_sr=True,  # I think this guy does nothing
         beta1=0.9,
         beta2=0.999,
         epsilon=1e-8,
@@ -72,17 +70,14 @@ for sr in [False, True]:
 
     system.train(
         max_iter=training_cycles[0],
-        batch_size=batch_size,  # 1_000
+        batch_size=batch_size,
         early_stop=False,
         seed=seed,
     )
 
     df = system.sample(nsamples, nchains=nchains, seed=seed)
-
     df_all.append(df)
-    # plt.plot(np.convolve(energies[0], np.ones((100,))/100, mode='valid'))
-    # plt.show()
-    # exit()
+
     sem_factor = 1 / np.sqrt(len(df))  # sem = standard error of the mean
     mean_data = df[["energy", "std_error", "variance", "accept_rate"]].mean().to_dict()
     mean_data["sem_energy"] = df["energy"].std() * sem_factor
@@ -130,7 +125,7 @@ df_all = pd.concat(df_all)
 # energy with sr
 sns.lineplot(data=df_all, x="chain_id", y="energy", hue="sr")
 # ylim
-plt.ylim(2.9, 3.6)
+# plt.ylim(2.9, 3.6)
 
 plt.xlabel("Chain")
 plt.ylabel("Energy")

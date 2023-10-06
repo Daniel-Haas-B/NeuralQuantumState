@@ -221,122 +221,63 @@ class NQS:
         state = self.wf.state
         state = State(state.positions, state.logp, 0, state.delta)
         params = self.wf.params
-        v_bias, h_bias, kernel = params.get(["v_bias", "h_bias", "kernel"])
-
         param_keys = params.keys()
         seed_seq = generate_seed_sequence(self._seed, 1)[0]
 
         energies = []
+        final_grads = []
         grads_dict = {key: [] for key in param_keys}
-        grads_v_bias = []
-        grads_h_bias = []
-        grads_kernel = []
-
+        expval_energies_dict = {key: None for key in param_keys}
+        expval_grad_dict = {key: None for key in param_keys}
         steps_before_optimize = batch_size
+
         for _ in t_range:
             state = self._sampler.step(state, params, seed_seq)
-
             loc_energy = self.hamiltonian.local_energy(self.wf, state.positions)
             energies.append(loc_energy)
-            gr_v_bias, gr_h_bias, gr_kernel = self.wf.grads(state.positions)
             grads = self.wf.grads(state.positions)
 
-            grads_v_bias.append(gr_v_bias)
-            grads_h_bias.append(gr_h_bias)
-            grads_kernel.append(gr_kernel)
-            for i, key in enumerate(param_keys):
-                grads_dict[key].append(grads[i])
-
-            # print("grads_dict[v_bias]", np.array(grads_dict["v_bias"]))
-            # print("grads_v_bias", np.array(grads_v_bias))
+            for key, grad in zip(param_keys, grads):
+                grads_dict[key].append(grad)
 
             steps_before_optimize -= 1
             if steps_before_optimize == 0:
                 energies = np.array(energies)  # dont know why
                 expval_energy = np.mean(energies)
 
-                # raise ValueError("Gradients are not the same")
-                grads_dict["v_bias"] = np.array(grads_dict["v_bias"])
-                grads_dict["h_bias"] = np.array(grads_dict["h_bias"])
-                grads_dict["kernel"] = np.array(grads_dict["kernel"])
+                for key in param_keys:
+                    reshaped_energy = energies.reshape(
+                        batch_size, *(1,) * grads_dict[key][0].ndim
+                    )
+                    expval_energies_dict[key] = np.mean(
+                        reshaped_energy * grads_dict[key], axis=0
+                    )
 
-                expval_grad_dict = {
-                    key: np.mean(grads_dict[key], axis=0) for key in param_keys
-                }
-                # expval_grad_v_bias = expval_grad_dict["v_bias"]
-                # expval_grad_h_bias = expval_grad_dict["h_bias"]
-                # expval_grad_kernel = expval_grad_dict["kernel"]
+                    expval_grad_dict[key] = np.mean(grads_dict[key], axis=0)
+                    final_grads.append(
+                        2
+                        * (
+                            expval_energies_dict[key]
+                            - expval_energy * expval_grad_dict[key]
+                        )
+                    )
 
                 if self.use_sr:
                     self.sr_matrix = self.wf.compute_sr_matrix(
                         expval_grad_dict["kernel"], grads_dict["kernel"]
                     )
 
-                    # reshape dim is batch_size, 1 if grad is 1d and batch_size, 1, 1 if grad is 2d
-
-                temp_grads = [
-                    energies.reshape(batch_size, 1) * grads_dict[key]
-                    if grads_dict[key].ndim == 1
-                    else energies.reshape(batch_size, 1, 1) * grads_dict[key]
-                    for key in param_keys
-                ]
-
-                expval_evergies_dict = {
-                    key: np.mean(temp_grads[i], axis=0)
-                    for i, key in enumerate(param_keys)
-                }
-
-                expval_energy_v_bias = expval_evergies_dict["v_bias"]
-                expval_energy_h_bias = expval_evergies_dict["h_bias"]
-                expval_energy_kernel = expval_evergies_dict["kernel"]
-                # expval_energy_v_bias = np.mean(
-                #    energies.reshape(batch_size, 1) * grads_v_bias, axis=0
-                # )
-                # expval_energy_h_bias = np.mean(
-                #     energies.reshape(batch_size, 1) * grads_h_bias, axis=0
-                # )
-                # expval_energy_kernel = np.mean(
-                #     energies.reshape(batch_size, 1, 1) * grads_kernel, axis=0
-                # )
-
-                # Gradients
-                expval_energies = [
-                    expval_energy_v_bias,
-                    expval_energy_h_bias,
-                    expval_energy_kernel,
-                ]
-                expval_grads = [
-                    expval_grad_dict["v_bias"],
-                    expval_grad_dict["h_bias"],
-                    expval_grad_dict["kernel"],
-                ]
-
-                final_grads = [
-                    2 * (expval_energy_param - expval_energy * expval_grad_param)
-                    for expval_energy_param, expval_grad_param in zip(
-                        expval_energies, expval_grads
-                    )
-                ]
-
                 # Descent
-                params = self._optimizer.step(
+                self._optimizer.step(
                     self.wf.params, final_grads, self.sr_matrix
-                )
-                v_bias, h_bias, kernel = params.get(["v_bias", "h_bias", "kernel"])
+                )  # changes wf params inplace
 
                 energies = []
-                grads_v_bias = []
-                grads_h_bias = []
-                grads_kernel = []
+                final_grads = []
                 grads_dict = {key: [] for key in param_keys}
-
                 steps_before_optimize = batch_size
-            # append specific gradien
 
         self.state = state
-        self.wf.params.set(["v_bias", "h_bias", "kernel"], [v_bias, h_bias, kernel])
-
-        # self.scale = scale
         self._is_trained_ = True
 
     def sample(self, nsamples, nchains=1, seed=None):
@@ -380,7 +321,6 @@ class RBM(BaseRBM):
         factor=1.0,
         sigma2=1.0,
         rng=None,
-        use_sr=False,
         log=False,
         logger=None,
         logger_level="INFO",
@@ -502,9 +442,14 @@ class Parameter:
     def __init__(self) -> None:
         self.data = {}
 
-    def set(self, names, values):
-        for key, value in zip(names, values):
-            self.data[key] = value
+    def set(self, names_or_parameter, values=None):
+        if isinstance(names_or_parameter, Parameter):
+            self.data = names_or_parameter.data
+        elif values is not None:
+            for key, value in zip(names_or_parameter, values):
+                self.data[key] = value
+        else:
+            raise ValueError("Invalid arguments")
 
     def get(self, names):
         # note this can be a list of names

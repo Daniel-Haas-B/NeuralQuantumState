@@ -40,7 +40,7 @@ import time
 # for max_iter in training_cycles:
 start = time.time()
 # for i in range(5):
-for sr in [False, False]:
+for sr in [False, True]:
     system = nqs.NQS(
         nqs_repr="psi",
         backend=backend,

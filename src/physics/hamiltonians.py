@@ -1,11 +1,12 @@
 import copy
 
+import jax
+import jax.numpy as jnp
 import numpy as np
 
-# from jax import jit
-# from functools import partial
-# import jax
-# import jax.numpy as jnp
+# from .base_jax_rbm import BaseJAXRBM
+jax.config.update("jax_enable_x64", True)
+jax.config.update("jax_platform_name", "cpu")
 
 
 class HarmonicOscillator:
@@ -23,29 +24,29 @@ class HarmonicOscillator:
         self._N = nparticles
         self._dim = dim
         self._int_type = int_type
-        self._backend = backend
+
+        if backend == "numpy":
+            self.backend = np
+            self.la = np.linalg
+        elif backend == "jax":
+            self.backend = jnp
+            self.la = jnp.linalg
+        else:
+            raise ValueError("Invalid backend:", backend)
 
     def potential(self, r):
         """Potential energy function"""
         # HO trap
-        v_trap = 0.5 * np.sum(r * r)
-        v_int = 0.0
+        v_trap = 0.5 * self.backend.sum(r * r)
 
         # Interaction
-        if self._backend == "numpy":
-            if self._int_type == "Coulomb":
-                r_cpy = copy.deepcopy(r).reshape(self._N, self._dim)
-                r_dist = np.linalg.norm(r_cpy[None, ...] - r_cpy[:, None], axis=-1)
-                v_int = np.sum(np.triu(1 / r_dist, k=1))
-            elif self._int_type is not None:
-                raise ValueError("Invalid interaction type:", self._int_type)
-
-        elif self._backend == "jax":
-            raise NotImplementedError
-            # r_dist = jnp.linalg.norm(r_cpy[None, ...] - r_cpy[:, None], axis=-1)
-            # v_int = jnp.sum(jnp.triu(1 / r_dist, k=1))
-        else:
-            raise ValueError("Invalid backend")
+        v_int = 0.0
+        if self._int_type == "Coulomb":
+            r_cpy = copy.deepcopy(r).reshape(self._N, self._dim)
+            r_dist = self.la.norm(r_cpy[None, ...] - r_cpy[:, None], axis=-1)
+            v_int = self.backend.sum(self.backend.triu(1 / r_dist, k=1))
+        elif self._int_type is not None:
+            raise ValueError("Invalid interaction type:", self._int_type)
 
         return v_trap + v_int
 
@@ -53,7 +54,7 @@ class HarmonicOscillator:
         """Evaluate the local kinetic energy of the system"""
         _laplace = wf.laplacian_wf(r).sum()
         _grad = wf.grad_wf(r)
-        _grad2 = np.sum(_grad * _grad)
+        _grad2 = self.backend.sum(_grad * _grad)
         return -0.5 * (_laplace + _grad2)
 
     def local_energy(self, wf, r):

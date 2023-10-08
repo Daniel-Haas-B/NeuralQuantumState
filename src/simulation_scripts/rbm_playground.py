@@ -16,17 +16,17 @@ jax.config.update("jax_platform_name", "cpu")
 
 # Config
 output_filename = "../data/playground.csv"
-nparticles = 10
+nparticles = 5
 dim = 2
 nhidden = 4
 nsamples = int(2**14)  # 2**18 = 262144
-nchains = 8
+nchains = 1
 eta = 0.05
 
 training_cycles = [50_000]  # this is cycles for the NN
 mcmc_alg = "m"
 backend = "numpy"
-optimizer = "gd"
+optimizer = "adam"
 batch_size = 1_000
 detailed = True
 wf_type = "rbm"
@@ -40,7 +40,7 @@ import time
 # for max_iter in training_cycles:
 start = time.time()
 # for i in range(5):
-for sr in [False, True]:
+for sr in [False, False]:
     system = nqs.NQS(
         nqs_repr="psi",
         backend=backend,
@@ -113,6 +113,7 @@ print((end - start))
 
 
 df_final = pd.concat(dfs_mean)
+
 # Save results
 df_final.to_csv(output_filename, index=False)
 
@@ -120,10 +121,11 @@ df_final.to_csv(output_filename, index=False)
 # energy withour sr
 df_all = pd.concat(df_all)
 
-# print(df)
-
 # energy with sr
-sns.lineplot(data=df_all, x="chain_id", y="energy", hue="sr")
+if nchains > 1:
+    sns.lineplot(data=df_all, x="chain_id", y="energy", hue="sr")
+else:
+    sns.scatterplot(data=df_all, x="chain_id", y="energy", hue="sr")
 # ylim
 # plt.ylim(2.9, 3.6)
 

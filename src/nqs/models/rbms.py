@@ -3,35 +3,9 @@
 # import jax
 # import jax.numpy as jnp
 # import numpy as np
-# from .base_analytical_rbm import BaseRBM
 # from .base_jax_rbm import BaseJAXRBM
 # jax.config.update("jax_enable_x64", True)
 # jax.config.update("jax_platform_name", "cpu")
-# # class NIRBM(BaseRBM):
-# #     """Non-interacting with analytical"""
-# #     def __init__(self, sigma2=1.0, factor=0.5):
-# #         print("NIRB BEING CALLED")
-# #         super().__init__(sigma2=sigma2, factor=factor)
-# #     def potential(self, r):
-# #         """Potential energy function"""
-# #         print("Potential Being used")
-# #         exit()
-# #         return 0.5 * np.sum(r * r)
-# class IRBM(BaseRBM):
-#     """Interacting with analytical"""
-#     def __init__(self, nparticles, dim, sigma2=1.0, factor=0.5):
-#         super().__init__(sigma2=sigma2, factor=factor)
-#         self._N = nparticles
-#         self._dim = dim
-#     def potential(self, r):
-#         """Potential energy function"""
-#         # HO trap
-#         v_trap = 0.5 * np.sum(r * r)
-#         # Interaction
-#         r_cpy = copy.deepcopy(r).reshape(self._N, self._dim)
-#         r_dist = np.linalg.norm(r_cpy[None, ...] - r_cpy[:, None], axis=-1)
-#         v_int = np.sum(np.triu(1 / r_dist, k=1))
-#         return v_trap + v_int
 # class JAXNIRBM(BaseJAXRBM):
 #     """Non-interacting with JAX"""
 #     def __init__(self, sigma2=1.0, factor=0.5):

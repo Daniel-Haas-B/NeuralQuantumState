@@ -9,6 +9,11 @@ from nqs.utils import errors
 from nqs.utils import generate_seed_sequence
 from nqs.utils import setup_logger
 from nqs.utils import State
+import jax
+
+
+jax.config.update("jax_enable_x64", True)
+jax.config.update("jax_platform_name", "cpu")
 
 
 import numpy as np
@@ -17,7 +22,7 @@ import pandas as pd
 # from samplers.sampler import Sampler
 
 # from nqs.models import IRBM, JAXIRBM, JAXNIRBM#, NIRBM
-from nqs.models.base_analytical_rbm import BaseRBM
+from nqs.models.base_rbm import BaseRBM
 from numpy.random import default_rng
 from tqdm.auto import tqdm
 
@@ -103,7 +108,6 @@ class NQS:
         self._N = nparticles
         self._dim = dim
         if wf_type.lower() == "rbm":
-            print("Setting WF as RBM")
             self.wf = RBM(
                 nparticles,
                 dim,
@@ -112,10 +116,21 @@ class NQS:
                 log=self._log,
                 logger=self.logger,
                 rng=self.rng(self._seed),
+                backend=self._backend,
             )
-
         else:
             raise NotImplementedError("Only the RBM is supported for now.")
+
+        if self._backend == "jax":
+            self.wf.grad_wf = jax.jit(self.wf.grad_wf)
+            self.wf.laplacian_wf = jax.jit(self.wf.laplacian_wf)
+            self.wf.wf = jax.jit(self.wf.wf)
+            self.wf._softplus = jax.jit(self.wf._softplus)
+            self.wf._log_rbm = jax.jit(self.wf._log_rbm)
+            self.wf.pdf = jax.jit(self.wf.pdf)
+            self.wf.logprob = jax.jit(self.wf.logprob)
+            self.wf.grads = jax.jit(self.wf.grads)
+            self.wf.compute_sr_matrix = jax.jit(self.wf.compute_sr_matrix)
 
         self._is_initialized_ = True
 
@@ -130,6 +145,8 @@ class NQS:
         """
         if type_.lower() == "ho":
             self.hamiltonian = HO(self._N, self._dim, int_type, self._backend, **kwargs)
+            if self._backend == "jax":
+                self.hamiltonian.potential = jax.jit(self.hamiltonian.potential)
         else:
             raise NotImplementedError(
                 "Only the Harmonic Oscillator is supported for now."
@@ -260,14 +277,6 @@ class NQS:
                         - expval_energy * expval_grad_dict[key]
                     )
 
-                    # .append(
-                    #     2
-                    #     * (
-                    #         expval_energies_dict[key]
-                    #         - expval_energy * expval_grad_dict[key]
-                    #     )
-                    # )
-
                 if self.use_sr:
                     self.sr_matrices = self.wf.compute_sr_matrix(
                         expval_grad_dict, grads_dict
@@ -285,6 +294,8 @@ class NQS:
 
         self.state = state
         self._is_trained_ = True
+        if self.logger is not None:
+            self.logger.info("Training done")
 
     def sample(self, nsamples, nchains=1, seed=None):
         """helper for the sample method from the Sampler class"""
@@ -330,9 +341,10 @@ class RBM(BaseRBM):
         log=False,
         logger=None,
         logger_level="INFO",
+        backend="numpy",
     ):
         """RBM Neural Network Quantum State"""
-        super().__init__(factor, sigma2)
+        super().__init__(factor, sigma2, backend=backend)
 
         self._N = nparticles
         self._dim = dim
@@ -353,20 +365,6 @@ class RBM(BaseRBM):
         self.log = log
         logp = self.logprob(r)
         self.state = State(r, logp, 0, 0)
-
-        # if backend == "numpy":
-        #    if interaction:
-        #        self.rbm = IRBM(self._N, self._dim, factor=self.factor)
-        #    else:
-        #        self.rbm = NIRBM(factor=self.factor)
-        # elif backend == "jax":
-        #    if interaction:
-        #        self.rbm = JAXIRBM(self._N, self._dim, factor=self.factor)
-        #    else:
-        #        self.rbm = JAXNIRBM(factor=self.factor)
-        # else:
-        #    msg = "Unsupported backend, only 'numpy' or 'jax' is allowed"
-        #    raise ValueError(msg)
 
         if self.log:
             neuron_str = "neurons" if self._nhidden > 1 else "neuron"

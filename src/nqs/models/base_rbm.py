@@ -1,23 +1,39 @@
 from abc import abstractmethod
 
+import jax
+import jax.numpy as jnp
 import numpy as np
 from scipy.special import expit
 
+jax.config.update("jax_enable_x64", True)
+jax.config.update("jax_platform_name", "cpu")
+
 
 class BaseRBM:
-    """Base class for creating a quantum system where the wave function is
+    """
+    Base class for creating a quantum system where the wave function is
     represented by a gaussian-binary restricted Boltzmann machine.
 
-    I think this guy should have all params
     The implementation assumes a logarithmic wave function.
     """
 
-    def __init__(self, sigma2=1.0, factor=0.5):
+    def __init__(self, sigma2=1.0, factor=0.5, backend="numpy"):
         self._sigma2 = sigma2
         self._factor = factor
         self._rbm_psi_repr = 2 * self._factor
         self._precompute()
         self.params = None
+
+        if backend == "numpy":
+            self.backend = np
+            self.la = np.linalg
+            self.sigmoid = expit
+        elif backend == "jax":
+            self.backend = jnp
+            self.la = jnp.linalg
+            self.sigmoid = jax.scipy.special.expit
+        else:
+            raise ValueError("Invalid backend:", backend)
 
     def _precompute(self):
         self._sigma4 = self._sigma2 * self._sigma2
@@ -30,18 +46,18 @@ class BaseRBM:
         Computes the element-wise function
                 softplus(x) = log(1 + e^x)
         """
-        return np.logaddexp(x, 0)
+        return self.backend.logaddexp(x, 0)
 
     def _log_rbm(self, r, v_bias, h_bias, kernel):
         """Logarithmic gaussian-binary RBM"""
 
         # visible layer
-        x_v = np.linalg.norm(r - v_bias)
+        x_v = self.la.norm(r - v_bias)
         x_v *= -x_v * self._sigma2_factor2
 
         # hidden layer
         x_h = self._softplus(h_bias + (r.T @ kernel) * self._sigma2_factor)
-        x_h = np.sum(x_h, axis=-1)
+        x_h = self.backend.sum(x_h, axis=-1)
 
         return x_v + x_h
 
@@ -59,7 +75,7 @@ class BaseRBM:
 
     def pdf(self, r, v_bias, h_bias, kernel):
         """Probability amplitude"""
-        return np.exp(self.logprob(r, v_bias, h_bias, kernel))
+        return self.backend.exp(self.logprob(r, v_bias, h_bias, kernel))
 
     def logprob(self, r):
         """Log probability amplitude"""
@@ -69,10 +85,10 @@ class BaseRBM:
 
     def grad_wf(self, r):
         """
-        #TODO: maybe we dont need even to pass the params
+        grad of the wave function w.r.t. the coordinates
         """
         v_bias, h_bias, kernel = self.params.get(["v_bias", "h_bias", "kernel"])
-        _expit = expit(h_bias + (r @ kernel) * self._sigma2_factor)
+        _expit = self.sigmoid(h_bias + (r @ kernel) * self._sigma2_factor)
         gr = -(r - v_bias) + kernel @ _expit
         gr *= self._sigma2
         gr *= self._factor
@@ -81,9 +97,9 @@ class BaseRBM:
     def laplacian_wf(self, r):
         v_bias, h_bias, kernel = self.params.get(["v_bias", "h_bias", "kernel"])
 
-        _expit = expit(h_bias + (r @ kernel) * self._sigma2_factor)
-        _expos = expit(-h_bias - (r @ kernel) * self._sigma2_factor)
-        kernel2 = np.square(kernel)
+        _expit = self.sigmoid(h_bias + (r @ kernel) * self._sigma2_factor)
+        _expos = self.sigmoid(-h_bias - (r @ kernel) * self._sigma2_factor)
+        kernel2 = self.backend.square(kernel)
         exp_prod = _expos * _expit
         gr = -self._sigma2 + self._sigma4 * kernel2 @ exp_prod
         gr *= self._factor
@@ -92,7 +108,7 @@ class BaseRBM:
     def grads(self, r):
         """Gradients of the wave function w.r.t. the parameters"""
         v_bias, h_bias, kernel = self.params.get(["v_bias", "h_bias", "kernel"])
-        _expit = expit(h_bias + (r @ kernel) * self._sigma2_factor)
+        _expit = self.sigmoid(h_bias + (r @ kernel) * self._sigma2_factor)
         grad_h_bias = self._grad_h_bias(r, _expit)
         grad_kernel = self._grad_kernel(r, _expit)
         grad_v_bias = self._grad_v_bias(r, v_bias, h_bias, kernel)
@@ -110,7 +126,11 @@ class BaseRBM:
 
     def _grad_kernel(self, r, _expit):
         """Gradient of wave function w.r.t. weight matrix"""
-        gr = self._sigma2 * r[:, np.newaxis] @ _expit[:, np.newaxis].T
+        gr = (
+            self._sigma2
+            * r[:, self.backend.newaxis]
+            @ _expit[:, self.backend.newaxis].T
+        )
         gr *= self._factor
 
         return gr
@@ -140,19 +160,23 @@ class BaseRBM:
         sr_matrices = {}
 
         for key, grad_value in grads.items():
-            if grad_value[0].ndim == 2:
-                grads_outer = np.einsum("nij,nkl->nijkl", grad_value, grad_value)
-            elif grad_value[0].ndim == 1:
-                grads_outer = np.einsum("ni,nj->nij", grad_value, grad_value)
+            # if self.backend.ndim(grad_value[0]) == 2:
+            if key == "kernel":
+                grads_outer = self.backend.einsum(
+                    "nij,nkl->nijkl", grad_value, grad_value
+                )
+            # elif self.backend.ndim(grad_value[0]) == 1:
+            else:
+                grads_outer = self.backend.einsum("ni,nj->nij", grad_value, grad_value)
 
-            expval_outer_grad = np.mean(grads_outer, axis=0)
-            outer_expval_grad = np.outer(expval_grads[key], expval_grads[key])
+            expval_outer_grad = self.backend.mean(grads_outer, axis=0)
+            outer_expval_grad = self.backend.outer(expval_grads[key], expval_grads[key])
 
             sr_mat = (
                 expval_outer_grad.reshape(outer_expval_grad.shape) - outer_expval_grad
             )
 
-            sr_matrices[key] = sr_mat + shift * np.eye(sr_mat.shape[0])
+            sr_matrices[key] = sr_mat + shift * self.backend.eye(sr_mat.shape[0])
 
         return sr_matrices
 

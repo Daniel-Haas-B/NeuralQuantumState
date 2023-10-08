@@ -65,7 +65,7 @@ class NQS:
         self._backend = backend
         self.mcmc_alg = None
         self._optimizer = None
-        self.sr_matrix = None
+        self.sr_matrices = None
         self.wf = None
         self._seed = seed
 
@@ -225,7 +225,7 @@ class NQS:
         seed_seq = generate_seed_sequence(self._seed, 1)[0]
 
         energies = []
-        final_grads = []
+        final_grads = {key: None for key in param_keys}
         grads_dict = {key: [] for key in param_keys}
         expval_energies_dict = {key: None for key in param_keys}
         expval_grad_dict = {key: None for key in param_keys}
@@ -254,26 +254,32 @@ class NQS:
                     )
 
                     expval_grad_dict[key] = np.mean(grads_dict[key], axis=0)
-                    final_grads.append(
-                        2
-                        * (
-                            expval_energies_dict[key]
-                            - expval_energy * expval_grad_dict[key]
-                        )
+
+                    final_grads[key] = 2 * (
+                        expval_energies_dict[key]
+                        - expval_energy * expval_grad_dict[key]
                     )
 
+                    # .append(
+                    #     2
+                    #     * (
+                    #         expval_energies_dict[key]
+                    #         - expval_energy * expval_grad_dict[key]
+                    #     )
+                    # )
+
                 if self.use_sr:
-                    self.sr_matrix = self.wf.compute_sr_matrix(
-                        expval_grad_dict["kernel"], grads_dict["kernel"]
+                    self.sr_matrices = self.wf.compute_sr_matrix(
+                        expval_grad_dict, grads_dict
                     )
 
                 # Descent
                 self._optimizer.step(
-                    self.wf.params, final_grads, self.sr_matrix
+                    self.wf.params, final_grads, self.sr_matrices
                 )  # changes wf params inplace
 
                 energies = []
-                final_grads = []
+                final_grads = {key: None for key in param_keys}
                 grads_dict = {key: [] for key in param_keys}
                 steps_before_optimize = batch_size
 

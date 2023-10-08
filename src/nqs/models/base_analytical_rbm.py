@@ -115,13 +115,20 @@ class BaseRBM:
 
         return gr
 
-    def compute_sr_matrix(self, expval_grad_kernel, grads_kernel, shift=1e-4):
+    def compute_sr_matrix(self, expval_grads, grads, shift=1e-4):
         """
+        expval_grads and grads should be dictionaries with keys "v_bias", "h_bias", "kernel" in the case of RBM
+        in the case of FFNN we have "weights" and "biases" and "kernel" is not present
         WIP: for now this does not involve the averages because r will be a single sample
         Compute the matrix for the stochastic reconfiguration algorithm
             for now we do it only for the kernel
             The expression here is for kernel element W_ij:
                 S_ij,kl = < (d/dW_ij log(psi)) (d/dW_kl log(psi)) > - < d/dW_ij log(psi) > < d/dW_kl log(psi) >
+
+            For bias (V or H) we have:
+                S_i,j = < (d/dV_i log(psi)) (d/dV_j log(psi)) > - < d/dV_i log(psi) > < d/dV_j log(psi) >
+
+
           1. Compute the gradient ∂_W log(ψ) using the _grad_kernel function.
             2. Compute the outer product of the gradient with itself: ∂_W log(ψ) ⊗ ∂_W log(ψ)
             3. Compute the expectation value of the outer product over all the samples
@@ -130,28 +137,24 @@ class BaseRBM:
 
             OBS: < d/dW_ij log(psi) > is already done inside train of the RBM class but we need still the < (d/dW_ij log(psi)) (d/dW_kl log(psi)) >
         """
+        sr_matrices = {}
 
-        # 1. Compute the gradient of log(psi) w.r.t. kernel for each sample r
-        # 2. Compute the outer product of gradient with itself for each sample r
-        # 3. Compute the mean of the outer product over all samples r
-        # print(" shape of grads_kernel", grads_kernel.shape)
-        # grads_kernel is a matrix of shape (n_samples, n_visible, n_hidden)
-        grads_kernel_outer = np.einsum("nij,nkl->nijkl", grads_kernel, grads_kernel)
+        for key, grad_value in grads.items():
+            if grad_value[0].ndim == 2:
+                grads_outer = np.einsum("nij,nkl->nijkl", grad_value, grad_value)
+            elif grad_value[0].ndim == 1:
+                grads_outer = np.einsum("ni,nj->nij", grad_value, grad_value)
 
-        expval_outer_grad_kernel = np.mean(grads_kernel_outer, axis=0)
-        # we shall use this in SR. I think this is avg dlogpsi/dW dlogpsi/dW
-        # print("grads_kernel_outer", grads_kernel_outer.shape)
-        # 6. Subtract the two results to get the S matrix
-        outer_expval_grad_kernel = np.array(
-            np.outer(expval_grad_kernel, expval_grad_kernel)
-        )
-        sr_mat = (
-            expval_outer_grad_kernel.reshape(outer_expval_grad_kernel.shape)
-            - outer_expval_grad_kernel
-        )
-        sr_mat = sr_mat + shift * np.eye(sr_mat.shape[0])
-        # print("sr_mat.shape", sr_mat.shape)
-        return sr_mat
+            expval_outer_grad = np.mean(grads_outer, axis=0)
+            outer_expval_grad = np.outer(expval_grads[key], expval_grads[key])
+
+            sr_mat = (
+                expval_outer_grad.reshape(outer_expval_grad.shape) - outer_expval_grad
+            )
+
+            sr_matrices[key] = sr_mat + shift * np.eye(sr_mat.shape[0])
+
+        return sr_matrices
 
     @property
     def sigma2(self):

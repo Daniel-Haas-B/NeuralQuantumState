@@ -29,18 +29,18 @@ class Adam(Optimizer):
         self.beta2 = kwargs["beta2"]
         self.epsilon = kwargs["epsilon"]
 
-    def step(self, params, grads, sr_matrix=None):
+    def step(self, params, grads, sr_matrices=None):
         """Update the parameters. Maybe performance bottleneck?"""
         self.t += 1  # increment time step
-        grads_dict = {key: grad for key, grad in zip(self._param_keys, grads)}
+        # grads_dict = {key: grad for key, grad in zip(self._param_keys, grads)}
 
-        if sr_matrix is not None:
-            # we really need to change this later!
-            grads_dict["kernel"] = grads_dict["kernel"].reshape(sr_matrix.shape[0], -1)
-            grads_dict["kernel"] = np.linalg.pinv(sr_matrix) @ grads_dict["kernel"]
-            grads_dict["kernel"] = grads_dict["kernel"].reshape(
-                params.get(["kernel"])[0].shape
-            )
+        if sr_matrices is not None:
+            for key in sr_matrices.keys():
+                sr_matrix = sr_matrices[key]
+                # for the love of god change this later
+                grads[key] = grads[key].reshape(sr_matrix.shape[0], -1)
+                grads[key] = np.linalg.pinv(sr_matrix) @ grads[key]
+                grads[key] = grads[key].reshape(params.get([key])[0].shape)
 
         for key in self._param_keys:
             # Update m and v with the new gradients
@@ -48,12 +48,11 @@ class Adam(Optimizer):
             m_key = "m_" + key
             v_key = "v_" + key
             self._m_params[m_key] = (
-                self.beta1 * self._m_params[m_key] + (1 - self.beta1) * grads_dict[key]
+                self.beta1 * self._m_params[m_key] + (1 - self.beta1) * grads[key]
             )
 
             self._v_params[v_key] = (
-                self.beta2 * self._v_params[v_key]
-                + (1 - self.beta2) * grads_dict[key] ** 2
+                self.beta2 * self._v_params[v_key] + (1 - self.beta2) * grads[key] ** 2
             )
 
             # Calculate bias-corrected estimates

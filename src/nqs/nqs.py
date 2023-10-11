@@ -147,12 +147,12 @@ class NQS:
         If int_type is None, we assume non interacting particles.
         """
         if type_.lower() == "ho":
-            self.hamiltonian = HO(self._N, self._dim, int_type, self._backend, **kwargs)
+            self.hamiltonian = HO(self._N, self._dim, int_type, self._backend, kwargs)
             if self._backend == "jax":
                 self.hamiltonian.potential = jax.jit(self.hamiltonian.potential)
         else:
             raise NotImplementedError(
-                "Only the Harmonic Oscillator is supported for now."
+                "Only the Harmonic Oscillator and Cologero-Sutherland supported for now."
             )
 
         self._sampler.set_hamiltonian(self.hamiltonian)

@@ -16,20 +16,20 @@ jax.config.update("jax_platform_name", "cpu")
 
 # Config
 output_filename = "../data/playground.csv"
-nparticles = 10
+nparticles = 5
 dim = 2
 nhidden = 4
 nsamples = int(2**14)  # 2**18 = 262144
-nchains = 8
+nchains = 1
 eta = 0.05
 
 training_cycles = [50_000]  # this is cycles for the NN
 mcmc_alg = "m"
 backend = "numpy"
-optimizer = "gd"
+optimizer = "adam"
 batch_size = 1_000
 detailed = True
-
+wf_type = "rbm"
 seed = 42
 
 dfs_mean = []
@@ -45,16 +45,24 @@ for sr in [False, True]:
         nqs_repr="psi",
         backend=backend,
         log=True,
+        logger_level="INFO",
         use_sr=sr,
+        seed=seed,
     )
 
-    system.set_wf("rbm", nparticles, dim, nhidden=nhidden, sigma2=1.0)
+    system.set_wf(
+        wf_type,
+        nparticles,
+        dim,
+        nhidden=nhidden,  # all after this is kwargs. In this example it is RBM dependent
+        sigma2=1.0,
+    )
+
     system.set_sampler(mcmc_alg=mcmc_alg, scale=1.0)
-    system.set_hamiltonian("HO", int_type="Coulomb")
+    system.set_hamiltonian(type_="ho", int_type="Coulomb")
     system.set_optimizer(
         optimizer=optimizer,
         eta=eta,
-        use_sr=True,
         beta1=0.9,
         beta2=0.999,
         epsilon=1e-8,
@@ -62,17 +70,14 @@ for sr in [False, True]:
 
     system.train(
         max_iter=training_cycles[0],
-        batch_size=batch_size,  # 1_000
+        batch_size=batch_size,
         early_stop=False,
         seed=seed,
     )
 
     df = system.sample(nsamples, nchains=nchains, seed=seed)
-
     df_all.append(df)
-    # plt.plot(np.convolve(energies[0], np.ones((100,))/100, mode='valid'))
-    # plt.show()
-    # exit()
+
     sem_factor = 1 / np.sqrt(len(df))  # sem = standard error of the mean
     mean_data = df[["energy", "std_error", "variance", "accept_rate"]].mean().to_dict()
     mean_data["sem_energy"] = df["energy"].std() * sem_factor
@@ -86,8 +91,8 @@ for sr in [False, True]:
                 "dim",
                 "eta",
                 "scale",
-                "nvisible",
-                "nhidden",
+                # "nvisible",
+                # "nhidden",
                 "mcmc_alg",
                 "nqs_type",
                 "nsamples",
@@ -108,6 +113,7 @@ print((end - start))
 
 
 df_final = pd.concat(dfs_mean)
+
 # Save results
 df_final.to_csv(output_filename, index=False)
 
@@ -115,10 +121,14 @@ df_final.to_csv(output_filename, index=False)
 # energy withour sr
 df_all = pd.concat(df_all)
 
-# print(df)
-
 # energy with sr
-sns.lineplot(data=df_all, x="chain_id", y="energy", hue="sr")
+if nchains > 1:
+    sns.lineplot(data=df_all, x="chain_id", y="energy", hue="sr")
+else:
+    sns.scatterplot(data=df_all, x="chain_id", y="energy", hue="sr")
+# ylim
+# plt.ylim(2.9, 3.6)
+
 plt.xlabel("Chain")
 plt.ylabel("Energy")
 plt.show()

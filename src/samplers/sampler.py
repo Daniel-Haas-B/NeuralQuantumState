@@ -12,8 +12,8 @@ from tqdm.auto import tqdm  # progress bar
 
 
 class Sampler:
-    def __init__(self, rbm, rng, scale, logger=None):
-        self._rbm = rbm
+    def __init__(self, wf, rng, scale, logger=None):
+        self._wf = wf
         self._rng = rng
         self._scale = scale  # to be set by child class
         self._logger = logger
@@ -23,7 +23,6 @@ class Sampler:
 
         # TODO: accept biases and kernel as parameters and
         # assume they are optimized if passed
-        v_bias, h_bias, kernel = params.get(["v_bias", "h_bias", "kernel"])
         scale = self._scale
 
         nchains = check_and_set_nchains(nchains, self._logger)
@@ -32,7 +31,7 @@ class Sampler:
         if nchains == 1:
             chain_id = 0
             results, self._energies = self._sample(
-                nsamples, state, v_bias, h_bias, kernel, scale, seeds[0], chain_id
+                nsamples, state, params, scale, seeds[0], chain_id
             )
             self._results = pd.DataFrame([results])
         else:
@@ -48,9 +47,12 @@ class Sampler:
             # Handle iterables
             nsamples = (nsamples,) * nchains
             state = (state,) * nchains
-            v_bias = (v_bias,) * nchains
-            h_bias = (h_bias,) * nchains
-            kernel = (kernel,) * nchains
+            params = (params,) * nchains
+            # v_bias = (v_bias,) * nchains
+            # h_bias = (h_bias,) * nchains
+            # kernel = (kernel,) * nchains
+            # params.parallelize(nchains)
+            # print("PARALLELIZED PARAMS")
             scale = (scale,) * nchains
             chain_ids = range(nchains)
 
@@ -62,9 +64,7 @@ class Sampler:
                         self._sample,
                         nsamples,
                         state,
-                        v_bias,
-                        h_bias,
-                        kernel,
+                        params,
                         scale,
                         seeds,
                         chain_ids,
@@ -78,7 +78,7 @@ class Sampler:
 
         return self._results
 
-    def _sample(self, nsamples, state, v_bias, h_bias, kernel, scale, seed, chain_id):
+    def _sample(self, nsamples, state, params, scale, seed, chain_id):
         """To be called by process"""
         if self._logger is not None:
             t_range = tqdm(
@@ -96,10 +96,9 @@ class Sampler:
         energies = np.zeros(nsamples)
 
         for i in t_range:
-            state = self._step(state, v_bias, h_bias, kernel, seed)
-            energies[i] = self._rbm.local_energy(
-                state.positions, v_bias, h_bias, kernel
-            )
+            state = self._step(state, params, seed)
+            energies[i] = self.hamiltonian.local_energy(self._wf, state.positions)
+
         if self._logger is not None:
             t_range.clear()
 
@@ -120,11 +119,14 @@ class Sampler:
 
         return sample_results, energies
 
-    def step(self, state, v_bias, h_bias, kernel, seed):
+    def step(self, state, params, seed):
         """
         To be implemented by subclasses
         """
         raise NotImplementedError("Subclasses must implement this method.")
+
+    def set_hamiltonian(self, hamiltonian):
+        self.hamiltonian = hamiltonian
 
     @property
     def scale(self):

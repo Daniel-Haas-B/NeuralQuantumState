@@ -60,7 +60,7 @@ class BaseJAXRBM:
     def potential(self):
         """Potential energy function.
 
-        To be overwritten by subclass.
+        should be helper for the hamiltonian.potential
         """
         raise NotImplementedError
 

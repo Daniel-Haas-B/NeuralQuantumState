@@ -16,17 +16,17 @@ class Gd(Optimizer):
         super().__init__(eta)
         self._param_keys = params.keys()
 
-    def step(self, params, grads, sr_matrix=None):
+    def step(self, params, grads, sr_matrices=None):
         """Update the parameters. Maybe performance bottleneck?"""
 
-        # for the love of god change this later
+        if sr_matrices is not None:
+            for key, sr_matrix in sr_matrices.items():
+                # for the love of god change this later
+                grads[key] = grads[key].reshape(sr_matrix.shape[0], -1)
+                grads[key] = np.linalg.pinv(sr_matrix) @ grads[key]
+                grads[key] = grads[key].reshape(params.get([key])[0].shape)
 
-        if sr_matrix is not None:
-            grads[-1] = grads[-1].reshape(sr_matrix.shape[0], -1)
-            grads[-1] = np.linalg.pinv(sr_matrix) @ grads[-1]
-            grads[-1] = grads[-1].reshape(params.get(["kernel"])[0].shape)
-
-        for key, grad in zip(self._param_keys, grads):
+        for key, grad in grads.items():
             params.set([key], params.get([key]) - self.eta * grad)
 
         return params

@@ -43,7 +43,7 @@ class Hamiltonian:
         """Local energy of the system"""
         raise NotImplementedError
 
-    def drift_force(self, wf, r, params):
+    def drift_force(self, wf, r):
         """Drift force at each particle's location"""
         raise NotImplementedError
 
@@ -85,10 +85,10 @@ class HarmonicOscillator(Hamiltonian):
 
         return v_trap + v_int
 
-    def _local_kinetic_energy(self, wf, r):
+    def _local_kinetic_energy(self, wf, r):  # testing adding params
         """Evaluate the local kinetic energy of the system"""
-        _laplace = wf.laplacian_wf(r).sum()
-        _grad = wf.grad_wf(r)
+        _laplace = wf.laplacian(r).sum()
+        _grad = wf.grad_wf(r)  # testing adding params
         _grad2 = self.backend.sum(_grad * _grad)
         return -0.5 * (_laplace + _grad2)
 

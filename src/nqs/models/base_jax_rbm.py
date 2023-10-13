@@ -38,7 +38,7 @@ class BaseJAXRBM:
         return jnp.logaddexp(x, 0)
 
     @partial(jax.jit, static_argnums=(0,))
-    def _log_rbm(self, r, v_bias, h_bias, kernel):
+    def _log_wf(self, r, v_bias, h_bias, kernel):
         """Logarithmic gaussian-binary RBM"""
 
         # visible layer
@@ -54,7 +54,7 @@ class BaseJAXRBM:
     @partial(jax.jit, static_argnums=(0,))
     def wf(self, r, v_bias, h_bias, kernel):
         """Evaluate the wave function"""
-        return self._factor * self._log_rbm(r, v_bias, h_bias, kernel).sum()
+        return self._factor * self._log_wf(r, v_bias, h_bias, kernel).sum()
 
     @abstractmethod
     def potential(self):
@@ -72,7 +72,7 @@ class BaseJAXRBM:
     @partial(jax.jit, static_argnums=(0,))
     def logprob(self, r, params):
         """Log probability amplitude"""
-        psi2 = self._rbm_psi_repr * self._log_rbm(r, params).sum()
+        psi2 = self._rbm_psi_repr * self._log_wf(r, params).sum()
         return psi2
 
     @partial(jax.jit, static_argnums=(0,))

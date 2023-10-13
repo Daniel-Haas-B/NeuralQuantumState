@@ -11,7 +11,7 @@ class RBM(BaseRBM):
         nparticles,
         dim,
         nhidden=1,
-        factor=1.0,
+        factor=1.0,  # not sure about this value
         sigma2=1.0,
         rng=None,
         log=False,

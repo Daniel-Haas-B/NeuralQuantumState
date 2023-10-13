@@ -44,6 +44,9 @@ from optimizers import adam, gd
 # from multiprocessing import Lock
 # from multiprocessing import RLock
 
+jax.config.update("jax_enable_x64", True)
+jax.config.update("jax_platform_name", "cpu")
+
 warnings.filterwarnings("ignore", message="divide by zero encountered")
 
 
@@ -123,17 +126,6 @@ class NQS:
             )
         else:
             raise NotImplementedError("Only the RBM is supported for now.")
-
-        if self._backend == "jax":
-            self.wf.grad_wf = jax.jit(self.wf.grad_wf)
-            self.wf.laplacian_wf = jax.jit(self.wf.laplacian_wf)
-            self.wf.wf = jax.jit(self.wf.wf)
-            self.wf._softplus = jax.jit(self.wf._softplus)
-            self.wf._log_rbm = jax.jit(self.wf._log_rbm)
-            self.wf.pdf = jax.jit(self.wf.pdf)
-            self.wf.logprob = jax.jit(self.wf.logprob)
-            self.wf.grads = jax.jit(self.wf.grads)
-            self.wf.compute_sr_matrix = jax.jit(self.wf.compute_sr_matrix)
 
         self._is_initialized_ = True
 
@@ -253,7 +245,9 @@ class NQS:
 
         for _ in t_range:
             state = self._sampler.step(state, params, seed_seq)
-            loc_energy = self.hamiltonian.local_energy(self.wf, state.positions)
+            loc_energy = self.hamiltonian.local_energy(
+                self.wf, state.positions
+            )  # testing adding params
             energies.append(loc_energy)
             grads = self.wf.grads(state.positions)
 

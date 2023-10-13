@@ -42,6 +42,7 @@ class RBM:
         self._nhidden = nhidden
         self.logger = logger
         self._precompute()
+
         if backend == "numpy":
             self.backend = np
             self.la = np.linalg
@@ -76,6 +77,7 @@ class RBM:
 
         self.params = Parameter()
         self.params.set(["v_bias", "h_bias", "kernel"], [v_bias, h_bias, kernel])
+
         self.log = log
         logp = self.logprob(r)
         self.state = State(r, logp, 0, 0)

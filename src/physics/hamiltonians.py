@@ -27,6 +27,7 @@ class Hamiltonian:
         elif backend == "jax":
             self.backend = jnp
             self.la = jnp.linalg
+            self.potential = jax.jit(self.potential)
         else:
             raise ValueError("Invalid backend:", backend)
 
@@ -85,10 +86,10 @@ class HarmonicOscillator(Hamiltonian):
 
         return v_trap + v_int
 
-    def _local_kinetic_energy(self, wf, r):  # testing adding params
+    def _local_kinetic_energy(self, wf, r):
         """Evaluate the local kinetic energy of the system"""
         _laplace = wf.laplacian(r).sum()
-        _grad = wf.grad_wf(r)  # testing adding params
+        _grad = wf.grad_wf(r)
         _grad2 = self.backend.sum(_grad * _grad)
         return -0.5 * (_laplace + _grad2)
 
@@ -98,7 +99,7 @@ class HarmonicOscillator(Hamiltonian):
         pe = self.potential(r)
         return pe + ke
 
-    def drift_force(self, wf, r, params):
+    def drift_force(self, wf, r):
         """Drift force at each particle's location"""
-        F = 2 * wf.grad_wf(r, params)
+        F = 2 * wf.grad_wf(r)
         return F

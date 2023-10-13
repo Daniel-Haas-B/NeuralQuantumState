@@ -1,6 +1,6 @@
-# import sys
 from threading import RLock as TRLock
 
+import jax
 import numpy as np
 import pandas as pd
 from nqs.utils import block
@@ -9,6 +9,9 @@ from nqs.utils import generate_seed_sequence
 from nqs.utils import State
 from pathos.pools import ProcessPool
 from tqdm.auto import tqdm  # progress bar
+
+jax.config.update("jax_enable_x64", True)
+jax.config.update("jax_platform_name", "cpu")
 
 
 class Sampler:
@@ -48,11 +51,6 @@ class Sampler:
             nsamples = (nsamples,) * nchains
             state = (state,) * nchains
             params = (params,) * nchains
-            # v_bias = (v_bias,) * nchains
-            # h_bias = (h_bias,) * nchains
-            # kernel = (kernel,) * nchains
-            # params.parallelize(nchains)
-            # print("PARALLELIZED PARAMS")
             scale = (scale,) * nchains
             chain_ids = range(nchains)
 
@@ -80,6 +78,7 @@ class Sampler:
 
     def _sample(self, nsamples, state, params, scale, seed, chain_id):
         """To be called by process"""
+
         if self._logger is not None:
             t_range = tqdm(
                 range(nsamples),

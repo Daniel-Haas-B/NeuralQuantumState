@@ -127,18 +127,6 @@ class NQS:
         else:
             raise NotImplementedError("Only the RBM is supported for now.")
 
-        if self._backend == "jax":
-            self.wf.laplacian_closure = jax.jit(self.wf.laplacian_closure)
-            self.wf.grad_closure = jax.jit(self.wf.grad_closure)
-            self.wf.grads_closure = jax.jit(self.wf.grads_closure)
-            self.wf.wf = jax.jit(self.wf.wf)
-            self.wf._softplus = jax.jit(self.wf._softplus)
-            self.wf._log_wf = jax.jit(self.wf._log_wf)
-            self.wf.pdf = jax.jit(self.wf.pdf)
-            self.wf.logprob_closure = jax.jit(self.wf.logprob_closure)
-            self.wf.grads = jax.jit(self.wf.grads)
-            self.wf.compute_sr_matrix = jax.jit(self.wf.compute_sr_matrix)
-
         self._is_initialized_ = True
 
     def set_hamiltonian(self, type_, int_type, **kwargs):

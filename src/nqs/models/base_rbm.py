@@ -40,7 +40,13 @@ class BaseRBM:
             self._sigma2 = jnp.float64(self._sigma2)
             self._sigma4 = jnp.float64(self._sigma4)
             self._sigma2_factor = jnp.float64(self._sigma2_factor)
-
+            # jit functions
+            self._log_wf = jax.jit(self._log_wf)
+            self.wf = jax.jit(self.wf)
+            self.logprob_closure = jax.jit(self.logprob_closure)
+            self.grad_closure = jax.jit(self.grad_closure)
+            self._precompute = jax.jit(self._precompute)
+            self._softplus = jax.jit(self._softplus)
         else:
             raise ValueError("Invalid backend:", backend)
 
@@ -77,13 +83,14 @@ class BaseRBM:
     @abstractmethod
     def potential(self):
         """Potential energy function.
-
         To be overwritten by subclass.
         """
         raise NotImplementedError
 
     def pdf(self, r, v_bias, h_bias, kernel):
-        """Probability amplitude"""
+        """
+        Probability amplitude
+        """
         return self.backend.exp(self.logprob(r, v_bias, h_bias, kernel))
 
     def logprob_closure(self, r, v_bias, h_bias, kernel):

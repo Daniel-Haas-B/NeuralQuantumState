@@ -108,6 +108,11 @@ class BaseRBM:
         gr *= self._sigma2 * self._factor
         return gr
 
+    def jax_grad_closure(self, r, v_bias, h_bias, kernel):
+        """
+        Here we will use jaxgrad to compute the gradient
+        """
+
     def grad_wf(self, r):
         """
         grad of the wave function w.r.t. the coordinates

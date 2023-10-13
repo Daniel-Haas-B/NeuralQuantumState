@@ -20,12 +20,12 @@ nparticles = 2
 dim = 2
 nhidden = 4
 nsamples = int(2**14)  # 2**18 = 262144
-nchains = 1
+nchains = 8
 eta = 0.05
 
 training_cycles = [50_000]  # this is cycles for the NN
 mcmc_alg = "m"
-backend = "jax"
+backend = "numpy"
 optimizer = "gd"
 batch_size = 1_000
 detailed = True

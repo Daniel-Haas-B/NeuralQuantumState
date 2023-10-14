@@ -1,14 +1,16 @@
-from threading import RLock as TRLock
+import warnings
 
 import jax
+import jax.numpy as jnp
 import numpy as np
 import pandas as pd
 from nqs.utils import block
 from nqs.utils import check_and_set_nchains
 from nqs.utils import generate_seed_sequence
+from nqs.utils import sampler_utils
 from nqs.utils import State
-from pathos.pools import ProcessPool
 from tqdm.auto import tqdm  # progress bar
+
 
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
@@ -20,12 +22,11 @@ class Sampler:
         self._rng = rng
         self._scale = scale  # to be set by child class
         self._logger = logger
+        self._backend = self._wf.backend
 
     def sample(self, state, params, nsamples, nchains=1, seed=None):
         """ """
 
-        # TODO: accept biases and kernel as parameters and
-        # assume they are optimized if passed
         scale = self._scale
 
         nchains = check_and_set_nchains(nchains, self._logger)
@@ -38,36 +39,25 @@ class Sampler:
             )
             self._results = pd.DataFrame([results])
         else:
-            if self._logger is not None:
-                # for managing output contention
-                tqdm.set_lock(TRLock())
-                initializer = tqdm.set_lock
-                initargs = (tqdm.get_lock(),)
-            else:
-                initializer = None
-                initargs = None
-
-            # Handle iterables
-            nsamples = (nsamples,) * nchains
-            state = (state,) * nchains
-            params = (params,) * nchains
-            scale = (scale,) * nchains
-            chain_ids = range(nchains)
-
-            with ProcessPool(
-                nchains, initializer=initializer, initargs=initargs
-            ) as pool:
-                results, self._energies = zip(
-                    *pool.map(
-                        self._sample,
-                        nsamples,
-                        state,
-                        params,
-                        scale,
-                        seeds,
-                        chain_ids,
-                    )
+            if self._backend == np:
+                multi_sampler = sampler_utils.numpy_multiproc
+            elif self._backend == jnp:
+                multi_sampler = sampler_utils.numpy_multiproc
+                # raise warning that we are still using numpy multiprocessing
+                warnings.warn(
+                    "Using Numpy multiprocessing. \n JAX multiprocessing not implemented yet"
                 )
+
+            results, self._energies = multi_sampler(
+                self._sample,
+                nchains,
+                nsamples,
+                state,
+                params,
+                scale,
+                seeds,
+                self._logger,
+            )
             self._results = pd.DataFrame(results)
 
         self._sampling_performed_ = True

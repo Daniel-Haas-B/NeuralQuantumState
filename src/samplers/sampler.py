@@ -1,13 +1,11 @@
-from threading import RLock as TRLock
-
 import jax
 import numpy as np
 import pandas as pd
 from nqs.utils import block
 from nqs.utils import check_and_set_nchains
 from nqs.utils import generate_seed_sequence
+from nqs.utils import sampler_utils
 from nqs.utils import State
-from pathos.pools import ProcessPool
 from tqdm.auto import tqdm  # progress bar
 
 jax.config.update("jax_enable_x64", True)
@@ -15,59 +13,34 @@ jax.config.update("jax_platform_name", "cpu")
 
 
 class Sampler:
-    def __init__(self, wf, rng, scale, logger=None):
-        self._wf = wf
+    def __init__(self, rng, scale, logger=None):
         self._rng = rng
         self._scale = scale  # to be set by child class
         self._logger = logger
 
-    def sample(self, state, params, nsamples, nchains=1, seed=None):
+    def sample(self, wf, state, nsamples, nchains=1, seed=None):
         """ """
-
-        # TODO: accept biases and kernel as parameters and
-        # assume they are optimized if passed
         scale = self._scale
-
         nchains = check_and_set_nchains(nchains, self._logger)
         seeds = generate_seed_sequence(seed, nchains)
-
         if nchains == 1:
             chain_id = 0
             results, self._energies = self._sample(
-                nsamples, state, params, scale, seeds[0], chain_id
+                nsamples, state, scale, seeds[0], chain_id
             )
             self._results = pd.DataFrame([results])
         else:
-            if self._logger is not None:
-                # for managing output contention
-                tqdm.set_lock(TRLock())
-                initializer = tqdm.set_lock
-                initargs = (tqdm.get_lock(),)
-            else:
-                initializer = None
-                initargs = None
-
-            # Handle iterables
-            nsamples = (nsamples,) * nchains
-            state = (state,) * nchains
-            params = (params,) * nchains
-            scale = (scale,) * nchains
-            chain_ids = range(nchains)
-
-            with ProcessPool(
-                nchains, initializer=initializer, initargs=initargs
-            ) as pool:
-                results, self._energies = zip(
-                    *pool.map(
-                        self._sample,
-                        nsamples,
-                        state,
-                        params,
-                        scale,
-                        seeds,
-                        chain_ids,
-                    )
-                )
+            multi_sampler = sampler_utils.multiproc
+            results, self._energies = multi_sampler(
+                self._sample,
+                wf,
+                nchains,
+                nsamples,
+                state,
+                scale,
+                seeds,
+                self._logger,
+            )
             self._results = pd.DataFrame(results)
 
         self._sampling_performed_ = True
@@ -76,7 +49,7 @@ class Sampler:
 
         return self._results
 
-    def _sample(self, nsamples, state, params, scale, seed, chain_id):
+    def _sample(self, wf, nsamples, state, scale, seed, chain_id):
         """To be called by process"""
 
         if self._logger is not None:
@@ -95,8 +68,8 @@ class Sampler:
         energies = np.zeros(nsamples)
 
         for i in t_range:
-            state = self._step(state, params, seed)
-            energies[i] = self.hamiltonian.local_energy(self._wf, state.positions)
+            state = self._step(wf, state, seed)
+            energies[i] = self.hamiltonian.local_energy(wf, state.positions)
 
         if self._logger is not None:
             t_range.clear()
@@ -118,7 +91,7 @@ class Sampler:
 
         return sample_results, energies
 
-    def step(self, state, params, seed):
+    def step(self, wf, state, seed):
         """
         To be implemented by subclasses
         """

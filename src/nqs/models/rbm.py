@@ -1,13 +1,9 @@
-from abc import abstractmethod
-
 import jax
 import jax.numpy as jnp
 import numpy as np
 from nqs.utils import Parameter
 from nqs.utils import State
 from scipy.special import expit
-
-# from functools import partial
 
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
@@ -28,57 +24,28 @@ class RBM:
         backend="numpy",
     ):
         """
-        RBM Neural Network Quantum State
-        the wave function is represented by a gaussian-binary restricted Boltzmann machine.
+        Initializes the RBM Neural Network Quantum State.
 
-        The implementation assumes a logarithmic wave function.
+        Args:
+        - nparticles (int): Number of particles.
+        - dim (int): Dimensionality.
+        ...
         """
-        self._sigma2 = sigma2
-        self._factor = factor
-        self._rbm_psi_repr = 2 * self._factor
-        self._N = nparticles
-        self._dim = dim
-        self._nvisible = self._N * self._dim
-        self._nhidden = nhidden
-        self.logger = logger
-        self._precompute()
-
-        if backend == "numpy":
-            self.backend = np
-            self.la = np.linalg
-            self.sigmoid = expit
-        elif backend == "jax":
-            self.backend = jnp
-            self.la = jnp.linalg
-            self.sigmoid = jax.nn.sigmoid
-            # convert constants to jnp 64
-            self._factor = jnp.float64(self._factor)
-            self._rbm_psi_repr = jnp.float64(self._rbm_psi_repr)
-            self._sigma2 = jnp.float64(self._sigma2)
-            self._sigma4 = jnp.float64(self._sigma4)
-            self._sigma2_factor = jnp.float64(self._sigma2_factor)
-            # jit functions
-            self._log_wf = jax.jit(self._log_wf)
-            self.wf = jax.jit(self.wf)
-            self.logprob_closure = jax.jit(self.logprob_closure)
-            self.grad_closure = jax.jit(self.grad_closure)
-            self._precompute = jax.jit(self._precompute)
-            self._softplus = jax.jit(self._softplus)
+        self._initialize_vars(nparticles, dim, nhidden, factor, sigma2)
+        self._configure_backend(backend)
+        if logger:
+            self.logger = logger
         else:
-            raise ValueError("Invalid backend:", backend)
+            import logging
 
-        r = rng.standard_normal(size=self._nvisible)
-
-        # Initialize visible bias
-        v_bias = rng.standard_normal(size=self._nvisible) * 0.01
-        h_bias = rng.standard_normal(size=self._nhidden) * 0.01
-        kernel = rng.standard_normal(size=(self._nvisible, self._nhidden))
-        kernel *= np.sqrt(1 / self._nvisible)
-
-        self.params = Parameter()
-        self.params.set(["v_bias", "h_bias", "kernel"], [v_bias, h_bias, kernel])
+            self.logger = logging.getLogger(__name__)
 
         self.log = log
+        self.rng = rng if rng else np.random.default_rng()
+        r = rng.standard_normal(size=self._nvisible)
+
+        self._initialize_bias_and_kernel(rng)
+
         logp = self.logprob(r)
         self.state = State(r, logp, 0, 0)
 
@@ -89,6 +56,79 @@ class RBM:
                 f"{self._nhidden} hidden {neuron_str}"
             )
             self.logger.info(msg)
+
+    def _initialize_bias_and_kernel(self, rng):
+        v_bias = rng.standard_normal(size=self._nvisible) * 0.01
+        h_bias = rng.standard_normal(size=self._nhidden) * 0.01
+        kernel = rng.standard_normal(size=(self._nvisible, self._nhidden))
+        kernel *= np.sqrt(1 / self._nvisible)
+        self.params = Parameter()
+        self.params.set(["v_bias", "h_bias", "kernel"], [v_bias, h_bias, kernel])
+
+    def _initialize_vars(self, nparticles, dim, nhidden, factor, sigma2):
+        self._sigma2 = sigma2
+        self._factor = factor
+        self._rbm_psi_repr = 2 * self._factor
+        self._N = nparticles
+        self._dim = dim
+        self._nvisible = self._N * self._dim
+        self._nhidden = nhidden
+        self._precompute()
+
+    def _configure_backend(self, backend):
+        if backend == "numpy":
+            self.backend = np
+            self.la = np.linalg
+            self.sigmoid = expit
+
+        elif backend == "jax":
+            self.backend = jnp
+            self.la = jnp.linalg
+            self.sigmoid = expit  # jax.nn.sigmoid
+            self.grad_wf_closure = self.grad_wf_closure_jax
+            self.grads_closure = self.grads_closure_jax
+            self.laplacian_closure = self.laplacian_closure_jax
+            # self._convert_constants_to_jnp()
+            self._jit_functions()
+        else:
+            raise ValueError(f"Invalid backend: {backend}")
+
+    def clone(self):
+        """Returns a copy of the object"""
+        clone = self.__class__(
+            self._N,
+            self._dim,
+            self._nhidden,
+            self._factor,
+            self._sigma2,
+            self.rng,
+            self.log,
+            self.logger,
+            self.backend,
+        )
+
+        clone.params = self.params
+        return clone
+
+    def _convert_constants_to_jnp(self):
+        constants = ["_factor", "_rbm_psi_repr", "_sigma2", "_sigma4", "_sigma2_factor"]
+        for const in constants:
+            setattr(self, const, jnp.float64(getattr(self, const)))
+
+    def _jit_functions(self):
+        functions_to_jit = [
+            "_log_wf",
+            "wf",
+            "logprob_closure",
+            "grad_wf_closure",
+            "grads_closure",
+            "laplacian_closure",
+            "_precompute",
+            "_softplus",
+        ]
+        for func_name in functions_to_jit:
+            setattr(self, func_name, jax.jit(getattr(self, func_name)))
+        return self
 
     def _precompute(self):
         self._sigma4 = self._sigma2 * self._sigma2
@@ -120,13 +160,6 @@ class RBM:
         """Evaluate the wave function"""
         return self._factor * self._log_wf(r, v_bias, h_bias, kernel).sum()
 
-    @abstractmethod
-    def potential(self):
-        """Potential energy function.
-        To be overwritten by subclass.
-        """
-        raise NotImplementedError
-
     def pdf(self, r, v_bias, h_bias, kernel):
         """
         Probability amplitude
@@ -142,23 +175,31 @@ class RBM:
         v_bias, h_bias, kernel = self.params.get(["v_bias", "h_bias", "kernel"])
         return self.logprob_closure(r, v_bias, h_bias, kernel)
 
-    def grad_closure(self, r, v_bias, h_bias, kernel):
+    def grad_wf_closure(self, r, v_bias, h_bias, kernel):
+        """
+        This is the gradient of the logarithm of the wave function w.r.t. the coordinates
+        """
         _expit = self.sigmoid(h_bias + (r @ kernel) * self._sigma2_factor)
         gr = -(r - v_bias) + kernel @ _expit
         gr *= self._sigma2 * self._factor
         return gr
 
-    def jax_grad_closure(self, r, v_bias, h_bias, kernel):
+    # @partial(jax.jit, static_argnums=(0,))
+    def grad_wf_closure_jax(self, r, v_bias, h_bias, kernel):
         """
-        Here we will use jaxgrad to compute the gradient
+        This is the autograd version of the gradient of the logarithm of the wave function w.r.t. the coordinates
         """
+
+        grad_wf = jax.grad(self.wf, argnums=0)
+
+        return grad_wf(r, v_bias, h_bias, kernel)
 
     def grad_wf(self, r):
         """
         grad of the wave function w.r.t. the coordinates
         """
         v_bias, h_bias, kernel = self.params.get(["v_bias", "h_bias", "kernel"])
-        return self.grad_closure(r, v_bias, h_bias, kernel)
+        return self.grad_wf_closure(r, v_bias, h_bias, kernel)
 
     def laplacian_closure(self, r, v_bias, h_bias, kernel):
         _expit = self.sigmoid(h_bias + (r @ kernel) * self._sigma2_factor)
@@ -168,6 +209,28 @@ class RBM:
         gr = -self._sigma2 + self._sigma4 * kernel2 @ exp_prod
         gr *= self._factor
         return gr
+
+    # @partial(jax.jit, static_argnums=(0,))
+    def laplacian_closure_jax(self, r, v_bias, h_bias, kernel):
+        """
+        nabla^2 of the wave function w.r.t. the coordinates
+        """
+
+        def wrapped_wf(r_):
+            return self.wf(r_, v_bias, h_bias, kernel)
+
+        grad_wf = jax.grad(wrapped_wf)
+        hessian_wf = jax.jacfwd(
+            grad_wf
+        )  # This computes the Jacobian of the gradient, which is the Hessian
+
+        hessian_at_r = hessian_wf(r)
+
+        # If you want the Laplacian, you'd sum the diagonal of the Hessian.
+        # This assumes r is a vector and you want the Laplacian w.r.t. each element.
+        laplacian = jnp.trace(hessian_at_r)
+
+        return laplacian
 
     def laplacian(self, r):
         v_bias, h_bias, kernel = self.params.get(["v_bias", "h_bias", "kernel"])
@@ -184,9 +247,26 @@ class RBM:
         grad_v_bias = (r - v_bias) * self._sigma2 * self._factor
         return grad_v_bias, grad_h_bias, grad_kernel
 
+    # @partial(jax.jit, static_argnums=(0,))
+    def grads_closure_jax(self, r, v_bias, h_bias, kernel):
+        """
+        This is the autograd version of the gradient of the logarithm of the wave function w.r.t. the parameters
+        """
+
+        grad_v_bias = jax.grad(self.wf, argnums=1)
+        grad_h_bias = jax.grad(self.wf, argnums=2)
+        grad_kernel = jax.grad(self.wf, argnums=3)
+
+        return (
+            grad_v_bias(r, v_bias, h_bias, kernel),
+            grad_h_bias(r, v_bias, h_bias, kernel),
+            grad_kernel(r, v_bias, h_bias, kernel),
+        )
+
     def grads(self, r):
         """Gradients of the wave function w.r.t. the parameters"""
         v_bias, h_bias, kernel = self.params.get(["v_bias", "h_bias", "kernel"])
+
         return self.grads_closure(r, v_bias, h_bias, kernel)
 
     def compute_sr_matrix(self, expval_grads, grads, shift=1e-4):

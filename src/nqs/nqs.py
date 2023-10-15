@@ -86,6 +86,7 @@ class NQS:
             self.logger = None
 
         if rng is None:
+            print("Using default numpy random number generator")
             self.rng = default_rng
 
         if nqs_repr == "psi":
@@ -140,8 +141,6 @@ class NQS:
         """
         if type_.lower() == "ho":
             self.hamiltonian = HO(self._N, self._dim, int_type, self._backend, kwargs)
-            if self._backend == "jax":
-                self.hamiltonian.potential = jax.jit(self.hamiltonian.potential)
         else:
             raise NotImplementedError(
                 "Only the Harmonic Oscillator and Cologero-Sutherland supported for now."
@@ -160,9 +159,9 @@ class NQS:
         self.mcmc_alg = mcmc_alg
 
         if self.mcmc_alg == "m":
-            self._sampler = Metro(self.wf, self.rng, scale, logger=self.logger)
+            self._sampler = Metro(self.rng, scale, self.logger)
         elif self.mcmc_alg == "lmh":
-            self._sampler = MetroHastings(self.wf, self.rng, scale, logger=self.logger)
+            self._sampler = MetroHastings(self.rng, scale, self.logger)
         else:
             msg = "Unsupported sampler, only Metropolis 'm' or Metropolis-Hastings 'lmh' is allowed"
             raise ValueError(msg)
@@ -215,7 +214,6 @@ class NQS:
         Train the wave function parameters.
         """
         self._is_initialized()
-
         self._training_cycles = max_iter
         self._training_batch = batch_size
 
@@ -242,9 +240,10 @@ class NQS:
         expval_energies_dict = {key: None for key in param_keys}
         expval_grad_dict = {key: None for key in param_keys}
         steps_before_optimize = batch_size
-
+        if self._backend == "jax":
+            self.wf._jit_functions()
         for _ in t_range:
-            state = self._sampler.step(state, params, seed_seq)
+            state = self._sampler.step(self.wf, state, seed_seq)
             loc_energy = self.hamiltonian.local_energy(
                 self.wf, state.positions
             )  # testing adding params
@@ -291,6 +290,10 @@ class NQS:
 
         self.state = state
         self._is_trained_ = True
+
+        # create an identical wf with the trained params
+        # self.wf = self.wf.clone() # to unjit functions to be picked successfully
+
         if self.logger is not None:
             self.logger.info("Training done")
 
@@ -315,7 +318,7 @@ class NQS:
 
         system_info = pd.DataFrame(system_info, index=[0])
         sample_results = self._sampler.sample(
-            self.state, self.wf.params, nsamples, nchains, seed
+            self.wf, self.state, nsamples, nchains, seed
         )
         system_info_repeated = system_info.loc[
             system_info.index.repeat(len(sample_results))

@@ -6,11 +6,11 @@ from typing import NamedTuple
 from typing import Union
 
 import jax.numpy as jnp
-import numpy as onp
+import numpy as np
 
 # from typing import Callable
 
-Array = Union[onp.ndarray, jnp.ndarray]  # either numpy or jax numpy array
+Array = Union[np.ndarray, jnp.ndarray]  # either numpy or jax numpy array
 PyTree = Union[
     Array, Iterable[Array], Mapping[Any, Array]
 ]  # either array, iterable of arrays or mapping of arrays

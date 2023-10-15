@@ -27,7 +27,7 @@ class Hamiltonian:
         elif backend == "jax":
             self.backend = jnp
             self.la = jnp.linalg
-            self.potential = jax.jit(self.potential)
+            # self.potential = jax.jit(self.potential)
         else:
             raise ValueError("Invalid backend:", backend)
 

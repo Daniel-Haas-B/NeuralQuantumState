@@ -6,10 +6,10 @@ from .sampler import Sampler
 
 
 class Metropolis(Sampler):
-    def __init__(self, rbm, rng, scale, logger=None):
-        super().__init__(rbm, rng, scale, logger)
+    def __init__(self, rng, scale, logger):
+        super().__init__(rng, scale, logger)
 
-    def _step(self, state, params, seed):
+    def _step(self, wf, state, seed):
         """One step of the random walk Metropolis algorithm
 
         Parameters
@@ -38,7 +38,7 @@ class Metropolis(Sampler):
 
         # Compute proposal log density
 
-        logp_proposal = self._wf.logprob(proposals)
+        logp_proposal = wf.logprob(proposals)
 
         # Metroplis acceptance criterion
         accept = log_unif < logp_proposal - state.logp
@@ -47,15 +47,15 @@ class Metropolis(Sampler):
         new_positions = proposals if accept else state.positions
 
         # Create new state
-        new_logp = self._wf.logprob(new_positions)
+        new_logp = wf.logprob(new_positions)
         new_n_accepted = state.n_accepted + accept
         new_delta = state.delta + 1
         new_state = State(new_positions, new_logp, new_n_accepted, new_delta)
 
         return new_state
 
-    def step(self, state, params, seed):
-        return self._step(state, params, seed)
+    def step(self, wf, state, seed):
+        return self._step(wf, state, seed)
 
     def tune_scale(scale, acc_rate):
         """Proposal scale lookup table. (Original)

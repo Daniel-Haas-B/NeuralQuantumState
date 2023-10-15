@@ -1,15 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from threading import RLock as TRLock
-
-import jax
-import jax.numpy as jnp
-import jax.random as random
 import numpy as np
-from pathos.pools import ProcessPool
-from tqdm.auto import tqdm
-
-from .state import State
+from joblib import delayed
+from joblib import Parallel
 
 
 def early_stopping(new_value, old_value, tolerance=1e-5):
@@ -37,88 +30,32 @@ def early_stopping(new_value, old_value, tolerance=1e-5):
     return dist < tolerance
 
 
-def numpy_multiproc(
-    proc_sample, nchains, nsamples, state, params, scale, seeds, logger=None
-):
-    """Enable multiprocessing for numpy."""
-    if logger is not None:
-        # for managing output contention
-        tqdm.set_lock(TRLock())
-        initializer = tqdm.set_lock
-        initargs = (tqdm.get_lock(),)
-    else:
-        initializer = None
-        initargs = None
-
-    # Handle iterables
-    nsamples = (nsamples,) * nchains
-    state = (state,) * nchains
-    params = (params,) * nchains
-    scale = (scale,) * nchains
-    chain_ids = range(nchains)
-
-    with ProcessPool(nchains, initializer=initializer, initargs=initargs) as pool:
-        results, energies = zip(
-            *pool.map(
-                proc_sample,
-                nsamples,
-                state,
-                params,
-                scale,
-                seeds,
-                chain_ids,
-            )
-        )
-        return results, energies
-
-
-def jax_multiproc(
-    proc_sample, nchains, nsamples, state, params, scale, seeds, logger=None
-):
+def multiproc(proc_sample, wf, nchains, nsamples, state, scale, seeds, logger=None):
     """Enable multiprocessing for jax."""
+    params = wf.params
 
-    nsamples = jnp.array([nsamples] * nchains)
+    # Handle iterable
+    wf = [wf] * nchains
+    nsamples = [nsamples] * nchains
+    state = [state] * nchains
+    params = [params] * nchains
+    scale = [scale] * nchains
+    chain_ids = list(range(nchains))
 
-    # Replicate and stack the positions
-    positions_stacked = jnp.stack([state.positions] * nchains, axis=0)
-    # Replicate scalar fields
-    logp_replicated = jnp.array([state.logp] * nchains)
-    n_accepted_replicated = jnp.array([state.n_accepted] * nchains)
-    delta_replicated = jnp.array([state.delta] * nchains)
-
-    # Reconstruct the State named tuple for each chain
-    state = [
-        State(
-            positions_stacked[i],
-            logp_replicated[i],
-            n_accepted_replicated[i],
-            delta_replicated[i],
+    # Define a helper function to package the delayed computation
+    def compute(i):
+        return proc_sample(
+            wf[i], nsamples[i], state[i], scale[i], seeds[i], chain_ids[i]
         )
-        for i in range(nchains)
-    ]
 
-    params = params.to_jax()
-    param_keys = params.keys()
-    params = {key: jnp.stack([params.get(key)] * nchains, axis=0) for key in param_keys}
+    results = Parallel(n_jobs=-1)(delayed(compute)(i) for i in range(nchains))
 
-    scale = jnp.array([scale] * nchains)
-    key = random.PRNGKey(42)
-    seeds = random.split(key, num=nchains)
-    chain_ids = jnp.arange(nchains)
-    # Parallelize proc_sample using jax.pmap
-    pmap_sample = jax.pmap(proc_sample)
-
-    print("nsamples shape", nsamples.shape)
-    # print("state shape", state.shape)
-    print("params shape", params.shape)
-    print("scale shape", scale.shape)
-    print("seeds shape", seeds.shape)
-    print("chain_ids shape", chain_ids.shape)
-
-    results, energies = pmap_sample(nsamples, state, params, scale, seeds, chain_ids)
-
-    # Convert the results to numpy arrays if necessary for further processing
-    results = np.array(results)
-    energies = np.array(energies)
+    # Assuming that proc_sample returns a tuple (result, energy), you can unpack them
+    results, energies = zip(*results)
 
     return results, energies
+
+
+def jax_multiproc(proc_sample, wf, nchains, nsamples, state, scale, seeds, logger=None):
+    """#TODO: Enable multiprocessing with jax pmap to allow GPU multiprocessing."""
+    raise NotImplementedError("jax_multiproc not implemented yet")

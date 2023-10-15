@@ -1,5 +1,3 @@
-from functools import partial
-
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -43,6 +41,7 @@ class RBM:
             self.logger = logging.getLogger(__name__)
 
         self.log = log
+        self.rng = rng if rng else np.random.default_rng()
         r = rng.standard_normal(size=self._nvisible)
 
         self._initialize_bias_and_kernel(rng)
@@ -81,6 +80,7 @@ class RBM:
             self.backend = np
             self.la = np.linalg
             self.sigmoid = expit
+
         elif backend == "jax":
             self.backend = jnp
             self.la = jnp.linalg
@@ -93,6 +93,23 @@ class RBM:
         else:
             raise ValueError(f"Invalid backend: {backend}")
 
+    def clone(self):
+        """Returns a copy of the object"""
+        clone = self.__class__(
+            self._N,
+            self._dim,
+            self._nhidden,
+            self._factor,
+            self._sigma2,
+            self.rng,
+            self.log,
+            self.logger,
+            self.backend,
+        )
+
+        clone.params = self.params
+        return clone
+
     def _convert_constants_to_jnp(self):
         constants = ["_factor", "_rbm_psi_repr", "_sigma2", "_sigma4", "_sigma2_factor"]
         for const in constants:
@@ -103,11 +120,15 @@ class RBM:
             "_log_wf",
             "wf",
             "logprob_closure",
+            "grad_wf_closure",
+            "grads_closure",
+            "laplacian_closure",
             "_precompute",
             "_softplus",
         ]
         for func_name in functions_to_jit:
             setattr(self, func_name, jax.jit(getattr(self, func_name)))
+        return self
 
     def _precompute(self):
         self._sigma4 = self._sigma2 * self._sigma2
@@ -154,7 +175,7 @@ class RBM:
         v_bias, h_bias, kernel = self.params.get(["v_bias", "h_bias", "kernel"])
         return self.logprob_closure(r, v_bias, h_bias, kernel)
 
-    def grad_wf_closure_np(self, r, v_bias, h_bias, kernel):
+    def grad_wf_closure(self, r, v_bias, h_bias, kernel):
         """
         This is the gradient of the logarithm of the wave function w.r.t. the coordinates
         """
@@ -163,7 +184,7 @@ class RBM:
         gr *= self._sigma2 * self._factor
         return gr
 
-    @partial(jax.jit, static_argnums=(0,))
+    # @partial(jax.jit, static_argnums=(0,))
     def grad_wf_closure_jax(self, r, v_bias, h_bias, kernel):
         """
         This is the autograd version of the gradient of the logarithm of the wave function w.r.t. the coordinates
@@ -189,7 +210,7 @@ class RBM:
         gr *= self._factor
         return gr
 
-    @partial(jax.jit, static_argnums=(0,))
+    # @partial(jax.jit, static_argnums=(0,))
     def laplacian_closure_jax(self, r, v_bias, h_bias, kernel):
         """
         nabla^2 of the wave function w.r.t. the coordinates
@@ -226,7 +247,7 @@ class RBM:
         grad_v_bias = (r - v_bias) * self._sigma2 * self._factor
         return grad_v_bias, grad_h_bias, grad_kernel
 
-    @partial(jax.jit, static_argnums=(0,))
+    # @partial(jax.jit, static_argnums=(0,))
     def grads_closure_jax(self, r, v_bias, h_bias, kernel):
         """
         This is the autograd version of the gradient of the logarithm of the wave function w.r.t. the parameters

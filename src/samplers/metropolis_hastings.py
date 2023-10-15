@@ -6,10 +6,10 @@ from .sampler import Sampler
 
 
 class MetroHastings(Sampler):
-    def __init__(self, rbm, rng, scale, logger=None):
-        super().__init__(rbm, rng, scale, logger)
+    def __init__(self, rng, scale, logger=None):
+        super().__init__(rng, scale, logger)
 
-    def _step(self, state, params, seed):
+    def _step(self, wf, state, seed):
         """One step of the Langevin Metropolis-Hastings algorithm
 
         Parameters
@@ -35,10 +35,11 @@ class MetroHastings(Sampler):
         rng = self._rng(next_gen)
 
         # Compute drift force at current positions
+        params = wf.params
         v_bias, h_bias, kernel = params.get(
             ["v_bias", "h_bias", "kernel"]
         )  # for now! Change this please
-        F = self._rbm.drift_force(state.positions, v_bias, h_bias, kernel)
+        F = wf.drift_force(state.positions, v_bias, h_bias, kernel)
 
         # Sample proposal positions, i.e., move walkers
         proposals = (
@@ -48,7 +49,7 @@ class MetroHastings(Sampler):
         )
 
         # Compute proposal log density
-        logp_proposal = self._rbm.logprob(proposals, v_bias, h_bias, kernel)
+        logp_proposal = wf.logprob(proposals, v_bias, h_bias, kernel)
 
         # Green's function conditioned on proposals
         F_prop = self._rbm.drift_force(proposals, v_bias, h_bias, kernel)
@@ -70,7 +71,7 @@ class MetroHastings(Sampler):
         new_positions = proposals if accept else state.positions
 
         # Create new state
-        new_logp = self._rbm.logprob(new_positions, v_bias, h_bias, kernel)
+        new_logp = wf.logprob(new_positions, v_bias, h_bias, kernel)
         new_n_accepted = state.n_accepted + accept
         new_delta = state.delta + 1
         new_state = State(new_positions, new_logp, new_n_accepted, new_delta)
@@ -115,5 +116,5 @@ class MetroHastings(Sampler):
 
         return scale
 
-    def step(self, state, params, seed):
-        return self._step(state, params, seed)
+    def step(self, state, seed):
+        return self._step(state, seed)

@@ -24,7 +24,8 @@ import pandas as pd
 # from nqs.models import IRBM, JAXIRBM, JAXNIRBM#, NIRBM
 
 
-from nqs.models.rbm import RBM
+from nqs.models.rbm import RBM  # this is stupid for now
+from nqs.models.ffnn import FFNN  # this is stupid for now
 
 from numpy.random import default_rng
 from tqdm.auto import tqdm
@@ -114,19 +115,35 @@ class NQS:
         """
         self._N = nparticles
         self._dim = dim
-        if wf_type.lower() == "rbm":
-            self.wf = RBM(
-                nparticles,
-                dim,
-                kwargs["nhidden"],
-                kwargs["sigma2"],
-                log=self._log,
-                logger=self.logger,
-                rng=self.rng(self._seed),
-                backend=self._backend,
-            )
-        else:
-            raise NotImplementedError("Only the RBM is supported for now.")
+        wf_type = wf_type.lower() if isinstance(wf_type, str) else wf_type
+        match wf_type:  # noqa
+            case "rbm":  # noqa
+                self.wf = RBM(
+                    nparticles,
+                    dim,
+                    kwargs["nhidden"],
+                    kwargs["sigma2"],
+                    log=self._log,
+                    logger=self.logger,
+                    rng=self.rng(self._seed),
+                    backend=self._backend,
+                )
+            case "ffnn":  # noqa
+                self.wf = FFNN(
+                    nparticles,
+                    dim,
+                    kwargs["nhidden"],
+                    kwargs["nunits"],
+                    kwargs["sigma2"],
+                    log=self._log,
+                    logger=self.logger,
+                    rng=self.rng(self._seed),
+                    backend=self._backend,
+                )
+            case _:  # noqa
+                raise NotImplementedError(
+                    "Only the RBM is supported for now. FFNN is WIP"
+                )
 
         self._is_initialized_ = True
 

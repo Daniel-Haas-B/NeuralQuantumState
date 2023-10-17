@@ -18,9 +18,12 @@ jax.config.update("jax_platform_name", "cpu")
 output_filename = "../data/playground.csv"
 nparticles = 2
 dim = 2
-layers = 4
+
+nunits = 4  # number of units in the hidden layer
+nhidden = 4  # hidden layers
+
 nsamples = int(2**14)  # 2**18 = 262144
-nchains = 8
+nchains = 2
 eta = 0.05
 
 training_cycles = [50_000]  # this is cycles for the NN
@@ -29,91 +32,109 @@ backend = "numpy"
 optimizer = "gd"
 batch_size = 1_000
 detailed = True
-
+wf_type = "ffnn"
 seed = 42
 
 dfs_mean = []
 df = []
 df_all = []
+import time
 
-system = nqs.FFNN(
-    nparticles,
-    dim,
-    nlayers=layers,
-    interaction=False,
-    nqs_repr="psi",
-    backend=backend,
-    log=True,
-)
+# for max_iter in training_cycles:
+start = time.time()
+# for i in range(5):
 
-system.init(sigma2=1.0, seed=seed)  # 1.3 for lmh
-system.set_sampler(mcmc_alg=mcmc_alg, scale=1.0)
-system.set_optimizer(
-    optimizer=optimizer,
-    eta=eta,
-    use_sr=True,
-    beta1=0.9,
-    beta2=0.999,
-    epsilon=1e-8,
-)
 
-system.train(
-    max_iter=training_cycles[0],
-    batch_size=batch_size,  # 1_000
-    early_stop=False,
-    seed=seed,
-)
+for sr in [False]:
+    system = nqs.NQS(
+        nqs_repr="psi",
+        backend=backend,
+        log=True,
+        logger_level="INFO",
+        use_sr=sr,
+        seed=seed,
+    )
 
-df = system.sample(nsamples, nchains=nchains, seed=seed)
+    system.set_wf(
+        wf_type,
+        nparticles,
+        dim,
+        nhidden=nhidden,  # all after this is kwargs. In this example it is RBM dependent
+        nunits=nunits,
+        sigma2=1.0,
+    )
 
-df_all.append(df)
-# plt.plot(np.convolve(energies[0], np.ones((100,))/100, mode='valid'))
-# plt.show()
-# exit()
-sem_factor = 1 / np.sqrt(len(df))  # sem = standard error of the mean
-mean_data = df[["energy", "std_error", "variance", "accept_rate"]].mean().to_dict()
-mean_data["sem_energy"] = df["energy"].std() * sem_factor
-mean_data["sem_std_error"] = df["std_error"].std() * sem_factor
-mean_data["sem_variance"] = df["variance"].std() * sem_factor
-mean_data["sem_accept_rate"] = df["accept_rate"].std() * sem_factor
-info_data = (
-    df[
-        [
-            "nparticles",
-            "dim",
-            "eta",
-            "scale",
-            "nvisible",
-            "nhidden",
-            "mcmc_alg",
-            "nqs_type",
-            "nsamples",
-            "training_cycles",
-            "training_batch",
-            "sr",
+    system.set_sampler(mcmc_alg=mcmc_alg, scale=1.0)
+    system.set_hamiltonian(type_="ho", int_type="Coulomb")
+    system.set_optimizer(
+        optimizer=optimizer,
+        eta=eta,
+        beta1=0.9,
+        beta2=0.999,
+        epsilon=1e-8,
+    )
+
+    system.train(
+        max_iter=training_cycles[0],
+        batch_size=batch_size,
+        early_stop=False,
+        seed=seed,
+    )
+
+    df = system.sample(nsamples, nchains=nchains, seed=seed)
+    df_all.append(df)
+
+    sem_factor = 1 / np.sqrt(len(df))  # sem = standard error of the mean
+    mean_data = df[["energy", "std_error", "variance", "accept_rate"]].mean().to_dict()
+    mean_data["sem_energy"] = df["energy"].std() * sem_factor
+    mean_data["sem_std_error"] = df["std_error"].std() * sem_factor
+    mean_data["sem_variance"] = df["variance"].std() * sem_factor
+    mean_data["sem_accept_rate"] = df["accept_rate"].std() * sem_factor
+    info_data = (
+        df[
+            [
+                "nparticles",
+                "dim",
+                "eta",
+                "scale",
+                # "nvisible",
+                # "nhidden",
+                "mcmc_alg",
+                "nqs_type",
+                "nsamples",
+                "training_cycles",
+                "training_batch",
+                "sr",
+            ]
         ]
-    ]
-    .iloc[0]
-    .to_dict()
-)
+        .iloc[0]
+        .to_dict()
+    )
 
-data = {**mean_data, **info_data}  # ** unpacks the dictionary
-df_mean = pd.DataFrame([data])
-dfs_mean.append(df_mean)
+    data = {**mean_data, **info_data}  # ** unpacks the dictionary
+    df_mean = pd.DataFrame([data])
+    dfs_mean.append(df_mean)
+end = time.time()
+print((end - start))
 
 
 df_final = pd.concat(dfs_mean)
+
 # Save results
 df_final.to_csv(output_filename, index=False)
 
 # plot energy convergence curve
 # energy withour sr
 df_all = pd.concat(df_all)
-
-# print(df)
-
+print(df_all)
 # energy with sr
-sns.lineplot(data=df_all, x="chain_id", y="energy", hue="sr")
+if nchains > 1:
+    sns.lineplot(data=df_all, x="chain_id", y="energy", hue="sr")
+else:
+    sns.scatterplot(data=df_all, x="chain_id", y="energy", hue="sr")
+# ylim
+# plt.ylim(2.9, 3.6)
+
 plt.xlabel("Chain")
 plt.ylabel("Energy")
 plt.show()

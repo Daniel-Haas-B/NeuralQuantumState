@@ -19,7 +19,7 @@ class Parameter:
 
     def set(
         self,
-        names_or_parameter: Union[List[str], "Parameter"],
+        names_or_parameter: Union[List[str], "Parameter", Dict[str, ParameterDataType]],
         values: List[ParameterDataType] = None,
     ) -> None:
         if isinstance(names_or_parameter, Parameter):
@@ -27,6 +27,10 @@ class Parameter:
         elif values is not None:
             for key, value in zip(names_or_parameter, values):
                 self.data[key] = value
+        elif isinstance(names_or_parameter, dict):
+            # Case 3: A dictionary is provided.
+            self.data.update(names_or_parameter)  # Merge dictionary with existing data.
+
         else:
             raise ValueError("Invalid arguments")
 

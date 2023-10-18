@@ -58,9 +58,9 @@ for sr in [False]:
     system.set_wf(
         wf_type,
         nparticles,
-        dim,
-        nhidden=nhidden,  # all after this is kwargs. In this example it is RBM dependent
-        nunits=nunits,
+        dim,  # all after this is kwargs.
+        layer_sizes=[4, 3, 1],
+        activations=["gelu", "softplus", "softplus"],  # note you can
         sigma2=1.0,
     )
 
@@ -110,8 +110,7 @@ for sr in [False]:
         .iloc[0]
         .to_dict()
     )
-
-    data = {**mean_data, **info_data}  # ** unpacks the dictionary
+    data = {**mean_data, **info_data}
     df_mean = pd.DataFrame([data])
     dfs_mean.append(df_mean)
 end = time.time()

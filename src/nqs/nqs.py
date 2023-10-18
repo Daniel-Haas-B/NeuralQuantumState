@@ -19,13 +19,7 @@ jax.config.update("jax_platform_name", "cpu")
 import numpy as np
 import pandas as pd
 
-# from samplers.sampler import Sampler
-
-# from nqs.models import IRBM, JAXIRBM, JAXNIRBM#, NIRBM
-
-
-from nqs.models.rbm import RBM  # this is stupid for now
-from nqs.models.ffnn import FFNN  # this is stupid for now
+from nqs.models import RBM, FFNN
 
 from numpy.random import default_rng
 from tqdm.auto import tqdm
@@ -116,8 +110,8 @@ class NQS:
         self._N = nparticles
         self._dim = dim
         wf_type = wf_type.lower() if isinstance(wf_type, str) else wf_type
-        match wf_type:  # noqa
-            case "rbm":  # noqa
+        match wf_type:
+            case "rbm":
                 self.wf = RBM(
                     nparticles,
                     dim,
@@ -128,12 +122,12 @@ class NQS:
                     rng=self.rng(self._seed),
                     backend=self._backend,
                 )
-            case "ffnn":  # noqa
+            case "ffnn":
                 self.wf = FFNN(
                     nparticles,
                     dim,
-                    kwargs["nhidden"],
-                    kwargs["nunits"],
+                    kwargs["layer_sizes"],
+                    kwargs["activations"],
                     kwargs["sigma2"],
                     log=self._log,
                     logger=self.logger,

@@ -81,7 +81,6 @@ class NQS:
             self.logger = None
 
         if rng is None:
-            print("Using default numpy random number generator")
             self.rng = default_rng
 
         if nqs_repr == "psi":

@@ -1,6 +1,7 @@
 import jax
 import jax.numpy as jnp
 import numpy as np
+from jax import grad
 from nqs.utils import Parameter
 from nqs.utils import State
 from scipy.special import expit
@@ -22,11 +23,13 @@ class FFNN:
         log=False,
         logger=None,
         logger_level="INFO",
-        backend="numpy",
+        backend="jax",
     ):
         """
         Initializes the FFNN Neural Network Quantum State.
         We here assume Ψ(x) = exp(FFNN(x)) so logΨ(x) = FFNN(x).
+        Note that we are only going to use JAX backend for this.
+
         Args:
         - nparticles (int): Number of particles.
         - dim (int): Dimensionality.
@@ -59,7 +62,7 @@ class FFNN:
 
         self.params = {
             "b0": rng.standard_normal(size=(self._N * self._dim)) * 0.01,
-            "W0": rng.standard_normal(size=(self._N * self._dim, self._layer_sizes[1]))
+            "W0": rng.standard_normal(size=(self._N * self._dim, self._layer_sizes[0]))
             * 0.01,
         }
 
@@ -77,7 +80,9 @@ class FFNN:
             )
             self.params[f"b{i}"] = np.zeros((output_size,))
 
-        self.params = Parameter().set(self.params)
+        param_obj = Parameter()
+        param_obj.set(self.params)
+        self.params = param_obj
 
     def _initialize_vars(
         self, nparticles, dim, layer_sizes, activations, factor, sigma2
@@ -96,23 +101,32 @@ class FFNN:
             )
         self._precompute()
 
-    def _configure_backend(self, backend):
-        if backend == "numpy":
-            self.backend = np
-            self.la = np.linalg
-            self.sigmoid = expit
+    def activation(self, activation_str):
+        match activation_str:
+            case "tanh":
+                return jnp.tanh
+            case "sigmoid":
+                return jnp.sigmoid
+            case "relu":
+                return jnp.maximum
+            case "softplus":
+                return jnp.logaddexp
+            case "gelu":
+                return jax.nn.gelu
+            case _:  # default
+                raise ValueError(f"Invalid activation function {activation_str}")
 
-        elif backend == "jax":
-            self.backend = jnp
-            self.la = jnp.linalg
-            self.sigmoid = expit  # jax.nn.sigmoid
-            self.grad_wf_closure = self.grad_wf_closure_jax
-            self.grads_closure = self.grads_closure_jax
-            self.laplacian_closure = self.laplacian_closure_jax
-            # self._convert_constants_to_jnp()
-            self._jit_functions()
-        else:
-            raise ValueError(f"Invalid backend: {backend}")
+    def _configure_backend(self, backend):
+        if backend != "jax":
+            raise ValueError(
+                f"Invalid backend ({backend}) for FFNN. Only JAX is supported."
+            )
+
+        self.backend = jnp
+        self.la = jnp.linalg
+        self.sigmoid = expit  # jax.nn.sigmoid
+        # self._convert_constants_to_jnp()
+        # self._jit_functions()
 
     def __str__(self):
         """
@@ -155,12 +169,10 @@ class FFNN:
         functions_to_jit = [
             "_log_wf",
             "wf",
-            "logprob_closure",
             "grad_wf_closure",
             "grads_closure",
             "laplacian_closure",
             "_precompute",
-            "_softplus",
         ]
         for func_name in functions_to_jit:
             setattr(self, func_name, jax.jit(getattr(self, func_name)))
@@ -171,101 +183,107 @@ class FFNN:
         self._sigma2_factor = 1.0 / self._sigma2
         self._sigma2_factor2 = 0.5 / self._sigma2
 
-    def _softplus(self, x):
-        """Softplus activation function.
-
-        Computes the element-wise function
-                softplus(x) = log(1 + e^x)
+    def _apply_layers(self, x, params):
         """
-        return self.backend.logaddexp(x, 0)
+        Applies the neural network layers and activations to input x.
+        Will loop through each layer, applying the weights, bias, and activation function
+        """
 
-    def _log_wf(self, r, v_bias, h_bias, kernel):
+        for i in range(len(self._layer_sizes)):
+            x = params.get([f"W{i}"]) @ x + params.get([f"b{i}"])
+            x = self.activation(self._activations[i])(
+                x
+            )  # assuming self._activations stores strings
+
+        return x
+
+    def forward(self, x, params):
+        """The forward method for computing the output of the FFNN."""
+        return self._apply_layers(x, params)
+
+    def _log_wf(self, r, params):
         """FFNN forqard pass sinse the log of the wave function is the FFNN"""
 
-        return self.forward(r)
+        return self.forward(
+            r, params
+        )  # Assuming the representation is Psi(x) = exp(FFNN(x))
 
-    def wf(self, r, v_bias, h_bias, kernel):
-        """Evaluate the wave function"""
-        return self._factor * self._log_wf(r, v_bias, h_bias, kernel).sum()
-
-    def pdf(self, r, v_bias, h_bias, kernel):
-        """
-        Probability amplitude
-        """
-        return self.backend.exp(self.logprob(r, v_bias, h_bias, kernel))
-
-    def logprob_closure(self, r, v_bias, h_bias, kernel):
-        """Log probability amplitude"""
-        return self._ffnn_psi_repr * self._log_wf(r, v_bias, h_bias, kernel).sum()
-
-    def logprob(self, r):
-        """Log probability amplitude"""
-        pass
-        # v_bias, h_bias, kernel = self.params.get(["v_bias", "h_bias", "kernel"])
-        # return self.logprob_closure(r, v_bias, h_bias, kernel)
+    def wf(self, r, params):
+        """Compute the wave function from the neural network output."""
+        return self.forward(r, params)
 
     # @partial(jax.jit, static_argnums=(0,))
     def grad_wf_closure(self, r):
         """
         This is the autograd version of the gradient of the logarithm of the wave function w.r.t. the coordinates
         """
-
         grad_wf = jax.grad(self.wf, argnums=0)
-
         return grad_wf(r)
 
     def grad_wf(self, r):
         """
-        grad of the wave function w.r.t. the coordinates
+        (∇_r) Ψ(r) = ∑_i (∇_r) Ψ(r_i)
         """
-        params = self.params.get(self.params.keys())  # this is stupid but it works
-        print(params)
-        return self.grad_wf_closure(r, params)
+        grad_fun = grad(
+            self._log_wf
+        )  # grad of log(wf) due to the property of exponential
+        return grad_fun(r) * self.wf(r)  # Chain rule to get grad of wf itself
 
     # @partial(jax.jit, static_argnums=(0,))
-    def laplacian_closure(self, r, v_bias, h_bias, kernel):
+    def laplacian_closure(self, r, params):
         """
-        nabla^2 of the wave function w.r.t. the coordinates
+        (∇_r)^2 Ψ(r) = ∑_i (∇_r)^2 Ψ(r_i)
         """
+        grad_fun = grad(self._log_wf)
+        laplacian_fun = grad(grad_fun)
 
-        def wrapped_wf(r_):
-            return self.wf(r_, v_bias, h_bias, kernel)
-
-        grad_wf = jax.grad(wrapped_wf)
-        hessian_wf = jax.jacfwd(
-            grad_wf
-        )  # This computes the Jacobian of the gradient, which is the Hessian
-
-        hessian_at_r = hessian_wf(r)
-
-        # If you want the Laplacian, you'd sum the diagonal of the Hessian.
-        # This assumes r is a vector and you want the Laplacian w.r.t. each element.
-        laplacian = jnp.trace(hessian_at_r)
-
-        return laplacian
+        return (laplacian_fun(r) + grad_fun(r) ** 2) * self.wf(
+            r, params
+        )  # Using product rule and the fact that Ψ = exp(FFNN)
 
     def laplacian(self, r):
-        v_bias, h_bias, kernel = self.params.get(["v_bias", "h_bias", "kernel"])
-        return self.laplacian_closure(r, v_bias, h_bias, kernel)
+        return self.laplacian_closure(r)
 
     # @partial(jax.jit, static_argnums=(0,))
-    def grads_closure(self, r, v_bias, h_bias, kernel):
+    def grads_closure(self, r, params):
         """
         This is the autograd version of the gradient of the logarithm of the wave function w.r.t. the parameters
+        # This is obsolete and does not work well with out current layer implementation
         """
 
-        grad_v_bias = jax.grad(self.wf, argnums=1)
-        grad_h_bias = jax.grad(self.wf, argnums=2)
-        grad_kernel = jax.grad(self.wf, argnums=3)
+        grad_fn = jax.grad(self.wf, argnums=2)
 
-        return (
-            grad_v_bias(r, v_bias, h_bias, kernel),
-            grad_h_bias(r, v_bias, h_bias, kernel),
-            grad_kernel(r, v_bias, h_bias, kernel),
-        )
+        return grad_fn(r, params)
 
     def grads(self, r):
-        """Gradients of the wave function w.r.t. the parameters"""
-        params = self.params.get(self.params.keys())
+        """
+        Gradients of the wave function with respect to the neural network parameters.
+        """
 
+        # jax.grad will return a function that computes the gradient of wf.
+        # This function will expect a parameter input, which in our case are the neural network parameters.
+
+        # The grad_fn function now computes the gradients of the wave function with respect to each parameter of
+        # the neural network. We need to pass the current parameters to this function.
+
+        params = self.params.get(
+            self.params.keys()
+        )  # Assuming self.params is a dict-like structure.
+
+        # 'gradients' is now a structure (like a dictionary) holding the gradients with respect to each parameter.
         return self.grads_closure(r, params)
+
+    # def pdf(self, r, params):
+    #     """
+    #     Probability amplitude
+    #     """
+    #     return self.backend.exp(self.logprob(r, params))
+
+    def logprob_closure(self, r, params):
+        """Log probability amplitude"""
+        return self._ffnn_psi_repr * self._log_wf(r, params).sum()
+
+    def logprob(self, r):
+        """Log probability amplitude"""
+
+        return self.logprob_closure(r, self.params)

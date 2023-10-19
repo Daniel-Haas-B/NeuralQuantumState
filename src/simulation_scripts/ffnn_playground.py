@@ -28,7 +28,6 @@ eta = 0.05
 
 training_cycles = [50_000]  # this is cycles for the NN
 mcmc_alg = "m"
-backend = "numpy"
 optimizer = "gd"
 batch_size = 1_000
 detailed = True
@@ -48,7 +47,7 @@ start = time.time()
 for sr in [False]:
     system = nqs.NQS(
         nqs_repr="psi",
-        backend=backend,
+        backend="jax",
         log=True,
         logger_level="INFO",
         use_sr=sr,
@@ -56,10 +55,10 @@ for sr in [False]:
     )
 
     system.set_wf(
-        wf_type,
+        "ffnn",
         nparticles,
         dim,  # all after this is kwargs.
-        layer_sizes=[4, 3, 1],
+        layer_sizes=[4, 3, 1],  # does not include input layer
         activations=["gelu", "softplus", "softplus"],  # note you can
         sigma2=1.0,
     )

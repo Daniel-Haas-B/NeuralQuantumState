@@ -190,6 +190,8 @@ class FFNN:
         """
 
         for i in range(len(self._layer_sizes)):
+            print("params.get([fW{i}]) type", type(params.get([f"W{i}"])))
+
             x = params.get([f"W{i}"]) @ x + params.get([f"b{i}"])
             x = self.activation(self._activations[i])(
                 x

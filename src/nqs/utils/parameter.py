@@ -10,7 +10,7 @@ jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
 
 # Updating ParameterDataType to account for list, np arrays, or jnp arrays
-ParameterDataType = Union[List, np.ndarray, jnp.ndarray]
+ParameterDataType = Union[np.ndarray, jnp.ndarray]
 
 
 class Parameter:
@@ -34,8 +34,8 @@ class Parameter:
         else:
             raise ValueError("Invalid arguments")
 
-    def get(self, names: List[str]) -> List[ParameterDataType]:
-        return [self.data[name] for name in names]
+    def get(self, name: str) -> ParameterDataType:
+        return self.data[name]
 
     def keys(self) -> List[str]:
         return list(self.data.keys())

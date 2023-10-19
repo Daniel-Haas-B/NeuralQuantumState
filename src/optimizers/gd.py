@@ -27,6 +27,6 @@ class Gd(Optimizer):
                 grads[key] = grads[key].reshape(params.get([key])[0].shape)
 
         for key, grad in grads.items():
-            params.set([key], params.get([key]) - self.eta * grad)
+            params.set([key], [params.get(key) - self.eta * grad])
 
         return params

@@ -254,9 +254,7 @@ class NQS:
             self.wf._jit_functions()
         for _ in t_range:
             state = self._sampler.step(self.wf, state, seed_seq)
-            loc_energy = self.hamiltonian.local_energy(
-                self.wf, state.positions
-            )  # testing adding params
+            loc_energy = self.hamiltonian.local_energy(self.wf, state.positions)
             energies.append(loc_energy)
             grads = self.wf.grads(state.positions)
 
@@ -300,9 +298,6 @@ class NQS:
 
         self.state = state
         self._is_trained_ = True
-
-        # create an identical wf with the trained params
-        # self.wf = self.wf.clone() # to unjit functions to be picked successfully
 
         if self.logger is not None:
             self.logger.info("Training done")

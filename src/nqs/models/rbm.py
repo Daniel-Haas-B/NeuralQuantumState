@@ -172,7 +172,12 @@ class RBM:
 
     def logprob(self, r):
         """Log probability amplitude"""
-        v_bias, h_bias, kernel = self.params.get(["v_bias", "h_bias", "kernel"])
+        v_bias, h_bias, kernel = (
+            self.params.get("v_bias"),
+            self.params.get("h_bias"),
+            self.params.get("kernel"),
+        )
+        # v_bias, h_bias, kernel = self.params.get(["v_bias", "h_bias", "kernel"])
         return self.logprob_closure(r, v_bias, h_bias, kernel)
 
     def grad_wf_closure(self, r, v_bias, h_bias, kernel):
@@ -198,7 +203,12 @@ class RBM:
         """
         grad of the wave function w.r.t. the coordinates
         """
-        v_bias, h_bias, kernel = self.params.get(["v_bias", "h_bias", "kernel"])
+        v_bias, h_bias, kernel = (
+            self.params.get("v_bias"),
+            self.params.get("h_bias"),
+            self.params.get("kernel"),
+        )
+        # v_bias, h_bias, kernel = self.params.get(["v_bias", "h_bias", "kernel"])
         return self.grad_wf_closure(r, v_bias, h_bias, kernel)
 
     def laplacian_closure(self, r, v_bias, h_bias, kernel):
@@ -233,7 +243,12 @@ class RBM:
         return laplacian
 
     def laplacian(self, r):
-        v_bias, h_bias, kernel = self.params.get(["v_bias", "h_bias", "kernel"])
+        v_bias, h_bias, kernel = (
+            self.params.get("v_bias"),
+            self.params.get("h_bias"),
+            self.params.get("kernel"),
+        )
+        # v_bias, h_bias, kernel = self.params.get(["v_bias", "h_bias", "kernel"])
         return self.laplacian_closure(r, v_bias, h_bias, kernel)
 
     def grads_closure(self, r, v_bias, h_bias, kernel):
@@ -265,8 +280,13 @@ class RBM:
 
     def grads(self, r):
         """Gradients of the wave function w.r.t. the parameters"""
-        v_bias, h_bias, kernel = self.params.get(["v_bias", "h_bias", "kernel"])
+        v_bias, h_bias, kernel = (
+            self.params.get("v_bias"),
+            self.params.get("h_bias"),
+            self.params.get("kernel"),
+        )
 
+        # v_bias, h_bias, kernel = self.params.get(["v_bias", "h_bias", "kernel"])
         return self.grads_closure(r, v_bias, h_bias, kernel)
 
     def compute_sr_matrix(self, expval_grads, grads, shift=1e-4):

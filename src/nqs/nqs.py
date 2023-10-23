@@ -250,8 +250,7 @@ class NQS:
         expval_energies_dict = {key: None for key in param_keys}
         expval_grad_dict = {key: None for key in param_keys}
         steps_before_optimize = batch_size
-        if self._backend == "jax":
-            self.wf._jit_functions()
+
         for _ in t_range:
             state = self._sampler.step(self.wf, state, seed_seq)
             loc_energy = self.hamiltonian.local_energy(self.wf, state.positions)

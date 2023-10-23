@@ -1,10 +1,11 @@
 import jax
 import jax.numpy as jnp
 import numpy as np
-from jax import grad
 from nqs.utils import Parameter
 from nqs.utils import State
 from scipy.special import expit
+
+# from jax import grad
 
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
@@ -61,7 +62,7 @@ class FFNN:
         """Always initialize all as rectangle for now"""
 
         self.params = {
-            "b0": rng.standard_normal(size=(self._N * self._dim)) * 0.01,
+            "b0": rng.standard_normal(size=(self._layer_sizes[0])) * 0.01,
             "W0": rng.standard_normal(size=(self._N * self._dim, self._layer_sizes[0]))
             * 0.01,
         }
@@ -110,7 +111,7 @@ class FFNN:
             case "relu":
                 return jnp.maximum
             case "softplus":
-                return jnp.logaddexp
+                return jax.nn.softplus
             case "gelu":
                 return jax.nn.gelu
             case _:  # default
@@ -183,25 +184,21 @@ class FFNN:
         self._sigma2_factor = 1.0 / self._sigma2
         self._sigma2_factor2 = 0.5 / self._sigma2
 
-    def _apply_layers(self, x, params):
+    def forward(self, x, params):
         """
         Applies the neural network layers and activations to input x.
         Will loop through each layer, applying the weights, bias, and activation function
         """
-
-        for i in range(len(self._layer_sizes)):
-            print("params.get([fW{i}]) type", type(params.get([f"W{i}"])))
-
-            x = params.get([f"W{i}"]) @ x + params.get([f"b{i}"])
+        print("Going through forward pass")
+        for i in range(0, len(self._layer_sizes)):
+            x = params.get(f"W{i}").T @ x + params.get(
+                f"b{i}"
+            )  # change this later. We need not the transpose if we define better
             x = self.activation(self._activations[i])(
                 x
             )  # assuming self._activations stores strings
 
         return x
-
-    def forward(self, x, params):
-        """The forward method for computing the output of the FFNN."""
-        return self._apply_layers(x, params)
 
     def _log_wf(self, r, params):
         """FFNN forqard pass sinse the log of the wave function is the FFNN"""
@@ -212,50 +209,69 @@ class FFNN:
 
     def wf(self, r, params):
         """Compute the wave function from the neural network output."""
-        return self.forward(r, params)
+        return jnp.exp(self._log_wf(r, params)).sum(axis=0)  # why sum over axis 0?
 
     # @partial(jax.jit, static_argnums=(0,))
-    def grad_wf_closure(self, r):
+    def grad_wf_closure(self, r, params):
         """
         This is the autograd version of the gradient of the logarithm of the wave function w.r.t. the coordinates
+
+        we can optimize this by
+        grad_log_fun = grad(
+            self._log_wf
+        )  # grad of log(wf) due to the property of exponential
+        return grad_log_fun(r) * self.wf(r)  # Chain rule to get grad of wf itself like we are doing in the laplacian
         """
         grad_wf = jax.grad(self.wf, argnums=0)
-        return grad_wf(r)
+        return grad_wf(r, params)
 
     def grad_wf(self, r):
         """
         (∇_r) Ψ(r) = ∑_i (∇_r) Ψ(r_i)
         """
-        grad_fun = grad(
-            self._log_wf
-        )  # grad of log(wf) due to the property of exponential
-        return grad_fun(r) * self.wf(r)  # Chain rule to get grad of wf itself
+        return self.grad_wf_closure(r, self.params)
 
     # @partial(jax.jit, static_argnums=(0,))
     def laplacian_closure(self, r, params):
         """
         (∇_r)^2 Ψ(r) = ∑_i (∇_r)^2 Ψ(r_i)
+        This can be optimized by using the fact that Ψ = exp(FFNN)
+        For now we will use the autograd version
         """
-        grad_fun = grad(self._log_wf)
-        laplacian_fun = grad(grad_fun)
 
-        return (laplacian_fun(r) + grad_fun(r) ** 2) * self.wf(
-            r, params
-        )  # Using product rule and the fact that Ψ = exp(FFNN)
+        def wrapped_wf(r_):
+            return self.wf(r_, params)
+
+        grad_wf = jax.grad(wrapped_wf)
+        hessian_wf = jax.jacfwd(
+            grad_wf
+        )  # This computes the Jacobian of the gradient, which is the Hessian
+
+        hessian_at_r = hessian_wf(r)
+
+        # If you want the Laplacian, you'd sum the diagonal of the Hessian.
+        # This assumes r is a vector and you want the Laplacian w.r.t. each element.
+        laplacian = jnp.trace(hessian_at_r)
+
+        return laplacian
 
     def laplacian(self, r):
-        return self.laplacian_closure(r)
+        return self.laplacian_closure(r, self.params)
 
-    # @partial(jax.jit, static_argnums=(0,))
-    def grads_closure(self, r, params):
+    def grads_closure(self, r, param_values):
         """
         This is the autograd version of the gradient of the logarithm of the wave function w.r.t. the parameters
-        # This is obsolete and does not work well with out current layer implementation
+        Param values is a list of the current parameter values
+        we need to differentiate self. wf w.r.t each array in param_values
+        # FIXME: I cannot be jitted now
         """
 
-        grad_fn = jax.grad(self.wf, argnums=2)
+        list_of_grads = [
+            jax.grad(self.wf, argnums=x)(r, param_values)
+            for x in range(1, len(param_values))
+        ]
 
-        return grad_fn(r, params)
+        return tuple(list_of_grads)
 
     def grads(self, r):
         """
@@ -268,12 +284,12 @@ class FFNN:
         # The grad_fn function now computes the gradients of the wave function with respect to each parameter of
         # the neural network. We need to pass the current parameters to this function.
 
-        params = self.params.get(
-            self.params.keys()
-        )  # Assuming self.params is a dict-like structure.
-
         # 'gradients' is now a structure (like a dictionary) holding the gradients with respect to each parameter.
-        return self.grads_closure(r, params)
+        param_values = [
+            self.params.get(f"W{i}") for i in range(0, len(self._layer_sizes))
+        ]  # this seems very inefficient
+
+        return self.grads_closure(r, param_values)
 
     # def pdf(self, r, params):
     #     """
@@ -283,6 +299,7 @@ class FFNN:
 
     def logprob_closure(self, r, params):
         """Log probability amplitude"""
+
         return self._ffnn_psi_repr * self._log_wf(r, params).sum()
 
     def logprob(self, r):

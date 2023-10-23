@@ -58,8 +58,13 @@ for sr in [False]:
         "ffnn",
         nparticles,
         dim,  # all after this is kwargs.
-        layer_sizes=[4, 3, 1],  # does not include input layer
-        activations=["gelu", "softplus", "softplus"],  # note you can
+        layer_sizes=[
+            nparticles * dim,
+            3,
+            3,
+            nparticles * dim,
+        ],  # now includes input and output layers
+        activations=["gelu", "softplus", "softplus", "gelu"],
         sigma2=1.0,
     )
 

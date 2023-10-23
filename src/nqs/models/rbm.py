@@ -288,8 +288,16 @@ class RBM:
             self.params.get("kernel"),
         )
 
-        # v_bias, h_bias, kernel = self.params.get(["v_bias", "h_bias", "kernel"])
-        return self.grads_closure(r, v_bias, h_bias, kernel)
+        grad_v_bias, grad_h_bias, grad_kernel = self.grads_closure(
+            r, v_bias, h_bias, kernel
+        )
+
+        grads_dict = {
+            "v_bias": grad_v_bias,
+            "h_bias": grad_h_bias,
+            "kernel": grad_kernel,
+        }
+        return grads_dict
 
     def compute_sr_matrix(self, expval_grads, grads, shift=1e-4):
         """

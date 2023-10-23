@@ -238,27 +238,34 @@ class NQS:
         else:
             t_range = range(max_iter)
 
-        state = self.wf.state
-        state = State(state.positions, state.logp, 0, state.delta)
         params = self.wf.params
         param_keys = params.keys()
         seed_seq = generate_seed_sequence(self._seed, 1)[0]
 
         energies = []
         final_grads = {key: None for key in param_keys}
-        grads_dict = {key: [] for key in param_keys}
+
         expval_energies_dict = {key: None for key in param_keys}
         expval_grad_dict = {key: None for key in param_keys}
         steps_before_optimize = batch_size
+
+        state = self.wf.state
+        state = State(state.positions, state.logp, 0, state.delta)
+        grads_dict = self.wf.grads(state.positions)  # {key:[] for key in param_keys}
+        loc_energy = self.hamiltonian.local_energy(self.wf, state.positions)
+        energies.append(loc_energy)
 
         for _ in t_range:
             state = self._sampler.step(self.wf, state, seed_seq)
             loc_energy = self.hamiltonian.local_energy(self.wf, state.positions)
             energies.append(loc_energy)
-            grads = self.wf.grads(state.positions)
+            local_grads_dict = self.wf.grads(state.positions)
 
-            for key, grad in zip(param_keys, grads):
-                grads_dict[key].append(grad)
+            for key in param_keys:
+                grads_dict[key] = np.vstack((grads_dict[key], local_grads_dict[key]))
+
+            # for key, grad in zip(param_keys, local_grads_dict):
+            #     grads_dict[key].append(grad)
 
             steps_before_optimize -= 1
             if steps_before_optimize == 0:
@@ -266,9 +273,11 @@ class NQS:
                 expval_energy = np.mean(energies)
 
                 for key in param_keys:
+                    print(grads_dict[key].ndim)
                     reshaped_energy = energies.reshape(
-                        batch_size, *(1,) * grads_dict[key][0].ndim
+                        batch_size + 1, *(1,) * grads_dict[key][0].ndim
                     )
+                    # print(reshaped_energy.shape, grads_dict[key].shape)
                     expval_energies_dict[key] = np.mean(
                         reshaped_energy * grads_dict[key], axis=0
                     )

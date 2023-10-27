@@ -291,13 +291,12 @@ class RBM:
         grad_v_bias, grad_h_bias, grad_kernel = self.grads_closure(
             r, v_bias, h_bias, kernel
         )
-
         grads_dict = {
             "v_bias": grad_v_bias,
             "h_bias": grad_h_bias,
             "kernel": grad_kernel,
         }
-        return grads_dict
+        return grads_dict  # grad_v_bias, grad_h_bias, grad_kernel
 
     def compute_sr_matrix(self, expval_grads, grads, shift=1e-4):
         """

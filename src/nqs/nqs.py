@@ -251,9 +251,7 @@ class NQS:
 
         state = self.wf.state
         state = State(state.positions, state.logp, 0, state.delta)
-        grads_dict = self.wf.grads(state.positions)  # {key:[] for key in param_keys}
-        loc_energy = self.hamiltonian.local_energy(self.wf, state.positions)
-        energies.append(loc_energy)
+        grads_dict = {key: [] for key in param_keys}
 
         for _ in t_range:
             state = self._sampler.step(self.wf, state, seed_seq)
@@ -262,28 +260,26 @@ class NQS:
             local_grads_dict = self.wf.grads(state.positions)
 
             for key in param_keys:
-                grads_dict[key] = np.vstack((grads_dict[key], local_grads_dict[key]))
-
-            # for key, grad in zip(param_keys, local_grads_dict):
-            #     grads_dict[key].append(grad)
+                grads_dict[key].append(local_grads_dict[key])
 
             steps_before_optimize -= 1
             if steps_before_optimize == 0:
-                energies = np.array(energies)  # dont know why
+                energies = np.array(energies)
                 expval_energy = np.mean(energies)
 
                 for key in param_keys:
-                    print(grads_dict[key].ndim)
-                    reshaped_energy = energies.reshape(
-                        batch_size + 1, *(1,) * grads_dict[key][0].ndim
-                    )
-                    # print(reshaped_energy.shape, grads_dict[key].shape)
+                    grad_np = np.array(grads_dict[key])
+
+                    new_shape = (batch_size,) + (1,) * (
+                        grad_np.ndim - 1
+                    )  # Subtracting 1 because the first dimension is already provided by batch_size
+                    reshaped_energy = energies.reshape(new_shape)
+
                     expval_energies_dict[key] = np.mean(
-                        reshaped_energy * grads_dict[key], axis=0
+                        reshaped_energy * grad_np, axis=0
                     )
 
-                    expval_grad_dict[key] = np.mean(grads_dict[key], axis=0)
-
+                    expval_grad_dict[key] = np.mean(grad_np, axis=0)
                     final_grads[key] = 2 * (
                         expval_energies_dict[key]
                         - expval_energy * expval_grad_dict[key]

@@ -60,12 +60,25 @@ class FFNN:
 
     def _initialize_layers(self, rng):
         """Always initialize all as rectangle for now"""
+        self.params = Parameter()  # Initialize empty Parameter object
 
-        self.params = {
-            "b0": rng.standard_normal(size=(self._layer_sizes[0])) * 0.01,
-            "W0": rng.standard_normal(size=(self._N * self._dim, self._layer_sizes[0]))
-            * 0.01,
-        }
+        # do not change this order
+        self.params.set(
+            "W0",
+            jnp.array(
+                rng.standard_normal(size=(self._N * self._dim, self._layer_sizes[0]))
+                * 0.01
+            ),
+        )
+        self.params.set(
+            "b0", jnp.array(rng.standard_normal(size=(self._layer_sizes[0])) * 0.01)
+        )
+
+        # self.params = {
+        #     "b0": rng.standard_normal(size=(self._layer_sizes[0])) * 0.01,
+        #     "W0": rng.standard_normal(size=(self._N * self._dim, self._layer_sizes[0]))
+        #     * 0.01,
+        # }
 
         for i in range(1, len(self._layer_sizes)):
             # The number of units in the layers
@@ -76,14 +89,11 @@ class FFNN:
             limit = np.sqrt(6 / (input_size + output_size))
 
             # Initialize weights and biases
-            self.params[f"W{i}"] = np.random.uniform(
-                -limit, limit, (input_size, output_size)
+            self.params.set(
+                f"W{i}",
+                jnp.array(rng.uniform(-limit, limit, (input_size, output_size))),
             )
-            self.params[f"b{i}"] = np.zeros((output_size,))
-
-        param_obj = Parameter()
-        param_obj.set(self.params)
-        self.params = param_obj
+            self.params.set(f"b{i}", jnp.zeros((output_size,)))
 
     def _initialize_vars(
         self, nparticles, dim, layer_sizes, activations, factor, sigma2
@@ -185,18 +195,21 @@ class FFNN:
         self._sigma2_factor2 = 0.5 / self._sigma2
 
     def forward(self, x, params):
-        """
-        Applies the neural network layers and activations to input x.
-        Will loop through each layer, applying the weights, bias, and activation function
-        """
-        print("Going through forward pass")
-        for i in range(0, len(self._layer_sizes)):
-            x = params.get(f"W{i}").T @ x + params.get(
-                f"b{i}"
-            )  # change this later. We need not the transpose if we define better
-            x = self.activation(self._activations[i])(
-                x
-            )  # assuming self._activations stores strings
+        if isinstance(params, Parameter):
+            # Custom Parameter instance
+            for i in range(0, len(self._layer_sizes)):
+                x = params.get(f"W{i}").T @ x + params.get(f"b{i}")
+                x = self.activation(self._activations[i])(x)
+        elif isinstance(params, tuple):
+            # Tuple of JAX arrays from grad
+            for i in range(0, len(self._layer_sizes)):
+                # Assuming params are ordered as W0, b0, W1, b1, ..., Wn, bn
+                W = params[i * 2]  # Even indices are weights
+                b = params[i * 2 + 1]  # Odd indices are biases
+                x = W.T @ x + b
+                x = self.activation(self._activations[i])(x)
+        else:
+            raise TypeError("Unexpected parameter format")
 
         return x
 
@@ -209,7 +222,7 @@ class FFNN:
 
     def wf(self, r, params):
         """Compute the wave function from the neural network output."""
-        return jnp.exp(self._log_wf(r, params)).sum(axis=0)  # why sum over axis 0?
+        return jnp.exp(self._log_wf(r, params).sum(axis=0))
 
     # @partial(jax.jit, static_argnums=(0,))
     def grad_wf_closure(self, r, params):
@@ -258,20 +271,20 @@ class FFNN:
     def laplacian(self, r):
         return self.laplacian_closure(r, self.params)
 
-    def grads_closure(self, r, param_values):
+    def grads_closure(self, r, *param_values):
         """
         This is the autograd version of the gradient of the logarithm of the wave function w.r.t. the parameters
         Param values is a list of the current parameter values
         we need to differentiate self. wf w.r.t each array in param_values
         # FIXME: I cannot be jitted now
+        # NOTE: this is not analytical gradient. This is the autograd version of the gradient of the logarithm of the wave function w.r.t. the parameters
+        # FIXME: maybe we can use analytical expression from backpropagation
         """
-
-        list_of_grads = [
-            jax.grad(self.wf, argnums=x)(r, param_values)
-            for x in range(1, len(param_values))
-        ]
-
-        return tuple(list_of_grads)
+        grad_values = []
+        grad_fn = jax.grad(self.wf, argnums=1)
+        for i in range(len(param_values)):
+            grad_values.append(grad_fn(r, param_values)[i])
+        return tuple(grad_values)
 
     def grads(self, r):
         """
@@ -285,11 +298,13 @@ class FFNN:
         # the neural network. We need to pass the current parameters to this function.
 
         # 'gradients' is now a structure (like a dictionary) holding the gradients with respect to each parameter.
-        param_values = [
-            self.params.get(f"W{i}") for i in range(0, len(self._layer_sizes))
-        ]  # this seems very inefficient
 
-        return self.grads_closure(r, param_values)
+        param_keys = self.params.keys()
+        param_values = [self.params.get(key) for key in param_keys]
+        grad_values = self.grads_closure(r, *param_values)  # will this change order?
+
+        grads_dict = {key: value for key, value in zip(param_keys, grad_values)}
+        return grads_dict
 
     # def pdf(self, r, params):
     #     """

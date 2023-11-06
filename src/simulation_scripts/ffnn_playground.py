@@ -26,10 +26,10 @@ nsamples = int(2**14)  # 2**18 = 262144
 nchains = 2
 eta = 0.05
 
-training_cycles = [50_000]  # this is cycles for the NN
+training_cycles = [200]  # this is cycles for the NN
 mcmc_alg = "m"
 optimizer = "gd"
-batch_size = 1_000
+batch_size = 10
 detailed = True
 wf_type = "ffnn"
 seed = 42
@@ -59,10 +59,10 @@ for sr in [False]:
         nparticles,
         dim,  # all after this is kwargs.
         layer_sizes=[
-            nparticles * dim,
+            nparticles * dim,  # should always be this
             3,
             3,
-            nparticles * dim,
+            1,  # should always be this
         ],  # now includes input and output layers
         activations=["gelu", "softplus", "softplus", "gelu"],
         sigma2=1.0,

@@ -162,14 +162,15 @@ class RBM:
             self._factor * self._log_wf(r, v_bias, h_bias, kernel).sum()
         )  # TODO: check this
 
-    def pdf(self, r, v_bias, h_bias, kernel):
+    def pdf(self, r):
         """
         Probability amplitude
         """
-        return self.backend.exp(self.logprob(r, v_bias, h_bias, kernel))
+        return self.backend.exp(self.logprob(r))
 
     def logprob_closure(self, r, v_bias, h_bias, kernel):
         """Log probability amplitude"""
+
         return self._rbm_psi_repr * self._log_wf(r, v_bias, h_bias, kernel).sum()
 
     def logprob(self, r):

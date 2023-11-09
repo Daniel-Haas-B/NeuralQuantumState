@@ -68,18 +68,22 @@ class HarmonicOscillator(Hamiltonian):
     def potential(self, r):
         """Potential energy function"""
         # HO trap
-        v_trap = 0.5 * self.backend.sum(r * r)
+        v_trap = 0.5 * self.backend.sum(r * r) * self.kwargs["omega"] ** 2
 
         # Interaction
         v_int = 0.0
         if self._int_type == "Coulomb":
             r_cpy = copy.deepcopy(r).reshape(self._N, self._dim)
             r_dist = self.la.norm(r_cpy[None, ...] - r_cpy[:, None], axis=-1)
-            v_int = self.backend.sum(self.backend.triu(1 / r_dist, k=1))
+            v_int = self.backend.sum(
+                self.backend.triu(1 / (r_dist + 1e-6), k=1)
+            )  # k=1 to remove diagonal, since we don't want self-interaction
         elif self._int_type == "Calogero":
             r_cpy = copy.deepcopy(r).reshape(self._N, self._dim)
             r_dist = self.la.norm(r_cpy[None, ...] - r_cpy[:, None], axis=-1)
-            v_int = self.backend.sum(self.backend.triu(1 / r_dist**2, k=1))
+            v_int = self.backend.sum(
+                self.backend.triu(1 / r_dist**2, k=1)
+            )  # k=1 to remove diagonal, since we don't want self-interaction
             v_int *= self.kwargs["coupling"] * (self.kwargs["coupling"] - 1)
         elif self._int_type is not None:
             raise ValueError("Invalid interaction type:", self._int_type)

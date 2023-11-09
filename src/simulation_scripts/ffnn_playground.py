@@ -1,13 +1,16 @@
 import sys
 
+sys.path.append("/Users/haas/Documents/Masters/GANQS/src/")
 import jax
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
 
+from nqs.utils import plot_psi2
+
 # Import nqs package
-sys.path.append("/Users/haas/Documents/Masters/GANQS/src/")
+
 
 from nqs import nqs
 
@@ -16,20 +19,17 @@ jax.config.update("jax_platform_name", "cpu")
 
 # Config
 output_filename = "../data/playground.csv"
-nparticles = 2
-dim = 2
+nparticles = 1
+dim = 1
 
-nunits = 4  # number of units in the hidden layer
-nhidden = 4  # hidden layers
-
-nsamples = int(2**14)  # 2**18 = 262144
+nsamples = int(2**16)  # 2**18 = 262144
 nchains = 2
-eta = 0.05
+eta = 0.1
 
-training_cycles = [200]  # this is cycles for the NN
+training_cycles = [200_000]  # this is cycles for the NN
 mcmc_alg = "m"
 optimizer = "gd"
-batch_size = 10
+batch_size = 1000
 detailed = True
 wf_type = "ffnn"
 seed = 42
@@ -44,7 +44,7 @@ start = time.time()
 # for i in range(5):
 
 
-for sr in [False]:
+for sr in [True]:
     system = nqs.NQS(
         nqs_repr="psi",
         backend="jax",
@@ -59,17 +59,16 @@ for sr in [False]:
         nparticles,
         dim,  # all after this is kwargs.
         layer_sizes=[
-            nparticles * dim,  # should always be this
-            3,
+            5,
             3,
             1,  # should always be this
         ],  # now includes input and output layers
-        activations=["gelu", "softplus", "softplus", "gelu"],
+        activations=["gelu", "gelu", "linear"],
         sigma2=1.0,
     )
 
-    system.set_sampler(mcmc_alg=mcmc_alg, scale=1.0)
-    system.set_hamiltonian(type_="ho", int_type="Coulomb")
+    system.set_sampler(mcmc_alg=mcmc_alg, scale=1)
+    system.set_hamiltonian(type_="ho", int_type=None, omega=1.0)
     system.set_optimizer(
         optimizer=optimizer,
         eta=eta,
@@ -141,3 +140,7 @@ else:
 plt.xlabel("Chain")
 plt.ylabel("Energy")
 plt.show()
+
+# plot probability
+
+plot_psi2(system.wf, num_points=300, r_min=-10, r_max=10)

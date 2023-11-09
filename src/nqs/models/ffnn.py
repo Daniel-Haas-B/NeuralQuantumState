@@ -67,18 +67,11 @@ class FFNN:
             "W0",
             jnp.array(
                 rng.standard_normal(size=(self._N * self._dim, self._layer_sizes[0]))
-                * 0.01
             ),
         )
         self.params.set(
-            "b0", jnp.array(rng.standard_normal(size=(self._layer_sizes[0])) * 0.01)
+            "b0", jnp.array(rng.standard_normal(size=(self._layer_sizes[0])))
         )
-
-        # self.params = {
-        #     "b0": rng.standard_normal(size=(self._layer_sizes[0])) * 0.01,
-        #     "W0": rng.standard_normal(size=(self._N * self._dim, self._layer_sizes[0]))
-        #     * 0.01,
-        # }
 
         for i in range(1, len(self._layer_sizes)):
             # The number of units in the layers
@@ -117,13 +110,15 @@ class FFNN:
             case "tanh":
                 return jnp.tanh
             case "sigmoid":
-                return jnp.sigmoid
+                return expit  # jax.nn.sigmoid
             case "relu":
-                return jnp.maximum
+                return jax.nn.relu
             case "softplus":
                 return jax.nn.softplus
             case "gelu":
                 return jax.nn.gelu
+            case "linear":
+                return lambda x: x
             case _:  # default
                 raise ValueError(f"Invalid activation function {activation_str}")
 
@@ -137,7 +132,7 @@ class FFNN:
         self.la = jnp.linalg
         self.sigmoid = expit  # jax.nn.sigmoid
         # self._convert_constants_to_jnp()
-        # self._jit_functions()
+        self._jit_functions()
 
     def __str__(self):
         """
@@ -178,7 +173,6 @@ class FFNN:
 
     def _jit_functions(self):
         functions_to_jit = [
-            "_log_wf",
             "wf",
             "grad_wf_closure",
             "grads_closure",
@@ -210,19 +204,22 @@ class FFNN:
                 x = self.activation(self._activations[i])(x)
         else:
             raise TypeError("Unexpected parameter format")
-
         return x
 
-    def _log_wf(self, r, params):
-        """FFNN forqard pass sinse the log of the wave function is the FFNN"""
+    # def log_wf(self, r, params):
+    #     """Compute the logarithm of the wave function from the neural network output.
 
-        return self.forward(
-            r, params
-        )  # Assuming the representation is Psi(x) = exp(FFNN(x))
+    #     """
+    #     return self.forward(
+    #         r, params
+    #     ).sum(axis=0)
 
     def wf(self, r, params):
-        """Compute the wave function from the neural network output."""
-        return jnp.exp(self._log_wf(r, params).sum(axis=0))
+        """Compute the wave function from the neural network output.
+        this is actually exp(forward(r, params)
+
+        """
+        return jnp.exp(self.forward(r, params).sum(axis=0))
 
     # @partial(jax.jit, static_argnums=(0,))
     def grad_wf_closure(self, r, params):
@@ -276,7 +273,6 @@ class FFNN:
         This is the autograd version of the gradient of the logarithm of the wave function w.r.t. the parameters
         Param values is a list of the current parameter values
         we need to differentiate self. wf w.r.t each array in param_values
-        # FIXME: I cannot be jitted now
         # NOTE: this is not analytical gradient. This is the autograd version of the gradient of the logarithm of the wave function w.r.t. the parameters
         # FIXME: maybe we can use analytical expression from backpropagation
         """
@@ -284,6 +280,7 @@ class FFNN:
         grad_fn = jax.grad(self.wf, argnums=1)
         for i in range(len(param_values)):
             grad_values.append(grad_fn(r, param_values)[i])
+
         return tuple(grad_values)
 
     def grads(self, r):
@@ -304,20 +301,68 @@ class FFNN:
         grad_values = self.grads_closure(r, *param_values)  # will this change order?
 
         grads_dict = {key: value for key, value in zip(param_keys, grad_values)}
+        # print(grads_dict["W1"].sum())
         return grads_dict
 
-    # def pdf(self, r, params):
-    #     """
-    #     Probability amplitude
-    #     """
-    #     return self.backend.exp(self.logprob(r, params))
+    def pdf(self, r):
+        """Probability density function"""
+        psi2 = jnp.abs(self.wf(r, self.params)) ** 2
+
+        return psi2
 
     def logprob_closure(self, r, params):
         """Log probability amplitude"""
 
-        return self._ffnn_psi_repr * self._log_wf(r, params).sum()
+        return jnp.log(jnp.abs(self.wf(r, params)) ** 2)
 
     def logprob(self, r):
         """Log probability amplitude"""
 
         return self.logprob_closure(r, self.params)
+
+    def compute_sr_matrix(self, expval_grads, grads, shift=1e-4):
+        """
+        expval_grads and grads should be dictionaries with keys "v_bias", "h_bias", "kernel" in the case of RBM
+        in the case of FFNN we have "weights" and "biases" and "kernel" is not present
+        WIP: for now this does not involve the averages because r will be a single sample
+        Compute the matrix for the stochastic reconfiguration algorithm
+            for now we do it only for the kernel
+            The expression here is for kernel element W_ij:
+                S_ij,kl = < (d/dW_ij log(psi)) (d/dW_kl log(psi)) > - < d/dW_ij log(psi) > < d/dW_kl log(psi) >
+
+            For bias (V or H) we have:
+                S_i,j = < (d/dV_i log(psi)) (d/dV_j log(psi)) > - < d/dV_i log(psi) > < d/dV_j log(psi) >
+
+
+            1. Compute the gradient ∂_W log(ψ) using the _grad_kernel function.
+            2. Compute the outer product of the gradient with itself: ∂_W log(ψ) ⊗ ∂_W log(ψ)
+            3. Compute the expectation value of the outer product over all the samples
+            4. Compute the expectation value of the gradient ∂_W log(ψ) over all the samples
+            5. Compute the outer product of the expectation value of the gradient with itself: <∂_W log(ψ)> ⊗ <∂_W log(ψ)>
+
+            OBS: < d/dW_ij log(psi) > is already done inside train of the RBM class but we need still the < (d/dW_ij log(psi)) (d/dW_kl log(psi)) >
+        """
+        sr_matrices = {}
+
+        for key, grad_value in grads.items():
+            grad_value = self.backend.array(
+                grad_value
+            )  # this should be done outside of the function
+
+            if "W" in key:  # means it is a matrix
+                grads_outer = self.backend.einsum(
+                    "nij,nkl->nijkl", grad_value, grad_value
+                )
+            # elif self.backend.ndim(grad_value[0]) == 1:
+            else:  # means it is a (bias) vector
+                grads_outer = self.backend.einsum("ni,nj->nij", grad_value, grad_value)
+
+            expval_outer_grad = self.backend.mean(grads_outer, axis=0)
+            outer_expval_grad = self.backend.outer(expval_grads[key], expval_grads[key])
+
+            sr_mat = (
+                expval_outer_grad.reshape(outer_expval_grad.shape) - outer_expval_grad
+            )
+            sr_matrices[key] = sr_mat + shift * self.backend.eye(sr_mat.shape[0])
+
+        return sr_matrices

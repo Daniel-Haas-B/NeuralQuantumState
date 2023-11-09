@@ -24,7 +24,7 @@ class Gd(Optimizer):
                 # for the love of god change this later
                 grads[key] = grads[key].reshape(sr_matrix.shape[0], -1)
                 grads[key] = np.linalg.pinv(sr_matrix) @ grads[key]
-                grads[key] = grads[key].reshape(params.get([key])[0].shape)
+                grads[key] = grads[key].reshape(params.get(key).shape)
 
         for key, grad in grads.items():
             params.set([key], [params.get(key) - self.eta * grad])

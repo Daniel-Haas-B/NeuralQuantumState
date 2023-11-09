@@ -19,7 +19,7 @@ jax.config.update("jax_platform_name", "cpu")
 import numpy as np
 import pandas as pd
 
-from nqs.models import RBM, FFNN
+from nqs.models import RBM, FFNN, VMC
 
 from numpy.random import default_rng
 from tqdm.auto import tqdm
@@ -128,6 +128,15 @@ class NQS:
                     kwargs["layer_sizes"],
                     kwargs["activations"],
                     kwargs["sigma2"],
+                    log=self._log,
+                    logger=self.logger,
+                    rng=self.rng(self._seed),
+                    backend=self._backend,
+                )
+            case "vmc":
+                self.wf = VMC(
+                    nparticles,
+                    dim,
                     log=self._log,
                     logger=self.logger,
                     rng=self.rng(self._seed),
@@ -250,6 +259,7 @@ class NQS:
         steps_before_optimize = batch_size
 
         state = self.wf.state
+
         state = State(state.positions, state.logp, 0, state.delta)
         grads_dict = {key: [] for key in param_keys}
 

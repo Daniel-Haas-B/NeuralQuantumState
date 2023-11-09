@@ -18,11 +18,11 @@ class Adam(Optimizer):
         self.t = 0
 
         self._m_params = {
-            "m_" + key: np.zeros_like(params.get([key])[0]) for key in self._param_keys
+            "m_" + key: np.zeros_like(params.get(key)[0]) for key in self._param_keys
         }
 
         self._v_params = {
-            "v_" + key: np.zeros_like(params.get([key])[0]) for key in self._param_keys
+            "v_" + key: np.zeros_like(params.get(key)[0]) for key in self._param_keys
         }
 
         self.beta1 = kwargs["beta1"]
@@ -40,7 +40,7 @@ class Adam(Optimizer):
                 # for the love of god change this later
                 grads[key] = grads[key].reshape(sr_matrix.shape[0], -1)
                 grads[key] = np.linalg.pinv(sr_matrix) @ grads[key]
-                grads[key] = grads[key].reshape(params.get([key])[0].shape)
+                grads[key] = grads[key].reshape(params.get(key).shape)
 
         for key in self._param_keys:
             # Update m and v with the new gradients
@@ -60,7 +60,7 @@ class Adam(Optimizer):
             v_hat = self._v_params[v_key] / (1 - self.beta2**self.t)
 
             # Update parameters using Adam optimization formula
-            current_value = params.get([key])[0]
+            current_value = params.get(key)[0]
 
             updated_value = current_value - self.eta * m_hat / (
                 np.sqrt(v_hat) + self.epsilon

@@ -15,7 +15,7 @@ jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
 
 # Config
-output_filename = "../data/playground.csv"
+output_filename = "../data/vmc_playground.csv"
 nparticles = 2
 dim = 1
 nhidden = 4
@@ -23,13 +23,13 @@ nsamples = int(2**16)  # 2**18 = 262144
 nchains = 2
 eta = 0.1
 
-training_cycles = [100_000]  # this is cycles for the NN
+training_cycles = [100_000]  # this is cycles for the ansatz
 mcmc_alg = "m"
 backend = "numpy"
 optimizer = "gd"
 batch_size = 10_000
 detailed = True
-wf_type = "rbm"
+wf_type = "vmc"
 seed = 142
 
 dfs_mean = []
@@ -42,7 +42,7 @@ start = time.time()
 # for i in range(5):
 
 
-for sr in [True]:
+for sr in [False]:
     system = nqs.NQS(
         nqs_repr="psi",
         backend=backend,

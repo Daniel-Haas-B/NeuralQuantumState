@@ -19,12 +19,7 @@ jax.config.update("jax_platform_name", "cpu")
 import numpy as np
 import pandas as pd
 
-# from samplers.sampler import Sampler
-
-# from nqs.models import IRBM, JAXIRBM, JAXNIRBM#, NIRBM
-
-
-from nqs.models.rbm import RBM
+from nqs.models import RBM, FFNN, VMC
 
 from numpy.random import default_rng
 from tqdm.auto import tqdm
@@ -86,7 +81,6 @@ class NQS:
             self.logger = None
 
         if rng is None:
-            print("Using default numpy random number generator")
             self.rng = default_rng
 
         if nqs_repr == "psi":
@@ -114,19 +108,44 @@ class NQS:
         """
         self._N = nparticles
         self._dim = dim
-        if wf_type.lower() == "rbm":
-            self.wf = RBM(
-                nparticles,
-                dim,
-                kwargs["nhidden"],
-                kwargs["sigma2"],
-                log=self._log,
-                logger=self.logger,
-                rng=self.rng(self._seed),
-                backend=self._backend,
-            )
-        else:
-            raise NotImplementedError("Only the RBM is supported for now.")
+        wf_type = wf_type.lower() if isinstance(wf_type, str) else wf_type
+        match wf_type:
+            case "rbm":
+                self.wf = RBM(
+                    nparticles,
+                    dim,
+                    kwargs["nhidden"],
+                    kwargs["sigma2"],
+                    log=self._log,
+                    logger=self.logger,
+                    rng=self.rng(self._seed),
+                    backend=self._backend,
+                )
+            case "ffnn":
+                self.wf = FFNN(
+                    nparticles,
+                    dim,
+                    kwargs["layer_sizes"],
+                    kwargs["activations"],
+                    kwargs["sigma2"],
+                    log=self._log,
+                    logger=self.logger,
+                    rng=self.rng(self._seed),
+                    backend=self._backend,
+                )
+            case "vmc":
+                self.wf = VMC(
+                    nparticles,
+                    dim,
+                    log=self._log,
+                    logger=self.logger,
+                    rng=self.rng(self._seed),
+                    backend=self._backend,
+                )
+            case _:  # noqa
+                raise NotImplementedError(
+                    "Only the RBM is supported for now. FFNN is WIP"
+                )
 
         self._is_initialized_ = True
 
@@ -228,46 +247,49 @@ class NQS:
         else:
             t_range = range(max_iter)
 
-        state = self.wf.state
-        state = State(state.positions, state.logp, 0, state.delta)
         params = self.wf.params
         param_keys = params.keys()
         seed_seq = generate_seed_sequence(self._seed, 1)[0]
 
         energies = []
         final_grads = {key: None for key in param_keys}
-        grads_dict = {key: [] for key in param_keys}
+
         expval_energies_dict = {key: None for key in param_keys}
         expval_grad_dict = {key: None for key in param_keys}
         steps_before_optimize = batch_size
-        if self._backend == "jax":
-            self.wf._jit_functions()
+
+        state = self.wf.state
+
+        state = State(state.positions, state.logp, 0, state.delta)
+        grads_dict = {key: [] for key in param_keys}
+
         for _ in t_range:
             state = self._sampler.step(self.wf, state, seed_seq)
-            loc_energy = self.hamiltonian.local_energy(
-                self.wf, state.positions
-            )  # testing adding params
+            loc_energy = self.hamiltonian.local_energy(self.wf, state.positions)
             energies.append(loc_energy)
-            grads = self.wf.grads(state.positions)
+            local_grads_dict = self.wf.grads(state.positions)
 
-            for key, grad in zip(param_keys, grads):
-                grads_dict[key].append(grad)
+            for key in param_keys:
+                grads_dict[key].append(local_grads_dict[key])
 
             steps_before_optimize -= 1
             if steps_before_optimize == 0:
-                energies = np.array(energies)  # dont know why
+                energies = np.array(energies)
                 expval_energy = np.mean(energies)
 
                 for key in param_keys:
-                    reshaped_energy = energies.reshape(
-                        batch_size, *(1,) * grads_dict[key][0].ndim
-                    )
+                    grad_np = np.array(grads_dict[key])
+
+                    new_shape = (batch_size,) + (1,) * (
+                        grad_np.ndim - 1
+                    )  # Subtracting 1 because the first dimension is already provided by batch_size
+                    reshaped_energy = energies.reshape(new_shape)
+
                     expval_energies_dict[key] = np.mean(
-                        reshaped_energy * grads_dict[key], axis=0
+                        reshaped_energy * grad_np, axis=0
                     )
 
-                    expval_grad_dict[key] = np.mean(grads_dict[key], axis=0)
-
+                    expval_grad_dict[key] = np.mean(grad_np, axis=0)
                     final_grads[key] = 2 * (
                         expval_energies_dict[key]
                         - expval_energy * expval_grad_dict[key]
@@ -290,9 +312,6 @@ class NQS:
 
         self.state = state
         self._is_trained_ = True
-
-        # create an identical wf with the trained params
-        # self.wf = self.wf.clone() # to unjit functions to be picked successfully
 
         if self.logger is not None:
             self.logger.info("Training done")

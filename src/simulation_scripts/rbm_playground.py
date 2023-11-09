@@ -1,15 +1,15 @@
 import sys
 
+sys.path.append("/Users/haas/Documents/Masters/GANQS/src/")
 import jax
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
 
-# Import nqs package
-sys.path.append("/Users/haas/Documents/Masters/GANQS/src/")
-
 from nqs import nqs
+from nqs.utils import plot_psi2
+
 
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
@@ -17,20 +17,20 @@ jax.config.update("jax_platform_name", "cpu")
 # Config
 output_filename = "../data/playground.csv"
 nparticles = 2
-dim = 2
+dim = 1
 nhidden = 4
-nsamples = int(2**14)  # 2**18 = 262144
+nsamples = int(2**16)  # 2**18 = 262144
 nchains = 2
-eta = 0.05
+eta = 0.1
 
-training_cycles = [50_000]  # this is cycles for the NN
+training_cycles = [100_000]  # this is cycles for the NN
 mcmc_alg = "m"
 backend = "numpy"
 optimizer = "gd"
-batch_size = 1_000
+batch_size = 10_000
 detailed = True
 wf_type = "rbm"
-seed = 42
+seed = 142
 
 dfs_mean = []
 df = []
@@ -42,7 +42,7 @@ start = time.time()
 # for i in range(5):
 
 
-for sr in [False]:
+for sr in [True]:
     system = nqs.NQS(
         nqs_repr="psi",
         backend=backend,
@@ -61,7 +61,7 @@ for sr in [False]:
     )
 
     system.set_sampler(mcmc_alg=mcmc_alg, scale=1.0)
-    system.set_hamiltonian(type_="ho", int_type="Coulomb")
+    system.set_hamiltonian(type_="ho", int_type="Coulomb", omega=1.0)
     system.set_optimizer(
         optimizer=optimizer,
         eta=eta,
@@ -134,3 +134,49 @@ else:
 plt.xlabel("Chain")
 plt.ylabel("Energy")
 plt.show()
+
+# system_omega_2 = nqs.NQS(
+#     nqs_repr="psi",
+#     backend=backend,
+#     log=True,
+#     logger_level="INFO",
+#     use_sr=False,  # Assuming you want to keep Stochastic Reconfiguration the same
+#     seed=seed,
+# )
+
+# system_omega_2.set_wf(
+#     wf_type,
+#     nparticles,
+#     dim,
+#     nhidden=nhidden,
+#     sigma2=1.0,
+# )
+
+# system_omega_2.set_sampler(mcmc_alg=mcmc_alg, scale=1.0)
+# system_omega_2.set_hamiltonian(type_="ho", int_type="Coulomb", omega=2.0)  # Changed omega to 2
+# system_omega_2.set_optimizer(
+#     optimizer=optimizer,
+#     eta=eta,
+#     beta1=0.9,
+#     beta2=0.999,
+#     epsilon=1e-8,
+# )
+
+# system_omega_2.train(
+#     max_iter=training_cycles[0],
+#     batch_size=batch_size,
+#     early_stop=False,
+#     seed=seed,
+# )
+
+# system_omega_2.sample(nsamples, nchains=nchains, seed=seed)
+
+# # Plotting psi2 for both wave functions
+# plt.figure(figsize=(10, 6))
+plot_psi2(system.wf, r_min=-4, r_max=4, num_points=300)
+# plot_psi2(system_omega_2.wf, r_min=-4, r_max=4, num_points=300)
+plt.legend()
+plt.xlabel("Position")
+plt.ylabel("Psi^2")
+# plt.title("Comparison of Psi^2 for Different Omega Values")
+# plt.show()

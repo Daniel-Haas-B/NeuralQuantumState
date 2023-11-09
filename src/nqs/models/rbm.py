@@ -158,21 +158,29 @@ class RBM:
 
     def wf(self, r, v_bias, h_bias, kernel):
         """Evaluate the wave function"""
-        return self._factor * self._log_wf(r, v_bias, h_bias, kernel).sum()
+        return (
+            self._factor * self._log_wf(r, v_bias, h_bias, kernel).sum()
+        )  # TODO: check this
 
-    def pdf(self, r, v_bias, h_bias, kernel):
+    def pdf(self, r):
         """
         Probability amplitude
         """
-        return self.backend.exp(self.logprob(r, v_bias, h_bias, kernel))
+        return self.backend.exp(self.logprob(r))
 
     def logprob_closure(self, r, v_bias, h_bias, kernel):
         """Log probability amplitude"""
+
         return self._rbm_psi_repr * self._log_wf(r, v_bias, h_bias, kernel).sum()
 
     def logprob(self, r):
         """Log probability amplitude"""
-        v_bias, h_bias, kernel = self.params.get(["v_bias", "h_bias", "kernel"])
+        v_bias, h_bias, kernel = (
+            self.params.get("v_bias"),
+            self.params.get("h_bias"),
+            self.params.get("kernel"),
+        )
+        # v_bias, h_bias, kernel = self.params.get(["v_bias", "h_bias", "kernel"])
         return self.logprob_closure(r, v_bias, h_bias, kernel)
 
     def grad_wf_closure(self, r, v_bias, h_bias, kernel):
@@ -198,7 +206,12 @@ class RBM:
         """
         grad of the wave function w.r.t. the coordinates
         """
-        v_bias, h_bias, kernel = self.params.get(["v_bias", "h_bias", "kernel"])
+        v_bias, h_bias, kernel = (
+            self.params.get("v_bias"),
+            self.params.get("h_bias"),
+            self.params.get("kernel"),
+        )
+        # v_bias, h_bias, kernel = self.params.get(["v_bias", "h_bias", "kernel"])
         return self.grad_wf_closure(r, v_bias, h_bias, kernel)
 
     def laplacian_closure(self, r, v_bias, h_bias, kernel):
@@ -233,7 +246,12 @@ class RBM:
         return laplacian
 
     def laplacian(self, r):
-        v_bias, h_bias, kernel = self.params.get(["v_bias", "h_bias", "kernel"])
+        v_bias, h_bias, kernel = (
+            self.params.get("v_bias"),
+            self.params.get("h_bias"),
+            self.params.get("kernel"),
+        )
+        # v_bias, h_bias, kernel = self.params.get(["v_bias", "h_bias", "kernel"])
         return self.laplacian_closure(r, v_bias, h_bias, kernel)
 
     def grads_closure(self, r, v_bias, h_bias, kernel):
@@ -265,9 +283,21 @@ class RBM:
 
     def grads(self, r):
         """Gradients of the wave function w.r.t. the parameters"""
-        v_bias, h_bias, kernel = self.params.get(["v_bias", "h_bias", "kernel"])
+        v_bias, h_bias, kernel = (
+            self.params.get("v_bias"),
+            self.params.get("h_bias"),
+            self.params.get("kernel"),
+        )
 
-        return self.grads_closure(r, v_bias, h_bias, kernel)
+        grad_v_bias, grad_h_bias, grad_kernel = self.grads_closure(
+            r, v_bias, h_bias, kernel
+        )
+        grads_dict = {
+            "v_bias": grad_v_bias,
+            "h_bias": grad_h_bias,
+            "kernel": grad_kernel,
+        }
+        return grads_dict  # grad_v_bias, grad_h_bias, grad_kernel
 
     def compute_sr_matrix(self, expval_grads, grads, shift=1e-4):
         """

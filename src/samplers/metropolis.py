@@ -8,6 +8,9 @@ from .sampler import Sampler
 class Metropolis(Sampler):
     def __init__(self, rng, scale, logger):
         super().__init__(rng, scale, logger)
+        self.test_p_proposals = []
+        self.test_p_unif = []
+        self.test_p_state = []
 
     def _step(self, wf, state, seed):
         """One step of the random walk Metropolis algorithm
@@ -32,15 +35,19 @@ class Metropolis(Sampler):
 
         # Sample proposal positions, i.e., move walkers
         proposals = rng.normal(loc=state.positions, scale=self.scale)
-
         # Sample log uniform rvs
         log_unif = np.log(rng.random())
 
         # Compute proposal log density
 
         logp_proposal = wf.logprob(proposals)
+        # self.test_p_proposals.append(np.exp(logp_proposal))
+        # self.test_p_unif.append(np.exp(log_unif))
+        # self.test_p_state.append(np.exp(state.logp))
 
+        # print("state.logp", state.logp)
         # Metroplis acceptance criterion
+        # print("logp_proposal", logp_proposal, "state.logp", state.logp)
         accept = log_unif < logp_proposal - state.logp
 
         # If accept is True, yield proposal, otherwise keep old state

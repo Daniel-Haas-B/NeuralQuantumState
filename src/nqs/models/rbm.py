@@ -160,7 +160,7 @@ class RBM:
         """Evaluate the wave function"""
         return (
             self._factor * self._log_wf(r, v_bias, h_bias, kernel).sum()
-        )  # TODO: check this
+        )  # we sum because we are in the log domain
 
     def pdf(self, r):
         """

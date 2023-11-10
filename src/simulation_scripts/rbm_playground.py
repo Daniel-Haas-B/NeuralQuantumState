@@ -17,7 +17,7 @@ jax.config.update("jax_platform_name", "cpu")
 # Config
 output_filename = "../data/playground.csv"
 nparticles = 2
-dim = 1
+dim = 2
 nhidden = 4
 nsamples = int(2**16)  # 2**18 = 262144
 nchains = 2
@@ -42,7 +42,7 @@ start = time.time()
 # for i in range(5):
 
 
-for sr in [True]:
+for sr in [False]:
     system = nqs.NQS(
         nqs_repr="psi",
         backend=backend,

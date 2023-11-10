@@ -17,6 +17,9 @@ class Hamiltonian:
         int_type,
         backend,
     ):
+        """
+        Note that this assumes that the wavefunction form is in the log domain
+        """
         self._N = nparticles
         self._dim = dim
         self._int_type = int_type
@@ -68,7 +71,7 @@ class HarmonicOscillator(Hamiltonian):
     def potential(self, r):
         """Potential energy function"""
         # HO trap
-        v_trap = 0.5 * self.backend.sum(r * r) * self.kwargs["omega"] ** 2
+        v_trap = 0.5 * self.backend.sum(r * r) * self.kwargs["omega"]
 
         # Interaction
         v_int = 0.0
@@ -92,9 +95,9 @@ class HarmonicOscillator(Hamiltonian):
 
     def _local_kinetic_energy(self, wf, r):
         """Evaluate the local kinetic energy of the system"""
-        _laplace = wf.laplacian(r).sum()
+        _laplace = wf.laplacian(r).sum()  # summing over all particles
         _grad = wf.grad_wf(r)
-        _grad2 = self.backend.sum(_grad * _grad)
+        _grad2 = self.backend.sum(_grad * _grad)  # summing over all particles
         return -0.5 * (_laplace + _grad2)
 
     def local_energy(self, wf, r):

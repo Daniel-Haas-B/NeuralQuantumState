@@ -346,3 +346,30 @@ class NQS:
         self._results = pd.concat([system_info_repeated, sample_results], axis=1)
 
         return self._results
+
+    def one_body_density(self, grid_points, num_samples=10000):
+        """
+        Calculate the one-body density over a grid of points in space.
+
+        Args:
+        - grid_points: A 2D numpy array of shape (n_points, 2) representing the x, y coordinates.
+        - num_samples: The number of samples to use for the Monte Carlo integration.
+
+        Returns:
+        - density: A numpy array of shape (n_points,) representing the one-body density at each grid point.
+        """
+        assert self.wf._dim == 2, "This method only works for 2D systems."
+        density = np.zeros(grid_points.shape[0])
+
+        for i, point in enumerate(grid_points):
+            # Fix the position of one particle at 'point' and sample the rest of the system.
+            # Here, we assume that 'self._sampler' can handle fixed-position sampling.
+            # This will require modifying your sampler to allow for such a constraint.
+            samples, weights = self._sampler.marginal_sample(
+                self.wf, point, num_samples
+            )
+
+            # Calculate the density at this point as the average of the weights.
+            density[i] = np.mean(weights)
+
+        return density

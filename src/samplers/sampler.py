@@ -91,6 +91,37 @@ class Sampler:
 
         return sample_results, energies
 
+    def marginal_sample(self, wf, state, nsamples, nchains=1, seed=None):
+        """
+        Fix-position sampling to be used in the calculation of the
+        one-body density. Of the wave function.
+        Mathematicaly what we are doind is
+        ρ(r)=∫∣Ψ(r,R)∣^2dR
+         - r represents the position of one particle (in two dimensions, this is (x, y))
+        - R represents the position of all particles (in two dimensions, this is (x1, y1, x2, y2, ...))
+        - ∣Ψ(r,R)∣^2 is the probability density of finding the particles at position r. In our case this is pdf
+        """
+        scale = self._scale
+        # for now this will not be parallelized sampling
+        nchains = check_and_set_nchains(nchains, self._logger)
+        seeds = generate_seed_sequence(seed, nchains)
+        samples, weights = 0, 0
+        if nchains == 1:
+            chain_id = 0
+            samples, weights = self._marginal_sample(
+                nsamples, state, scale, seeds[0], chain_id
+            )
+
+        else:
+            raise NotImplementedError(
+                "Parallel marginal sampling is not implemented yet"
+            )
+
+        if self._logger is not None:
+            self._logger.info("Marginal sampling done")
+
+        return samples, weights
+
     def step(self, wf, state, seed):
         """
         To be implemented by subclasses

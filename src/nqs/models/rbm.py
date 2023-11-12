@@ -31,8 +31,9 @@ class RBM:
         - dim (int): Dimensionality.
         ...
         """
-        self._initialize_vars(nparticles, dim, nhidden, factor, sigma2)
         self._configure_backend(backend)
+        self._initialize_vars(nparticles, dim, nhidden, factor, sigma2)
+
         if logger:
             self.logger = logger
         else:
@@ -128,7 +129,7 @@ class RBM:
         ]
         for func_name in functions_to_jit:
             setattr(self, func_name, jax.jit(getattr(self, func_name)))
-        return self
+        return self  # for chaining
 
     def _precompute(self):
         self._sigma4 = self._sigma2 * self._sigma2
@@ -235,7 +236,7 @@ class RBM:
         grad_wf = jax.grad(wrapped_wf)
         hessian_wf = jax.jacfwd(
             grad_wf
-        )  # This computes the Jacobian of the gradient, which is the Hessian
+        )  # This computes the Jacobian of the gradient, which is the (trace of the) Hessian.
 
         hessian_at_r = hessian_wf(r)
 

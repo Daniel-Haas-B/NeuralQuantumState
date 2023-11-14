@@ -185,7 +185,6 @@ class VMC:
         grad_wf = jax.grad(wrapped_wf)
 
         hessian_wf = jax.jacfwd(grad_wf)
-
         hessian_at_r = hessian_wf(r)
 
         laplacian = jnp.trace(hessian_at_r)
@@ -196,7 +195,8 @@ class VMC:
         """
         Compute the probability distribution function
         """
-        return self.backend.exp(self.logprob(r))
+
+        return self.backend.exp(self.logprob(r)) ** 2
 
     def compute_sr_matrix(self, expval_grads, grads, shift=1e-4):
         """

@@ -133,6 +133,14 @@ plt.xlabel("Chain")
 plt.ylabel("Energy")
 plt.show()
 
+positions, one_body_density = system.sample(
+    nsamples, nchains=1, seed=seed, one_body_density=True
+)
+
+plt.plot(positions, one_body_density)
+plt.show()
+
+
 # system_omega_2 = nqs.NQS(
 #     nqs_repr="psi",
 #     backend=backend,

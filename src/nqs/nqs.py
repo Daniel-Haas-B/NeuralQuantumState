@@ -316,7 +316,7 @@ class NQS:
         if self.logger is not None:
             self.logger.info("Training done")
 
-    def sample(self, nsamples, nchains=1, seed=None):
+    def sample(self, nsamples, nchains=1, seed=None, one_body_density=False):
         """helper for the sample method from the Sampler class"""
 
         self._is_initialized()
@@ -336,40 +336,21 @@ class NQS:
         }
 
         system_info = pd.DataFrame(system_info, index=[0])
-        sample_results = self._sampler.sample(
-            self.wf, self.state, nsamples, nchains, seed
-        )
-        system_info_repeated = system_info.loc[
-            system_info.index.repeat(len(sample_results))
-        ].reset_index(drop=True)
 
-        self._results = pd.concat([system_info_repeated, sample_results], axis=1)
+        if not one_body_density:
+            sample_results = self._sampler.sample(
+                self.wf, self.state, nsamples, nchains, seed
+            )
+            system_info_repeated = system_info.loc[
+                system_info.index.repeat(len(sample_results))
+            ].reset_index(drop=True)
 
-        return self._results
+            self._results = pd.concat([system_info_repeated, sample_results], axis=1)
 
-    def one_body_density(self, grid_points, num_samples=10000):
-        """
-        Calculate the one-body density over a grid of points in space.
-
-        Args:
-        - grid_points: A 2D numpy array of shape (n_points, 2) representing the x, y coordinates.
-        - num_samples: The number of samples to use for the Monte Carlo integration.
-
-        Returns:
-        - density: A numpy array of shape (n_points,) representing the one-body density at each grid point.
-        """
-        assert self.wf._dim == 2, "This method only works for 2D systems."
-        density = np.zeros(grid_points.shape[0])
-
-        for i, point in enumerate(grid_points):
-            # Fix the position of one particle at 'point' and sample the rest of the system.
-            # Here, we assume that 'self._sampler' can handle fixed-position sampling.
-            # This will require modifying your sampler to allow for such a constraint.
-            samples, weights = self._sampler.marginal_sample(
-                self.wf, point, num_samples
+            return self._results
+        else:
+            sample_results = self._sampler.sample_obd(
+                self.wf, self.state, nsamples, 1, seed, lim_inf=-5, lim_sup=5, points=80
             )
 
-            # Calculate the density at this point as the average of the weights.
-            density[i] = np.mean(weights)
-
-        return density
+        return sample_results

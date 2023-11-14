@@ -41,13 +41,37 @@ class Metropolis(Sampler):
         # Compute proposal log density
 
         logp_proposal = wf.logprob(proposals)
-        # self.test_p_proposals.append(np.exp(logp_proposal))
-        # self.test_p_unif.append(np.exp(log_unif))
-        # self.test_p_state.append(np.exp(state.logp))
 
-        # print("state.logp", state.logp)
         # Metroplis acceptance criterion
-        # print("logp_proposal", logp_proposal, "state.logp", state.logp)
+        accept = log_unif < logp_proposal - state.logp
+
+        # If accept is True, yield proposal, otherwise keep old state
+        new_positions = proposals if accept else state.positions
+
+        # Create new state
+        new_logp = wf.logprob(new_positions)
+        new_n_accepted = state.n_accepted + accept
+        new_delta = state.delta + 1
+        new_state = State(new_positions, new_logp, new_n_accepted, new_delta)
+
+        return new_state
+
+    def _fixed_step(self, wf, state, seed, fixed_index=0):
+        # Advance RNG
+        next_gen = advance_PRNG_state(seed, state.delta)
+        rng = self._rng(next_gen)
+
+        # Sample proposal positions, i.e., move walkers
+        positions = state.positions
+        proposals = rng.normal(loc=positions, scale=self.scale)
+        proposals[fixed_index] = positions[fixed_index]  # Fix one particle
+        # Sample log uniform rvs
+        log_unif = np.log(rng.random())
+
+        # Compute proposal log density
+        logp_proposal = wf.logprob(proposals)
+
+        # Metroplis acceptance criterion
         accept = log_unif < logp_proposal - state.logp
 
         # If accept is True, yield proposal, otherwise keep old state

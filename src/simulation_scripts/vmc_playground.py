@@ -18,16 +18,15 @@ jax.config.update("jax_platform_name", "cpu")
 output_filename = "../data/vmc_playground.csv"
 nparticles = 2
 dim = 1
-nhidden = 4
 nsamples = int(2**16)  # 2**18 = 262144
-nchains = 2
+nchains = 4
 eta = 0.1
 
-training_cycles = [100_000]  # this is cycles for the ansatz
+training_cycles = [20_000]  # this is cycles for the ansatz
 mcmc_alg = "m"
-backend = "numpy"
+backend = "jax"
 optimizer = "gd"
-batch_size = 10_000
+batch_size = 500
 detailed = True
 wf_type = "vmc"
 seed = 142
@@ -56,12 +55,11 @@ for sr in [False]:
         wf_type,
         nparticles,
         dim,
-        nhidden=nhidden,  # all after this is kwargs. In this example it is RBM dependent
         sigma2=1.0,
     )
 
     system.set_sampler(mcmc_alg=mcmc_alg, scale=1.0)
-    system.set_hamiltonian(type_="ho", int_type="Coulomb", omega=1.0)
+    system.set_hamiltonian(type_="ho", int_type=None, omega=1.0)
     system.set_optimizer(
         optimizer=optimizer,
         eta=eta,
@@ -134,6 +132,14 @@ else:
 plt.xlabel("Chain")
 plt.ylabel("Energy")
 plt.show()
+
+positions, one_body_density = system.sample(
+    nsamples, nchains=1, seed=seed, one_body_density=True
+)
+
+plt.plot(positions, one_body_density)
+plt.show()
+
 
 # system_omega_2 = nqs.NQS(
 #     nqs_repr="psi",

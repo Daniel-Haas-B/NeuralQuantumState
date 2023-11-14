@@ -33,6 +33,10 @@ def plot_psi2(wf, r_min=-10, r_max=10, num_points=1000):
         # Use a surface plot to visualize the probability density
         surf = ax.plot_surface(X, Y, pdf_values, cmap="viridis", edgecolor="none")
 
+        # add the conditional probability as a shadow on the walls of x and y
+        ax.contour(X, Y, pdf_values, zdir="x", offset=r_min, cmap="viridis")
+        ax.contour(X, Y, pdf_values, zdir="y", offset=r_max, cmap="viridis")
+
         # Labels and title
         ax.set_xlabel("Position of Particle 1")
         ax.set_ylabel("Position of Particle 2")

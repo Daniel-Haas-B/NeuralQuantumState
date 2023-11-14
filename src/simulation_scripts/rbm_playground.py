@@ -16,8 +16,8 @@ jax.config.update("jax_platform_name", "cpu")
 
 # Config
 output_filename = "../data/playground.csv"
-nparticles = 2
-dim = 1
+nparticles = 1
+dim = 3
 nhidden = 4
 nsamples = int(2**16)  # 2**18 = 262144
 nchains = 2
@@ -25,7 +25,7 @@ eta = 0.1
 
 training_cycles = [100_000]  # this is cycles for the NN
 mcmc_alg = "m"
-backend = "numpy"
+backend = "jax"
 optimizer = "gd"
 batch_size = 10_000
 detailed = True
@@ -42,7 +42,7 @@ start = time.time()
 # for i in range(5):
 
 
-for sr in [True]:
+for sr in [False]:
     system = nqs.NQS(
         nqs_repr="psi",
         backend=backend,
@@ -61,7 +61,7 @@ for sr in [True]:
     )
 
     system.set_sampler(mcmc_alg=mcmc_alg, scale=1.0)
-    system.set_hamiltonian(type_="ho", int_type="Coulomb", omega=1.0)
+    system.set_hamiltonian(type_="ho", int_type=None, omega=1.0)
     system.set_optimizer(
         optimizer=optimizer,
         eta=eta,

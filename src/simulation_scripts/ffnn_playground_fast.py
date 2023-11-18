@@ -14,7 +14,7 @@ import pandas as pd
 # Import nqs package
 
 
-from nqs import nqs
+from nqs import nqs_fast as nqs
 
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")

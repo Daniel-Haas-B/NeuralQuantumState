@@ -167,6 +167,10 @@ class FFNN:
 
     def _jit_functions(self):
         functions_to_jit = [
+            "grad_wf_closure",
+            "laplacian_closure",
+            "grads_closure",
+            "forward",
             "wf",
             "grad_wf_closure",
             "grads_closure",
@@ -251,20 +255,11 @@ class FFNN:
     def laplacian(self, r):
         return self.laplacian_closure(r, self.params)
 
-    def grads_closure(self, r, *param_values):
-        """
-        This is the autograd version of the gradient of the logarithm of the wave function w.r.t. the parameters
-        Param values is a list of the current parameter values
-        we need to differentiate self. wf w.r.t each array in param_values
-        # NOTE: this is not analytical gradient. This is the autograd version of the gradient of the logarithm of the wave function w.r.t. the parameters
-        # FIXME: maybe we can use analytical expression from backpropagation
-        """
-        grad_values = []
+    def grads_closure(self, r, params):
         grad_fn = jax.grad(self.wf, argnums=1)
-        for i in range(len(param_values)):
-            grad_values.append(grad_fn(r, param_values)[i])
+        grad_eval = grad_fn(r, params)  # still a parameter type
 
-        return tuple(grad_values)
+        return grad_eval
 
     def grads(self, r):
         """
@@ -274,18 +269,8 @@ class FFNN:
         # jax.grad will return a function that computes the gradient of wf.
         # This function will expect a parameter input, which in our case are the neural network parameters.
 
-        # The grad_fn function now computes the gradients of the wave function with respect to each parameter of
-        # the neural network. We need to pass the current parameters to this function.
+        grads_dict = self.grads_closurefast(r, self.params)
 
-        # 'gradients' is now a structure (like a dictionary) holding the gradients with respect to each parameter.
-
-        param_keys = self.params.keys()
-        param_values = [self.params.get(key) for key in param_keys]
-        grad_values = self.grads_closure(r, *param_values)  # will this change order?
-
-        grads_dict = {key: value for key, value in zip(param_keys, grad_values)}
-
-        # print(grads_dict["W1"].sum())
         return grads_dict
 
     def pdf(self, r):

@@ -19,20 +19,20 @@ jax.config.update("jax_platform_name", "cpu")
 
 # Config
 output_filename = "../data/playground.csv"
-nparticles = 1
+nparticles = 2
 dim = 1
 
-nsamples = int(2**16)  # 2**18 = 262144
+nsamples = int(2**18)  # 2**18 = 262144
 nchains = 2
-eta = 0.1
+eta = 0.01
 
-training_cycles = [200_000]  # this is cycles for the NN
+training_cycles = [100_000]  # this is cycles for the ansatz
 mcmc_alg = "m"
 optimizer = "gd"
 batch_size = 1000
 detailed = True
 wf_type = "ffnn"
-seed = 42
+seed = 142
 
 dfs_mean = []
 df = []
@@ -72,17 +72,29 @@ for sr in [True]:
     system.set_optimizer(
         optimizer=optimizer,
         eta=eta,
-        beta1=0.9,
-        beta2=0.999,
+        beta1=0.8,
+        beta2=0.8,
         epsilon=1e-8,
     )
 
-    system.train(
+    history = system.train(
         max_iter=training_cycles[0],
         batch_size=batch_size,
         early_stop=False,
         seed=seed,
+        history=True,
     )
+
+    epochs = np.arange(training_cycles[0] - training_cycles[0] % batch_size)[
+        ::batch_size
+    ]
+
+    plt.plot(epochs, history["energy"], label="energy")
+    plt.legend()
+    plt.show()
+    plt.plot(epochs, history["grads"], label="gradient_norm")
+    plt.legend()
+    plt.show()
 
     df = system.sample(nsamples, nchains=nchains, seed=seed)
     df_all.append(df)
@@ -142,5 +154,13 @@ plt.ylabel("Energy")
 plt.show()
 
 # plot probability
+
+positions, one_body_density = system.sample(
+    nsamples, nchains=1, seed=seed, one_body_density=True
+)
+
+plt.plot(positions, one_body_density)
+plt.show()
+
 
 plot_psi2(system.wf, num_points=300, r_min=-10, r_max=10)

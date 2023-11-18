@@ -171,16 +171,16 @@ class NQS:
         """
         Set the MCMC algorithm to be used for sampling.
         """
-
+        self.scale = scale
         if not isinstance(mcmc_alg, str):
             raise TypeError("'mcmc_alg' must be passed as str")
 
         self.mcmc_alg = mcmc_alg
 
         if self.mcmc_alg == "m":
-            self._sampler = Metro(self.rng, scale, self.logger)
+            self._sampler = Metro(self.rng, self.scale, self.logger)
         elif self.mcmc_alg == "lmh":
-            self._sampler = MetroHastings(self.rng, scale, self.logger)
+            self._sampler = MetroHastings(self.rng, self.scale, self.logger)
         else:
             msg = "Unsupported sampler, only Metropolis 'm' or Metropolis-Hastings 'lmh' is allowed"
             raise ValueError(msg)
@@ -228,13 +228,18 @@ class NQS:
         if not isinstance(logger_level, str):
             raise TypeError("'logger_level' must be passed as str")
 
-    def train(self, max_iter, batch_size, early_stop, **kwargs):
+    def train(self, max_iter, batch_size, **kwargs):
         """
         Train the wave function parameters.
         """
         self._is_initialized()
         self._training_cycles = max_iter
         self._training_batch = batch_size
+        self._history = (
+            {"energy": [], "grads": []} if kwargs.get("history", False) else None
+        )
+        self._early_stop = kwargs.get("early_stop", False)
+        self._tune = kwargs.get("tune", False)
 
         if self._log:
             t_range = tqdm(
@@ -259,8 +264,11 @@ class NQS:
         steps_before_optimize = batch_size
 
         state = self.wf.state
-
         state = State(state.positions, state.logp, 0, state.delta)
+
+        # equilibrate, burn in lets see if makes a difference
+        # for _ in range(1000):
+        #    state = self._sampler.step(self.wf, state, seed_seq)
         grads_dict = {key: [] for key in param_keys}
 
         for _ in t_range:
@@ -275,6 +283,7 @@ class NQS:
             steps_before_optimize -= 1
             if steps_before_optimize == 0:
                 energies = np.array(energies)
+                # print("Energy: ", energies)
                 expval_energy = np.mean(energies)
 
                 for key in param_keys:
@@ -304,7 +313,14 @@ class NQS:
                 self._optimizer.step(
                     self.wf.params, final_grads, self.sr_matrices
                 )  # changes wf params inplace
+                if self._history:
+                    self._history["energy"].append(expval_energy)
+                    grad_norms = [
+                        np.linalg.norm(final_grads[key]) for key in param_keys
+                    ]
+                    self._history["grads"].append(np.mean(grad_norms))
 
+                # self.tune() # tune the sampler scales
                 energies = []
                 final_grads = {key: None for key in param_keys}
                 grads_dict = {key: [] for key in param_keys}
@@ -315,6 +331,9 @@ class NQS:
 
         if self.logger is not None:
             self.logger.info("Training done")
+
+        if self._history:
+            return self._history
 
     def sample(self, nsamples, nchains=1, seed=None, one_body_density=False):
         """helper for the sample method from the Sampler class"""
@@ -354,3 +373,62 @@ class NQS:
             )
 
         return sample_results
+
+    def tune(
+        self,
+        tune_iter=2_000,
+        tune_interval=200,
+        rtol=1e-05,
+        atol=1e-08,
+        seed=None,
+        mcmc_alg=None,
+        log=False,
+    ):
+        """
+        BROKEN NOW due to self.scale
+        Tune proposal scale so that the acceptance rate is around 0.5.
+        """
+
+        self._is_initialized()
+        state = self.wf.state
+        scale = self.scale
+        self._log = log
+
+        # Config
+        # did_early_stop = False
+        seed_seq = generate_seed_sequence(seed, 1)[0]
+
+        # Reset n_accepted
+        # state = State(state.positions, state.logp, 0, state.delta)
+
+        if self._log:
+            t_range = tqdm(
+                range(tune_iter),
+                desc="[Tuning progress]",
+                position=0,
+                leave=True,
+                colour="green",
+            )
+        else:
+            t_range = range(tune_iter)
+
+        steps_before_tune = tune_interval
+
+        for i in t_range:
+            state = self._sampler.step(self.wf, state, seed_seq)
+            steps_before_tune -= 1
+
+            if steps_before_tune == 0:
+                # Tune proposal scale
+                old_scale = scale
+                accept_rate = state.n_accepted / tune_interval
+                scale = self._sampler.tune_scale(old_scale, accept_rate)
+                # print("new scale: ", scale)
+                # Reset
+                steps_before_tune = tune_interval
+                state = State(state.positions, state.logp, 0, state.delta)
+
+        # Update shared values
+        # self.state = state
+        self.scale = scale
+        self._is_tuned_ = True

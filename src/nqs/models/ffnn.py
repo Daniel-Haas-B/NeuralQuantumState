@@ -62,16 +62,18 @@ class FFNN:
         """Always initialize all as rectangle for now"""
         self.params = Parameter()  # Initialize empty Parameter object
 
+        input_size_0 = self._N * self._dim
+        output_size_0 = self._layer_sizes[0]
+        # limit_0 = jnp.sqrt(6 / (input_size_0 + output_size_0))
         # do not change this order
         self.params.set(
             "W0",
             jnp.array(
-                rng.standard_normal(size=(self._N * self._dim, self._layer_sizes[0]))
+                # jnp.array(rng.uniform(-limit_0, limit_0, (input_size_0, output_size_0))),
+                rng.standard_normal(size=(input_size_0, output_size_0))
             ),
         )
-        self.params.set(
-            "b0", jnp.array(rng.standard_normal(size=(self._layer_sizes[0])))
-        )
+        self.params.set("b0", jnp.zeros((output_size_0,)))
 
         for i in range(1, len(self._layer_sizes)):
             # The number of units in the layers
@@ -79,14 +81,19 @@ class FFNN:
             output_size = self._layer_sizes[i]
 
             # Glorot initialization, considering the size of layers
-            limit = np.sqrt(6 / (input_size + output_size))
+            # limit = jnp.sqrt(6 / (input_size + output_size)) * 0.1
 
             # Initialize weights and biases
             self.params.set(
                 f"W{i}",
-                jnp.array(rng.uniform(-limit, limit, (input_size, output_size))),
+                # jnp.array(rng.uniform(-limit, limit, (input_size, output_size))),
+                rng.standard_normal(size=(input_size, output_size)),
             )
-            self.params.set(f"b{i}", jnp.zeros((output_size,)))
+            self.params.set(
+                f"b{i}",
+                jnp.zeros((output_size,))
+                # jnp.array(rng.standard_normal(size=(output_size,)))
+            )
 
     def _initialize_vars(
         self, nparticles, dim, layer_sizes, activations, factor, sigma2
@@ -103,14 +110,13 @@ class FFNN:
             raise ValueError(
                 f"num layers ({len(layer_sizes)}) != num activations ({len(activations)})"
             )
-        self._precompute()
 
     def activation(self, activation_str):
         match activation_str:
             case "tanh":
                 return jnp.tanh
             case "sigmoid":
-                return expit  # jax.nn.sigmoid
+                return jax.nn.sigmoid
             case "relu":
                 return jax.nn.relu
             case "softplus":
@@ -119,6 +125,8 @@ class FFNN:
                 return jax.nn.gelu
             case "linear":
                 return lambda x: x
+            case "exp":
+                return jnp.exp
             case _:  # default
                 raise ValueError(f"Invalid activation function {activation_str}")
 
@@ -142,9 +150,6 @@ class FFNN:
         net_repr = "Neural Network Architecture\n"
         net_repr += "-" * 30 + "\n"  # Divider for clarity
 
-        # Representing neurons as "o"
-        neuron_repr = "o"
-
         for i, num_neurons in enumerate(self._layer_sizes):
             layer_type = (
                 "Input"
@@ -153,19 +158,8 @@ class FFNN:
             )
             layer_info = f"{layer_type} Layer (Layer {i}): {num_neurons} neurons\n"
 
-            # Create a visual representation of neurons
-            neurons = (neuron_repr * num_neurons).strip()
-
-            # If you have many neurons, you might want to cap the number for display
-            max_display_neurons = 10  # Adjust as needed
-            if num_neurons > max_display_neurons:
-                neurons = (
-                    neuron_repr * max_display_neurons + "..."
-                ).strip()  # Show that there are more neurons
-
             # Compile layer information and visual representation
             net_repr += layer_info
-            net_repr += neurons + "\n\n"  # Add spacing between layers for clarity
 
         net_repr += "-" * 30  # Ending divider
 
@@ -177,16 +171,10 @@ class FFNN:
             "grad_wf_closure",
             "grads_closure",
             "laplacian_closure",
-            "_precompute",
         ]
         for func_name in functions_to_jit:
             setattr(self, func_name, jax.jit(getattr(self, func_name)))
         return self
-
-    def _precompute(self):
-        self._sigma4 = self._sigma2 * self._sigma2
-        self._sigma2_factor = 1.0 / self._sigma2
-        self._sigma2_factor2 = 0.5 / self._sigma2
 
     def forward(self, x, params):
         if isinstance(params, Parameter):
@@ -206,20 +194,15 @@ class FFNN:
             raise TypeError("Unexpected parameter format")
         return x
 
-    # def log_wf(self, r, params):
-    #     """Compute the logarithm of the wave function from the neural network output.
-
-    #     """
-    #     return self.forward(
-    #         r, params
-    #     ).sum(axis=0)
+    def log_wf(self, r, params):
+        """Compute the logarithm of the wave function from the neural network output."""
+        return self.forward(r, params).sum(axis=0)
 
     def wf(self, r, params):
         """Compute the wave function from the neural network output.
-        this is actually exp(forward(r, params)
-
+        this is actually
         """
-        return jnp.exp(self.forward(r, params).sum(axis=0))
+        return self.log_wf(r, params)
 
     # @partial(jax.jit, static_argnums=(0,))
     def grad_wf_closure(self, r, params):
@@ -301,26 +284,29 @@ class FFNN:
         grad_values = self.grads_closure(r, *param_values)  # will this change order?
 
         grads_dict = {key: value for key, value in zip(param_keys, grad_values)}
+
         # print(grads_dict["W1"].sum())
         return grads_dict
 
     def pdf(self, r):
         """Probability density function"""
-        psi2 = jnp.abs(self.wf(r, self.params)) ** 2
 
-        return psi2
+        return self.backend.exp(self.logprob(r))
 
     def logprob_closure(self, r, params):
-        """Log probability amplitude"""
+        """Log probability amplitude
+        that is log(|psi|^2).
+        In our case, psi is real, so this is 2 log(|psi|) = 2 * forward(r, params) ?
+        """
 
-        return jnp.log(jnp.abs(self.wf(r, params)) ** 2)
+        return 2.0 * self.log_wf(r, params)
 
     def logprob(self, r):
         """Log probability amplitude"""
 
         return self.logprob_closure(r, self.params)
 
-    def compute_sr_matrix(self, expval_grads, grads, shift=1e-4):
+    def compute_sr_matrix(self, expval_grads, grads, shift=1e-5):
         """
         expval_grads and grads should be dictionaries with keys "v_bias", "h_bias", "kernel" in the case of RBM
         in the case of FFNN we have "weights" and "biases" and "kernel" is not present

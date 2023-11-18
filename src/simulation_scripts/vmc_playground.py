@@ -18,15 +18,15 @@ jax.config.update("jax_platform_name", "cpu")
 output_filename = "../data/vmc_playground.csv"
 nparticles = 2
 dim = 1
-nsamples = int(2**16)  # 2**18 = 262144
+nsamples = int(2**18)  # 2**18 = 262144
 nchains = 4
 eta = 0.1
 
-training_cycles = [20_000]  # this is cycles for the ansatz
+training_cycles = [50_000]  # this is cycles for the ansatz
 mcmc_alg = "m"
 backend = "jax"
 optimizer = "gd"
-batch_size = 500
+batch_size = 200
 detailed = True
 wf_type = "vmc"
 seed = 142
@@ -68,11 +68,12 @@ for sr in [False]:
         epsilon=1e-8,
     )
 
-    system.train(
+    history = system.train(
         max_iter=training_cycles[0],
         batch_size=batch_size,
         early_stop=False,
         seed=seed,
+        history=True,
     )
 
     df = system.sample(nsamples, nchains=nchains, seed=seed)
@@ -108,6 +109,14 @@ for sr in [False]:
     data = {**mean_data, **info_data}  # ** unpacks the dictionary
     df_mean = pd.DataFrame([data])
     dfs_mean.append(df_mean)
+
+    epochs = np.arange(training_cycles[0])[::batch_size]
+    plt.plot(epochs, history["energy"], label="energy")
+    plt.legend()
+    plt.show()
+    plt.plot(epochs, history["grads"], label="gradient_norm")
+    plt.legend()
+    plt.show()
 end = time.time()
 print((end - start))
 

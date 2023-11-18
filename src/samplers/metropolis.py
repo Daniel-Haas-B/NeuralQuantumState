@@ -8,9 +8,6 @@ from .sampler import Sampler
 class Metropolis(Sampler):
     def __init__(self, rng, scale, logger):
         super().__init__(rng, scale, logger)
-        self.test_p_proposals = []
-        self.test_p_unif = []
-        self.test_p_state = []
 
     def _step(self, wf, state, seed):
         """One step of the random walk Metropolis algorithm
@@ -35,6 +32,7 @@ class Metropolis(Sampler):
 
         # Sample proposal positions, i.e., move walkers
         proposals = rng.normal(loc=state.positions, scale=self.scale)
+        # print("self.scale", self.scale)
         # Sample log uniform rvs
         log_unif = np.log(rng.random())
 
@@ -88,7 +86,7 @@ class Metropolis(Sampler):
     def step(self, wf, state, seed):
         return self._step(wf, state, seed)
 
-    def tune_scale(scale, acc_rate):
+    def tune_scale(self, scale, acc_rate):
         """Proposal scale lookup table. (Original)
 
         Aims to obtain an acceptance rate between 20-50%.
@@ -123,6 +121,8 @@ class Metropolis(Sampler):
         scale : float
             Updated scale parameter
         """
+        # print("acc_rate: ", acc_rate)
+        # print("scale before: ", scale)
         if acc_rate < 0.001:
             # reduce by 90 percent
             return scale * 0.1
@@ -141,5 +141,6 @@ class Metropolis(Sampler):
         elif acc_rate > 0.95:
             # increase by factor of ten
             scale *= 10.0
-
+        # print("scale after: ", scale)
+        self.scale = scale
         return scale

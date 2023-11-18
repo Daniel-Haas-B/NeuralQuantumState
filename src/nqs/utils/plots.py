@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-def plot_psi2(wf, r_min=-10, r_max=10, num_points=1000):
+def plot_psi2(wf, r_min=-2, r_max=2, num_points=1000):
     positions = np.linspace(r_min, r_max, num_points)
 
     if wf._N * wf._dim == 1:

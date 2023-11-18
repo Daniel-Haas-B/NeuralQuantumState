@@ -154,9 +154,7 @@ class VMC:
 
     def _initialize_variational_params(self, rng):
         self.params = Parameter()
-        self.params.set(
-            "alpha", rng.uniform(low=0.2, high=0.8, size=(self._N * self._dim))
-        )
+        self.params.set("alpha", rng.uniform(size=(self._N * self._dim)))
 
     def laplacian(self, r):
         """

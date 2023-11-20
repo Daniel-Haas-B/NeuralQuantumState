@@ -2,7 +2,6 @@
 from typing import Any
 from typing import Iterable
 from typing import Mapping
-from typing import NamedTuple
 from typing import Union
 
 import jax.numpy as jnp
@@ -15,8 +14,11 @@ PyTree = Union[
     Array, Iterable[Array], Mapping[Any, Array]
 ]  # either array, iterable of arrays or mapping of arrays
 
+from dataclasses import dataclass
 
-class State(NamedTuple):
+
+@dataclass(frozen=False)
+class State:
     positions: PyTree
     logp: Union[float, PyTree]
     n_accepted: int

@@ -33,7 +33,6 @@ class Adam(Optimizer):
         """Update the parameters. Maybe performance bottleneck?"""
         self.t += 1  # increment time step
         # grads_dict = {key: grad for key, grad in zip(self._param_keys, grads)}
-
         if sr_matrices is not None:
             for key in sr_matrices.keys():
                 sr_matrix = sr_matrices[key]
@@ -60,11 +59,10 @@ class Adam(Optimizer):
             v_hat = self._v_params[v_key] / (1 - self.beta2**self.t)
 
             # Update parameters using Adam optimization formula
-            current_value = params.get(key)[0]
+
+            current_value = params.get(key)
 
             updated_value = current_value - self.eta * m_hat / (
                 np.sqrt(v_hat) + self.epsilon
             )
             params.set([key], [updated_value])
-
-        return params

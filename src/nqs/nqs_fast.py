@@ -19,7 +19,7 @@ jax.config.update("jax_platform_name", "cpu")
 import numpy as np
 import pandas as pd
 
-from nqs.models import RBM, FFNN, VMC
+from nqs.models import RBM, FFNNFAST, VMC
 
 from numpy.random import default_rng
 from tqdm.auto import tqdm
@@ -122,7 +122,7 @@ class NQS:
                     backend=self._backend,
                 )
             case "ffnn":
-                self.wf = FFNN(
+                self.wf = FFNNFAST(
                     nparticles,
                     dim,
                     kwargs["layer_sizes"],
@@ -377,7 +377,7 @@ class NQS:
     def tune(
         self,
         tune_iter=2_000,
-        tune_interval=50,
+        tune_interval=200,
         rtol=1e-05,
         atol=1e-08,
         seed=None,

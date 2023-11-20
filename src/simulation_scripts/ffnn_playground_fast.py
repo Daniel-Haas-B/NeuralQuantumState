@@ -14,7 +14,7 @@ import pandas as pd
 # Import nqs package
 
 
-from nqs import nqs
+from nqs import nqs_fast as nqs
 
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
@@ -31,7 +31,7 @@ eta = 0.01
 training_cycles = [10_000]  # this is cycles for the ansatz
 mcmc_alg = "m"
 optimizer = "gd"
-batch_size = 100
+batch_size = 1000
 detailed = True
 wf_type = "ffnn"
 seed = 142
@@ -74,8 +74,8 @@ for sr in [False]:
     system.set_optimizer(
         optimizer=optimizer,
         eta=eta,
-        beta1=0.9,
-        beta2=0.999,
+        beta1=0.8,
+        beta2=0.8,
         epsilon=1e-8,
     )
 

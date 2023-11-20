@@ -28,5 +28,3 @@ class Gd(Optimizer):
 
         for key, grad in grads.items():
             params.set([key], [params.get(key) - self.eta * grad])
-
-        return params

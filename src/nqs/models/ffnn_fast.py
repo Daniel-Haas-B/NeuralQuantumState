@@ -11,7 +11,7 @@ jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
 
 
-class FFNN:
+class FFNNFAST:
     def __init__(
         self,
         nparticles,
@@ -181,10 +181,10 @@ class FFNN:
         return self
 
     def forward(self, x, params):
+        # Custom Parameter instance
         for i in range(0, len(self._layer_sizes)):
             x = params.get(f"W{i}").T @ x + params.get(f"b{i}")
             x = self.activation(self._activations[i])(x)
-
         return x
 
     def log_wf(self, r, params):

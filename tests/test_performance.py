@@ -30,7 +30,7 @@ def test_runs(playground_path):
     time1 = time()
     output1 = None
     try:
-        for i in range(6):
+        for i in range(3):
             output1 = execute_script(playground_path)
     except Exception as e:
         logger.info(e)
@@ -39,7 +39,7 @@ def test_runs(playground_path):
     time2 = time()
     output2 = None
     try:
-        for i in range(6):
+        for i in range(3):
             output2 = execute_script(playground_path.replace(".py", "_fast.py"))
         time2 = time() - time2
     except Exception as e:

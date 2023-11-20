@@ -24,14 +24,14 @@ output_filename = "../data/playground.csv"
 nparticles = 2
 dim = 1
 
-nsamples = int(2**14)  # 2**18 = 262144
+nsamples = int(2**17)  # 2**18 = 262144
 nchains = 2
 eta = 0.01
 
-training_cycles = [5_000]  # this is cycles for the ansatz
+training_cycles = [10_000]  # this is cycles for the ansatz
 mcmc_alg = "m"
 optimizer = "gd"
-batch_size = 10
+batch_size = 1000
 detailed = True
 wf_type = "ffnn"
 seed = 142

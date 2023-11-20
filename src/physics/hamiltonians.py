@@ -30,6 +30,7 @@ class Hamiltonian:
         elif backend == "jax":
             self.backend = jnp
             self.la = jnp.linalg
+
             # self.potential = jax.jit(self.potential)
         else:
             raise ValueError("Invalid backend:", backend)
@@ -66,6 +67,7 @@ class HarmonicOscillator(Hamiltonian):
         for example the RBM.
         """
         super().__init__(nparticles, dim, int_type, backend)
+        self.potential = jax.jit(self.potential)
         self.kwargs = kwargs
 
     def potential(self, r):

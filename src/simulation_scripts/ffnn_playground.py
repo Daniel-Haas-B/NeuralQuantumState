@@ -24,14 +24,14 @@ output_filename = "../data/playground.csv"
 nparticles = 2
 dim = 1
 
-nsamples = int(2**14)  # 2**18 = 262144
+nsamples = int(2**17)  # 2**18 = 262144
 nchains = 2
 eta = 0.01
 
-training_cycles = [5_000]  # this is cycles for the ansatz
+training_cycles = [10_000]  # this is cycles for the ansatz
 mcmc_alg = "m"
 optimizer = "gd"
-batch_size = 10
+batch_size = 100
 detailed = True
 wf_type = "ffnn"
 seed = 142
@@ -74,8 +74,8 @@ for sr in [False]:
     system.set_optimizer(
         optimizer=optimizer,
         eta=eta,
-        beta1=0.8,
-        beta2=0.8,
+        beta1=0.9,
+        beta2=0.999,
         epsilon=1e-8,
     )
 

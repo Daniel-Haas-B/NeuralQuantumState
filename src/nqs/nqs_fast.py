@@ -19,7 +19,7 @@ jax.config.update("jax_platform_name", "cpu")
 import numpy as np
 import pandas as pd
 
-from nqs.models import RBM, FFNN, VMC
+from nqs.models import RBM, FFNNFAST, VMC
 
 from numpy.random import default_rng
 from tqdm.auto import tqdm
@@ -122,7 +122,7 @@ class NQS:
                     backend=self._backend,
                 )
             case "ffnn":
-                self.wf = FFNN(
+                self.wf = FFNNFAST(
                     nparticles,
                     dim,
                     kwargs["layer_sizes"],
@@ -275,9 +275,7 @@ class NQS:
             state = self._sampler.step(self.wf, state, seed_seq)
             loc_energy = self.hamiltonian.local_energy(self.wf, state.positions)
             energies.append(loc_energy)
-            local_grads_dict = self.wf.grads(
-                state.positions
-            )  # this is a Parameter object
+            local_grads_dict = self.wf.grads(state.positions)
 
             for key in param_keys:
                 grads_dict[key].append(local_grads_dict.get(key))

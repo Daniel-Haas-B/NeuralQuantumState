@@ -278,7 +278,7 @@ class NQS:
             local_grads_dict = self.wf.grads(state.positions)
 
             for key in param_keys:
-                grads_dict[key].append(local_grads_dict[key])
+                grads_dict[key].append(local_grads_dict.get(key))
 
             steps_before_optimize -= 1
             if steps_before_optimize == 0:
@@ -377,7 +377,7 @@ class NQS:
     def tune(
         self,
         tune_iter=2_000,
-        tune_interval=200,
+        tune_interval=50,
         rtol=1e-05,
         atol=1e-08,
         seed=None,

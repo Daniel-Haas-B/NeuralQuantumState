@@ -24,6 +24,8 @@ class Metropolis(Sampler):
         -------
         new_state : nqs.State
             The updated state of the system.
+
+        # TODO: update the Metropolis Hastings and the fixed step and tunning
         """
 
         # Advance RNG
@@ -47,12 +49,15 @@ class Metropolis(Sampler):
         new_positions = proposals if accept else state.positions
 
         # Create new state
-        new_logp = wf.logprob(new_positions)
+        new_logp = wf.logprob(new_positions) if accept else state.logp
         new_n_accepted = state.n_accepted + accept
         new_delta = state.delta + 1
-        new_state = State(new_positions, new_logp, new_n_accepted, new_delta)
 
-        return new_state
+        state.positions = new_positions
+        state.logp = new_logp
+        state.n_accepted = new_n_accepted
+        state.delta = new_delta
+        return state
 
     def _fixed_step(self, wf, state, seed, fixed_index=0):
         # Advance RNG

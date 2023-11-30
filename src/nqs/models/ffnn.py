@@ -64,36 +64,45 @@ class FFNN:
 
         input_size_0 = self._N * self._dim
         output_size_0 = self._layer_sizes[0]
-        # limit_0 = jnp.sqrt(6 / (input_size_0 + output_size_0))
-        # do not change this order
+        # limit_0 = np.sqrt(2 / (input_size_0))
+
+        # do not change this order # TODO: why not?
         self.params.set(
             "W0",
-            jnp.array(
-                # jnp.array(rng.uniform(-limit_0, limit_0, (input_size_0, output_size_0))),
-                rng.standard_normal(size=(input_size_0, output_size_0))
-            ),
+            # np.array(rng.uniform(-limit_0, limit_0, (input_size_0, output_size_0))),
+            rng.standard_normal(size=(input_size_0, output_size_0)),
         )
-        self.params.set("b0", jnp.zeros((output_size_0,)))
+
+        self.params.set("b0", np.zeros((output_size_0,)))
+        # Initialize Batch Norm parameters
+        # self.params.set(f"gamma0", jnp.ones((output_size_0,)))
+        # self.params.set(f"beta0", jnp.zeros((output_size_0,)))
 
         for i in range(1, len(self._layer_sizes)):
             # The number of units in the layers
             input_size = self._layer_sizes[i - 1]
             output_size = self._layer_sizes[i]
 
-            # Glorot initialization, considering the size of layers
-            # limit = jnp.sqrt(6 / (input_size + output_size)) * 0.1
+            # He initialization, considering the size of layers
+            # limit = np.sqrt(2 / (input_size))
 
             # Initialize weights and biases
             self.params.set(
                 f"W{i}",
-                # jnp.array(rng.uniform(-limit, limit, (input_size, output_size))),
+                # np.array(rng.uniform(0, limit, (input_size, output_size))),
+                # np.array(rng.uniform(-limit, limit, (input_size, output_size))),
                 rng.standard_normal(size=(input_size, output_size)),
             )
+
             self.params.set(
                 f"b{i}",
-                jnp.zeros((output_size,))
+                np.zeros((output_size,))
                 # jnp.array(rng.standard_normal(size=(output_size,)))
             )
+
+            # Initialize Batch Norm parameters
+            # self.params.set(f"gamma{i}", jnp.ones((output_size,)))
+            # self.params.set(f"beta{i}", jnp.zeros((output_size,)))
 
     def _initialize_vars(
         self, nparticles, dim, layer_sizes, activations, factor, sigma2
@@ -183,6 +192,12 @@ class FFNN:
     def forward(self, x, params):
         for i in range(0, len(self._layer_sizes)):
             x = params.get(f"W{i}").T @ x + params.get(f"b{i}")
+
+            # Batch Normalization
+            # mean = x.mean(axis=0, keepdims=True)
+            # variance = x.var(axis=0, keepdims=True)
+            # x = params.get(f"gamma{i}") * (x - mean) / jnp.sqrt(variance + 1e-5) + params.get(f"beta{i}")
+
             x = self.activation(self._activations[i])(x)
 
         return x
@@ -280,7 +295,7 @@ class FFNN:
 
         return self.logprob_closure(r, self.params)
 
-    def compute_sr_matrix(self, expval_grads, grads, shift=1e-5):
+    def compute_sr_matrix(self, expval_grads, grads, shift=1e-3):
         """
         expval_grads and grads should be dictionaries with keys "v_bias", "h_bias", "kernel" in the case of RBM
         in the case of FFNN we have "weights" and "biases" and "kernel" is not present

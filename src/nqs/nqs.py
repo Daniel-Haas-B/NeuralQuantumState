@@ -11,7 +11,6 @@ from nqs.utils import setup_logger
 from nqs.utils import State
 import jax
 
-
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
 
@@ -31,7 +30,7 @@ from physics.hamiltonians import HarmonicOscillator as HO
 from samplers.metropolis_hastings import MetroHastings
 from samplers.metropolis import Metropolis as Metro
 
-from optimizers import adam, gd
+import optimizers as opt
 
 # import sys
 # from abc import abstractmethod
@@ -190,21 +189,35 @@ class NQS:
         Set the optimizer algorithm to be used for param update.
         """
         self._eta = eta
+
         if not isinstance(optimizer, str):
             raise TypeError("'optimizer' must be passed as str")
 
-        if optimizer == "gd":
-            self._optimizer = gd.Gd(self.wf.params, eta)  # dumb for now
-        elif optimizer == "adam":
-            beta1 = kwargs["beta1"] if "beta1" in kwargs else 0.9
-            beta2 = kwargs["beta2"] if "beta2" in kwargs else 0.999
-            epsilon = kwargs["epsilon"] if "epsilon" in kwargs else 1e-8
-            self._optimizer = adam.Adam(
-                self.wf.params, eta, beta1=beta1, beta2=beta2, epsilon=epsilon
-            )  # _params gets passed to construct the mom and v arrays
-        else:
-            msg = "Unsupported optimizer, only adam 'adam' or gd 'gd' is allowed"
-            raise ValueError(msg)
+        match optimizer:
+            case "gd":
+                gamma = kwargs["gamma"] if "gamma" in kwargs else 0
+                self._optimizer = opt.Gd(self.wf.params, eta, gamma)  # dumb for now
+            case "adam":
+                beta1 = kwargs["beta1"] if "beta1" in kwargs else 0.9
+                beta2 = kwargs["beta2"] if "beta2" in kwargs else 0.999
+                epsilon = kwargs["epsilon"] if "epsilon" in kwargs else 1e-8
+                self._optimizer = opt.Adam(
+                    self.wf.params, eta, beta1=beta1, beta2=beta2, epsilon=epsilon
+                )  # _params gets passed to construct the mom and v arrays
+            case "rmsprop":
+                beta = kwargs["beta1"] if "beta1" in kwargs else 0.9
+                epsilon = kwargs["epsilon"] if "epsilon" in kwargs else 1e-8
+
+                self._optimizer = opt.RmsProp(
+                    self.wf.params, eta, beta=beta, epsilon=epsilon
+                )
+
+            case "adagrad":
+                self._optimizer = opt.Adagrad(self.wf.params, eta)
+
+            case _:  # noqa
+                msg = "Unsupported optimizer, only adam 'adam' or gd 'gd' is allowed"
+                raise ValueError(msg)
 
     def _is_initialized(self):
         if not self._is_initialized_:
@@ -240,6 +253,8 @@ class NQS:
         )
         self._early_stop = kwargs.get("early_stop", False)
         self._tune = kwargs.get("tune", False)
+        self._grad_clip = kwargs.get("grad_clip", False)
+        self._agent = kwargs.get("agent", False)
 
         if self._log:
             t_range = tqdm(
@@ -268,9 +283,10 @@ class NQS:
 
         # equilibrate, burn in lets see if makes a difference
         # for _ in range(1000):
-        #    state = self._sampler.step(self.wf, state, seed_seq)
-        grads_dict = {key: [] for key in param_keys}
+        #     state = self._sampler.step(self.wf, state, seed_seq)
 
+        grads_dict = {key: [] for key in param_keys}
+        epoch = 0
         for _ in t_range:
             state = self._sampler.step(self.wf, state, seed_seq)
             loc_energy = self.hamiltonian.local_energy(self.wf, state.positions)
@@ -282,12 +298,19 @@ class NQS:
 
             steps_before_optimize -= 1
             if steps_before_optimize == 0:
+                epoch += 1
                 energies = np.array(energies)
                 # print("Energy: ", energies)
                 expval_energy = np.mean(energies)
 
                 for key in param_keys:
                     grad_np = np.array(grads_dict[key])
+
+                    if self._grad_clip:
+                        grad_norm = np.linalg.norm(grad_np)
+                        grad_np = (
+                            self._grad_clip / max(grad_norm, self._grad_clip) * grad_np
+                        )
 
                     new_shape = (batch_size,) + (1,) * (
                         grad_np.ndim - 1
@@ -299,6 +322,7 @@ class NQS:
                     )
 
                     expval_grad_dict[key] = np.mean(grad_np, axis=0)
+
                     final_grads[key] = 2 * (
                         expval_energies_dict[key]
                         - expval_energy * expval_grad_dict[key]
@@ -313,14 +337,34 @@ class NQS:
                 self._optimizer.step(
                     self.wf.params, final_grads, self.sr_matrices
                 )  # changes wf params inplace
+
                 if self._history:
-                    self._history["energy"].append(expval_energy)
                     grad_norms = [
                         np.linalg.norm(final_grads[key]) for key in param_keys
                     ]
-                    self._history["grads"].append(np.mean(grad_norms))
+                    grad_norms = np.mean(grad_norms)
 
-                # self.tune() # tune the sampler scales
+                    self._history["energy"].append(expval_energy)
+                    self._history["grads"].append(grad_norms)
+
+                    self._agent.log(
+                        {"energy": expval_energy}, epoch
+                    ) if self._agent else None
+                    self._agent.log(
+                        {"grads": grad_norms}, epoch
+                    ) if self._agent else None
+                    self._agent.log(
+                        {"scale": self.scale}, epoch
+                    ) if self._agent else None
+
+                    if grad_norms < 10**-6:
+                        if self.logger is not None:
+                            self.logger.info("Gradient norm is zero, stopping training")
+                        break
+
+                if self._tune:
+                    self.tune()
+
                 energies = []
                 final_grads = {key: None for key in param_keys}
                 grads_dict = {key: [] for key in param_keys}
@@ -369,15 +413,22 @@ class NQS:
             return self._results
         else:
             sample_results = self._sampler.sample_obd(
-                self.wf, self.state, nsamples, 1, seed, lim_inf=-5, lim_sup=5, points=80
+                self.wf,
+                self.state,
+                nsamples,
+                1,
+                seed,
+                lim_inf=-5,
+                lim_sup=5,
+                points=200,
             )
 
         return sample_results
 
     def tune(
         self,
-        tune_iter=2_000,
-        tune_interval=50,
+        tune_iter=3_000,
+        tune_interval=500,
         rtol=1e-05,
         atol=1e-08,
         seed=None,
@@ -385,17 +436,15 @@ class NQS:
         log=False,
     ):
         """
-        BROKEN NOW due to self.scale
         Tune proposal scale so that the acceptance rate is around 0.5.
         """
 
         self._is_initialized()
         state = self.wf.state
+
         scale = self.scale
         self._log = log
 
-        # Config
-        # did_early_stop = False
         seed_seq = generate_seed_sequence(seed, 1)[0]
 
         # Reset n_accepted
@@ -422,6 +471,12 @@ class NQS:
                 # Tune proposal scale
                 old_scale = scale
                 accept_rate = state.n_accepted / tune_interval
+
+                if 0.3 < accept_rate < 0.7:  # maybe change this
+                    self.scale = scale
+                    self._is_tuned_ = True
+                    return
+
                 scale = self._sampler.tune_scale(old_scale, accept_rate)
                 # print("new scale: ", scale)
                 # Reset

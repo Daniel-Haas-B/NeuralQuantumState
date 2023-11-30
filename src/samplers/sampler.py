@@ -49,7 +49,7 @@ class Sampler:
             new_state.positions[0] = positions[i]
 
             one_body_density = self._marginal_sample(
-                wf, 2**10, new_state, scale, seeds[0], chain_id
+                wf, nsamples, new_state, scale, seeds[0], chain_id
             )
 
             one_body_densities[i] = one_body_density

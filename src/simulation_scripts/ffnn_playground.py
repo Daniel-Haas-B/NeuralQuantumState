@@ -8,6 +8,7 @@ import numpy as np
 import pandas as pd
 
 # import seaborn as sns
+import matplotlib.pyplot as plt
 
 # from nqs.utils import plot_psi2
 
@@ -22,16 +23,16 @@ jax.config.update("jax_platform_name", "cpu")
 # Config
 output_filename = "../data/playground.csv"
 nparticles = 2
-dim = 1
+dim = 2
 
-nsamples = int(2**17)  # 2**18 = 262144
+nsamples = int(2**15)  # 2**18 = 262144
 nchains = 2
-eta = 0.01
+eta = 0.1
 
-training_cycles = [10_000]  # this is cycles for the ansatz
-mcmc_alg = "m"
+training_cycles = 10000  # this is cycles for the ansatz
+mcmc_alg = "lmh"
 optimizer = "gd"
-batch_size = 100
+batch_size = 1000
 detailed = True
 wf_type = "ffnn"
 seed = 142
@@ -70,33 +71,33 @@ for sr in [False]:
     )
 
     system.set_sampler(mcmc_alg=mcmc_alg, scale=1)
-    system.set_hamiltonian(type_="ho", int_type=None, omega=1.0)
+    system.set_hamiltonian(type_="ho", int_type="Coulomb", omega=1.0)
     system.set_optimizer(
         optimizer=optimizer,
         eta=eta,
+        gamma=0,
         beta1=0.9,
         beta2=0.999,
         epsilon=1e-8,
     )
 
     history = system.train(
-        max_iter=training_cycles[0],
+        max_iter=training_cycles,
         batch_size=batch_size,
         early_stop=False,
         seed=seed,
         history=True,
+        tune=True,
+        grad_clip=10,
     )
 
-    epochs = np.arange(training_cycles[0] - training_cycles[0] % batch_size)[
-        ::batch_size
-    ]
-
-    # plt.plot(epochs, history["energy"], label="energy")
-    # plt.legend()
-    # plt.show()
-    # plt.plot(epochs, history["grads"], label="gradient_norm")
-    # plt.legend()
-    # plt.show()
+    epochs = np.arange(len(history["energy"]))
+    plt.plot(epochs, history["energy"], label="energy")
+    plt.legend()
+    plt.show()
+    plt.plot(epochs, history["grads"], label="gradient_norm")
+    plt.legend()
+    plt.show()
 
     df = system.sample(nsamples, nchains=nchains, seed=seed)
     df_all.append(df)
@@ -133,7 +134,6 @@ for sr in [False]:
 end = time.time()
 # print((end - start))
 
-
 df_final = pd.concat(dfs_mean)
 
 # Save results
@@ -159,12 +159,12 @@ print(df_all)
 
 # plot probability
 
-# positions, one_body_density = system.sample(
-#    nsamples, nchains=1, seed=seed, one_body_density=True
-# )
+positions, one_body_density = system.sample(
+    2**12, nchains=1, seed=seed, one_body_density=True
+)
 
-# plt.plot(positions, one_body_density)
-# plt.show()
+plt.plot(positions, one_body_density)
+plt.show()
 
 
-# plot_psi2(system.wf, num_points=300, r_min=-10, r_max=10)
+# plot_psi2(system.wf, num_points=300, r_min=-5, r_max=5)

@@ -8,7 +8,8 @@ import pandas as pd
 import seaborn as sns
 
 from nqs import nqs
-from nqs.utils import plot_psi2
+
+# from nqs.utils import plot_psi2
 
 
 jax.config.update("jax_enable_x64", True)
@@ -16,18 +17,18 @@ jax.config.update("jax_platform_name", "cpu")
 
 # Config
 output_filename = "../data/playground.csv"
-nparticles = 1
-dim = 3
+nparticles = 2
+dim = 2
 nhidden = 4
-nsamples = int(2**16)  # 2**18 = 262144
+nsamples = int(2**15)  # 2**18 = 262144
 nchains = 2
 eta = 0.1
 
-training_cycles = [100_000]  # this is cycles for the NN
+training_cycles = [200_000]  # this is cycles for the NN
 mcmc_alg = "m"
 backend = "jax"
-optimizer = "gd"
-batch_size = 10_000
+optimizer = "rmsprop"
+batch_size = 1000
 detailed = True
 wf_type = "rbm"
 seed = 142
@@ -60,22 +61,35 @@ for sr in [False]:
         sigma2=1.0,
     )
 
-    system.set_sampler(mcmc_alg=mcmc_alg, scale=1.0)
-    system.set_hamiltonian(type_="ho", int_type=None, omega=1.0)
+    system.set_sampler(mcmc_alg=mcmc_alg, scale=1)
+    system.set_hamiltonian(type_="ho", int_type="Coulomb", omega=1.0)
     system.set_optimizer(
         optimizer=optimizer,
         eta=eta,
+        # gamma=0.7,
         beta1=0.9,
         beta2=0.999,
         epsilon=1e-8,
     )
 
-    system.train(
+    history = system.train(
         max_iter=training_cycles[0],
         batch_size=batch_size,
         early_stop=False,
+        history=True,
+        tune=True,
+        grad_clip=10,
         seed=seed,
     )
+
+    epochs = np.arange(len(history["energy"]))
+
+    plt.plot(epochs, history["energy"], label="energy")
+    plt.legend()
+    plt.show()
+    plt.plot(epochs, history["grads"], label="gradient_norm")
+    plt.legend()
+    plt.show()
 
     df = system.sample(nsamples, nchains=nchains, seed=seed)
     df_all.append(df)
@@ -171,12 +185,17 @@ plt.show()
 
 # system_omega_2.sample(nsamples, nchains=nchains, seed=seed)
 
+positions, one_body_density = system.sample(
+    2**12, nchains=1, seed=seed, one_body_density=True
+)
+plt.plot(positions, one_body_density)
+plt.show()
 # # Plotting psi2 for both wave functions
 # plt.figure(figsize=(10, 6))
-plot_psi2(system.wf, r_min=-4, r_max=4, num_points=300)
-# plot_psi2(system_omega_2.wf, r_min=-4, r_max=4, num_points=300)
-plt.legend()
-plt.xlabel("Position")
-plt.ylabel("Psi^2")
+# plot_psi2(system.wf, r_min=-4, r_max=4, num_points=300)
+# # plot_psi2(system_omega_2.wf, r_min=-4, r_max=4, num_points=300)
+# plt.legend()
+# plt.xlabel("Position")
+# plt.ylabel("Psi^2")
 # plt.title("Comparison of Psi^2 for Different Omega Values")
 # plt.show()

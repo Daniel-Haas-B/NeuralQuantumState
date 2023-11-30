@@ -9,6 +9,7 @@ class Optimizer(object):
             lr (float): Learning rate.
         """
         self.params = None
+        self.param_keys = None
         self.eta = eta
 
     def step(self):

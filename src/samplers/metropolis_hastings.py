@@ -1,6 +1,5 @@
 import numpy as np
 from nqs.utils import advance_PRNG_state
-from nqs.utils import State
 
 from .sampler import Sampler
 
@@ -35,11 +34,7 @@ class MetroHastings(Sampler):
         rng = self._rng(next_gen)
 
         # Compute drift force at current positions
-        params = wf.params
-        v_bias, h_bias, kernel = params.get(
-            ["v_bias", "h_bias", "kernel"]
-        )  # for now! Change this please
-        F = wf.drift_force(state.positions, v_bias, h_bias, kernel)
+        F = self.hamiltonian.drift_force(wf, state.positions)
 
         # Sample proposal positions, i.e., move walkers
         proposals = (
@@ -49,10 +44,10 @@ class MetroHastings(Sampler):
         )
 
         # Compute proposal log density
-        logp_proposal = wf.logprob(proposals, v_bias, h_bias, kernel)
+        logp_proposal = wf.logprob(proposals)
 
         # Green's function conditioned on proposals
-        F_prop = self._rbm.drift_force(proposals, v_bias, h_bias, kernel)
+        F_prop = self.hamiltonian.drift_force(wf, proposals)
         G_prop = -((state.positions - proposals - Ddt * F_prop) ** 2) * quarterDdt
 
         # Green's function conditioned on current positions
@@ -71,14 +66,18 @@ class MetroHastings(Sampler):
         new_positions = proposals if accept else state.positions
 
         # Create new state
-        new_logp = wf.logprob(new_positions, v_bias, h_bias, kernel)
+        new_logp = wf.logprob(new_positions) if accept else state.logp
         new_n_accepted = state.n_accepted + accept
         new_delta = state.delta + 1
-        new_state = State(new_positions, new_logp, new_n_accepted, new_delta)
 
-        return new_state
+        state.positions = new_positions
+        state.logp = new_logp
+        state.n_accepted = new_n_accepted
+        state.delta = new_delta
 
-    def tune_scale(scale, acc_rate):
+        return state
+
+    def tune_scale(self, scale, acc_rate):
         """Proposal dt (squared scale for importance sampler) lookup table.
 
         Aims to obtain an acceptance rate between 40-80%.
@@ -116,5 +115,5 @@ class MetroHastings(Sampler):
 
         return scale
 
-    def step(self, state, seed):
-        return self._step(state, seed)
+    def step(self, wf, state, seed):
+        return self._step(wf, state, seed)

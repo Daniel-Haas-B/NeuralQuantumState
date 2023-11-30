@@ -1,12 +1,15 @@
+# import jax
 import numpy as np
 from nqs.utils import advance_PRNG_state
 from nqs.utils import State
 
 from .sampler import Sampler
 
+# from jax import vmap
+
 
 class Metropolis(Sampler):
-    def __init__(self, rng, scale, logger):
+    def __init__(self, rng, scale, logger=None):
         super().__init__(rng, scale, logger)
 
     def _step(self, wf, state, seed):
@@ -90,6 +93,37 @@ class Metropolis(Sampler):
 
     def step(self, wf, state, seed):
         return self._step(wf, state, seed)
+
+    # def batch_step(self, wf, state, seed):
+    #     """Performs a Metropolis step on a batch of states.
+
+    #     Parameters
+    #     ----------
+    #     batch_state : nqs.State
+    #         Current batch of states of the system.
+
+    #     seed : int
+    #         Seed for random number generator.
+
+    #     Returns
+    #     -------
+    #     new_batch_state : nqs.State
+    #         The updated batch of states.
+    #     """
+    #     batch_size = 10
+    #     batch_state = state.create_batch_of_states(batch_size)
+
+    #     print("batch_seeds", batch_seeds)
+
+    #     # Vectorize the _step function to apply it to each state in the batch
+    #     vectorized_step = vmap(self._step, in_axes=(None, 0, None))
+
+    #     # Apply the vectorized step function to the entire batch
+    #     new_batch_state = vectorized_step(wf, batch_state, seed)
+    #     print("new_batch_state", new_batch_state)
+    #     exit()
+
+    #     return new_batch_state
 
     def tune_scale(self, scale, acc_rate):
         """Proposal scale lookup table. (Original)

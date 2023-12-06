@@ -348,7 +348,8 @@ class NQS:
                     self._history["grads"].append(grad_norms)
 
                     self._agent.log(
-                        {"energy": expval_energy}, epoch
+                        {"abs(energy - 3)": np.abs(expval_energy - 3)},
+                        epoch,  # change this if not 2 particles 2 dimensions
                     ) if self._agent else None
                     self._agent.log(
                         {"grads": grad_norms}, epoch

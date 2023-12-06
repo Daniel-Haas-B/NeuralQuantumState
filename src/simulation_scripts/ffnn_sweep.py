@@ -40,7 +40,7 @@ def main():
     config.eta = 0.1
     config.training_cycles = 10000  # this is cycles for the ansatz
     config.batch_proportion = 0.1
-    batch_size = int(config.nsamples * config.batch_proportion)
+    batch_size = int(config.training_cycles * config.batch_proportion)
     config.mcmc_alg = "m"  # "lmh"
     config.optimizer = "adam"  # "gd", "rmsprop", "adagrad"
     config.sr = False
@@ -48,6 +48,8 @@ def main():
     config.tune = False
     config.clip = 0
     config.gamma = 0
+    config.num_layers = 3
+    layer_sizes = [5] + [3] * (config.num_layers - 2) + [1]
     # config.schedule = (
     #    "CyclicLR"  # "StepLR" # "CosineAnnealingLR" # "WarmRestart" # "CyclicLR"
     # )
@@ -66,12 +68,8 @@ def main():
         "ffnn",
         nparticles,
         dim,  # all after this is kwargs.
-        layer_sizes=[
-            5,
-            3,
-            1,  # should always be this
-        ],  # now includes input and output layers
-        activations=["gelu", "gelu", "linear"],
+        layer_sizes=layer_sizes,  # now includes input and output layers
+        activations=["gelu"] * (len(layer_sizes) - 1) + ["linear"],
         sigma2=1.0,
     )
 

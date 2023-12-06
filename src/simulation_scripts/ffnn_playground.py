@@ -1,6 +1,8 @@
 import sys
 
 sys.path.append("/Users/haas/Documents/Masters/GANQS/src/")
+# sys.path.append("/home/daniel/home/daniel/test/GANQS/src/")
+
 import jax
 
 # import matplotlib.pyplot as plt

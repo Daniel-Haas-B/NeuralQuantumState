@@ -24,17 +24,17 @@ jax.config.update("jax_platform_name", "cpu")
 
 # Config
 output_filename = "../data/playground.csv"
-nparticles = 2
-dim = 2
+nparticles = 1
+dim = 1
 
 nsamples = int(2**15)  # 2**18 = 262144
-nchains = 2
+nchains = 1
 eta = 0.1
 
-training_cycles = 10000  # this is cycles for the ansatz
-mcmc_alg = "lmh"
-optimizer = "gd"
-batch_size = 1000
+training_cycles = 10_000  # this is cycles for the ansatz
+mcmc_alg = "m"
+optimizer = "adam"
+batch_size = 100
 detailed = True
 wf_type = "ffnn"
 seed = 142
@@ -90,7 +90,7 @@ for sr in [False]:
         seed=seed,
         history=True,
         tune=True,
-        grad_clip=10,
+        grad_clip=50,
     )
 
     epochs = np.arange(len(history["energy"]))
@@ -139,7 +139,7 @@ end = time.time()
 df_final = pd.concat(dfs_mean)
 
 # Save results
-df_final.to_csv(output_filename, index=False)
+# df_final.to_csv(output_filename, index=False)
 
 # plot energy convergence curve
 # energy withour sr

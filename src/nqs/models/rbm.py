@@ -159,6 +159,7 @@ class RBM:
 
     def wf(self, r, v_bias, h_bias, kernel):
         """Evaluate the wave function"""
+
         return (
             self._factor * self._log_wf(r, v_bias, h_bias, kernel).sum()
         )  # we sum because we are in the log domain

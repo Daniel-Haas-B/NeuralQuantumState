@@ -62,41 +62,29 @@ class FFNN:
         """Always initialize all as rectangle for now"""
         self.params = Parameter()  # Initialize empty Parameter object
 
-        input_size_0 = self._N * self._dim
-        output_size_0 = self._layer_sizes[0]
-        # limit_0 = np.sqrt(2 / (input_size_0))
-
-        # do not change this order # TODO: why not?
-        self.params.set(
-            "W0",
-            # np.array(rng.uniform(-limit_0, limit_0, (input_size_0, output_size_0))),
-            rng.standard_normal(size=(input_size_0, output_size_0)),
-        )
-
-        self.params.set("b0", np.zeros((output_size_0,)))
-        # Initialize Batch Norm parameters
-        # self.params.set(f"gamma0", jnp.ones((output_size_0,)))
-        # self.params.set(f"beta0", jnp.zeros((output_size_0,)))
-
-        for i in range(1, len(self._layer_sizes)):
+        for i in range(0, len(self._layer_sizes)):
             # The number of units in the layers
-            input_size = self._layer_sizes[i - 1]
+            input_size = self._layer_sizes[i - 1] if i > 0 else (self._N * self._dim)
             output_size = self._layer_sizes[i]
 
-            # He initialization, considering the size of layers
-            # limit = np.sqrt(2 / (input_size))
+            # Initialize real and imaginary parts separately
+            real_part = rng.standard_normal(size=(input_size, output_size))
+            imag_part = rng.standard_normal(size=(input_size, output_size))
+
+            # Combine real and imaginary parts into complex numbers
+            weight_complex = real_part + 1j * imag_part
 
             # Initialize weights and biases
             self.params.set(
                 f"W{i}",
                 # np.array(rng.uniform(0, limit, (input_size, output_size))),
                 # np.array(rng.uniform(-limit, limit, (input_size, output_size))),
-                rng.standard_normal(size=(input_size, output_size)),
+                weight_complex.astype(jnp.complex64),
             )
 
             self.params.set(
                 f"b{i}",
-                np.zeros((output_size,))
+                np.zeros((output_size,), dtype=jnp.complex64)
                 # jnp.array(rng.standard_normal(size=(output_size,)))
             )
 
@@ -120,24 +108,32 @@ class FFNN:
                 f"num layers ({len(layer_sizes)}) != num activations ({len(activations)})"
             )
 
+    def complex_act_wrap(self, activation):
+        def complex_act(z):
+            return activation(z.real) + 1j * activation(z.imag)
+
+        return complex_act
+
     def activation(self, activation_str):
         match activation_str:
             case "tanh":
-                return jnp.tanh
+                base_act = jnp.tanh
             case "sigmoid":
-                return jax.nn.sigmoid
+                base_act = jax.nn.sigmoid
             case "relu":
-                return jax.nn.relu
+                base_act = jax.nn.relu
             case "softplus":
-                return jax.nn.softplus
+                base_act = jax.nn.softplus
             case "gelu":
-                return jax.nn.gelu
+                base_act = jax.nn.gelu
             case "linear":
-                return lambda x: x
+                base_act = lambda x: x  # noqa
             case "exp":
-                return jnp.exp
+                base_act = jnp.exp
             case _:  # default
                 raise ValueError(f"Invalid activation function {activation_str}")
+
+        return self.complex_act_wrap(base_act)
 
     def _configure_backend(self, backend):
         if backend != "jax":
@@ -223,8 +219,14 @@ class FFNN:
         )  # grad of log(wf) due to the property of exponential
         return grad_log_fun(r) * self.wf(r)  # Chain rule to get grad of wf itself like we are doing in the laplacian
         """
-        grad_wf = jax.grad(self.wf, argnums=0)
-        return grad_wf(r, params)
+        r = r.astype(jnp.complex64)
+
+        def wrapped_wf(r_):
+            # Ensure wf can handle complex numbers
+            return self.wf(r_, params)
+
+        grad_wf = jax.grad(wrapped_wf, argnums=0, holomorphic=True)
+        return grad_wf(r)
 
     def grad_wf(self, r):
         """
@@ -237,22 +239,26 @@ class FFNN:
         """
         (∇_r)^2 Ψ(r) = ∑_i (∇_r)^2 Ψ(r_i)
         This can be optimized by using the fact that Ψ = exp(FFNN)
-        For now we will use the autograd version
+        For now, we will use the autograd version for complex-valued functions.
         """
+        r = r.astype(jnp.complex64)
 
         def wrapped_wf(r_):
+            # Ensure wf can handle complex numbers
             return self.wf(r_, params)
 
-        grad_wf = jax.grad(wrapped_wf)
+        # Compute gradient and Hessian for complex functions
+        grad_wf = jax.grad(
+            wrapped_wf, holomorphic=True
+        )  # Specify holomorphic=True for complex functions
         hessian_wf = jax.jacfwd(
-            grad_wf
-        )  # This computes the Jacobian of the gradient, which is the Hessian
+            grad_wf, holomorphic=True
+        )  # Compute the Hessian as before
 
         hessian_at_r = hessian_wf(r)
 
-        # If you want the Laplacian, you'd sum the diagonal of the Hessian.
-        # This assumes r is a vector and you want the Laplacian w.r.t. each element.
-        laplacian = jnp.trace(hessian_at_r)
+        # Calculate the Laplacian for complex numbers
+        laplacian = jnp.trace(hessian_at_r)  # Trace operation remains the same
 
         return laplacian
 
@@ -260,7 +266,9 @@ class FFNN:
         return self.laplacian_closure(r, self.params)
 
     def grads_closure(self, r, params):
-        grad_fn = jax.grad(self.wf, argnums=1)
+        r = r.astype(jnp.complex64)
+
+        grad_fn = jax.grad(self.wf, argnums=1, holomorphic=True)
         grad_eval = grad_fn(r, params)  # still a parameter type
 
         return grad_eval
@@ -285,10 +293,18 @@ class FFNN:
     def logprob_closure(self, r, params):
         """Log probability amplitude
         that is log(|psi|^2).
-        In our case, psi is real, so this is 2 log(|psi|) = 2 * forward(r, params) ?
-        """
+        If psi is real, so this is 2 log(|psi|) = 2 * forward(r, params) ?
 
-        return 2.0 * self.log_wf(r, params)
+        If psi is complex:
+            # log(|Psi|^2) = log(Psi) + conj(log(Psi))
+        Since
+        """
+        log_psi = self.log_wf(r, params)
+
+        # log(|Psi|^2) = log(Psi) + conj(log(Psi))
+        log_prob = log_psi + jnp.conj(log_psi)
+
+        return log_prob
 
     def logprob(self, r):
         """Log probability amplitude"""

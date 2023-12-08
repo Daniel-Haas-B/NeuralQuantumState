@@ -113,6 +113,7 @@ class Sampler:
 
         for i in t_range:
             state = self._step(wf, state, seed)
+            print(self.hamiltonian.local_energy(wf, state.positions))
             energies[i] = self.hamiltonian.local_energy(wf, state.positions)
 
         if self._logger is not None:

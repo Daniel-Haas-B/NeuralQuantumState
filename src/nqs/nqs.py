@@ -290,6 +290,7 @@ class NQS:
         for _ in t_range:
             state = self._sampler.step(self.wf, state, seed_seq)
             loc_energy = self.hamiltonian.local_energy(self.wf, state.positions)
+            print("loc_energy", loc_energy)
             energies.append(loc_energy)
             local_grads_dict = self.wf.grads(state.positions)
 
@@ -323,10 +324,10 @@ class NQS:
 
                     expval_grad_dict[key] = np.mean(grad_np, axis=0)
 
-                    final_grads[key] = 2 * (
+                    final_grads[key] = (
                         expval_energies_dict[key]
                         - expval_energy * expval_grad_dict[key]
-                    )
+                    )  # 2 * Re(expval_energies_dict[key] - expval_energy * expval_grad_dict[key]) if
 
                 if self.use_sr:
                     self.sr_matrices = self.wf.compute_sr_matrix(
@@ -358,10 +359,10 @@ class NQS:
                         {"scale": self.scale}, epoch
                     ) if self._agent else None
 
-                    if grad_norms < 10**-6:
-                        if self.logger is not None:
-                            self.logger.info("Gradient norm is zero, stopping training")
-                        break
+                    # if grad_norms < 10**-10:
+                    #     if self.logger is not None:
+                    #         self.logger.info("Gradient norm is zero, stopping training")
+                    #     break
 
                 if self._tune:
                     self.tune()

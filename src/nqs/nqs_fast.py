@@ -53,7 +53,6 @@ class NQS:
         log=True,
         logger_level="INFO",
         rng=None,
-        use_sr=False,
         seed=None,
     ):
         """Neural Network Quantum State
@@ -65,7 +64,6 @@ class NQS:
         self._check_logger(log, logger_level)
         self._log = log
 
-        self.use_sr = use_sr
         self.nqs_type = None
         self.hamiltonian = None
         self._backend = backend
@@ -356,7 +354,7 @@ class NQS:
             "nqs_type": self.nqs_type,
             "training_cycles": self._training_cycles,
             "training_batch": self._training_batch,
-            "sr": self.use_sr,
+            "optimizer": self._optimizer.__class__.__name__,
         }
 
         system_info = pd.DataFrame(system_info, index=[0])

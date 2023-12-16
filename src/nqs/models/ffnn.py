@@ -19,7 +19,6 @@ class FFNN:
         layer_sizes,
         activations,
         factor=1.0,  # not sure about this value
-        sigma2=1.0,
         rng=None,
         log=False,
         logger=None,
@@ -36,7 +35,7 @@ class FFNN:
         - dim (int): Dimensionality.
         ...
         """
-        self._initialize_vars(nparticles, dim, layer_sizes, activations, factor, sigma2)
+        self._initialize_vars(nparticles, dim, layer_sizes, activations, factor)
         self._configure_backend(backend)
         if logger:
             self.logger = logger
@@ -104,10 +103,7 @@ class FFNN:
             # self.params.set(f"gamma{i}", jnp.ones((output_size,)))
             # self.params.set(f"beta{i}", jnp.zeros((output_size,)))
 
-    def _initialize_vars(
-        self, nparticles, dim, layer_sizes, activations, factor, sigma2
-    ):
-        self._sigma2 = sigma2
+    def _initialize_vars(self, nparticles, dim, layer_sizes, activations, factor):
         self._factor = factor
         self._layer_sizes = layer_sizes
         self._activations = activations
@@ -257,6 +253,10 @@ class FFNN:
         return laplacian
 
     def laplacian(self, r):
+        """
+        examine who is which particle and who is which dimension
+
+        """
         return self.laplacian_closure(r, self.params)
 
     def grads_closure(self, r, params):

@@ -25,9 +25,9 @@ class Adam(Optimizer):
             "v_" + key: np.zeros_like(params.get(key)[0]) for key in self._param_keys
         }
 
-        self.beta1 = kwargs["beta1"]
-        self.beta2 = kwargs["beta2"]
-        self.epsilon = kwargs["epsilon"]
+        self.beta1 = kwargs.get("beta1", 0.9)
+        self.beta2 = kwargs.get("beta2", 0.999)
+        self.epsilon = kwargs.get("epsilon", 1e-8)
 
     def step(self, params, grads, sr_matrices=None):
         """Update the parameters. Maybe performance bottleneck?"""
@@ -66,3 +66,6 @@ class Adam(Optimizer):
                 np.sqrt(v_hat) + self.epsilon
             )
             params.set([key], [updated_value])
+
+    def __repr__(self) -> str:
+        return super().__repr__()

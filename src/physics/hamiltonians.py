@@ -67,22 +67,41 @@ class HarmonicOscillator(Hamiltonian):
         for example the RBM.
         """
         super().__init__(nparticles, dim, int_type, backend)
-        self.potential = jax.jit(self.potential)
+        # self.potential = jax.jit(self.potential) # if we regularize we cannot jit
+
         self.kwargs = kwargs
+
+        self.reg_decay = (1e-10 / self.kwargs.get("r0_reg", 1.0)) ** (
+            1 / self.kwargs.get("training_cycles", 1.0)
+        )
+
+    def regularized_potential(self, r):
+        """Regularize the potential"""
+        r0 = self.kwargs.get("r0_reg", 1.0)
+        return self.backend.tanh(r / r0)
 
     def potential(self, r):
         """Potential energy function"""
         # HO trap
         v_trap = 0.5 * self.backend.sum(r * r) * self.kwargs["omega"]
 
+        self.kwargs["r0_reg"] = self.kwargs["r0_reg"] * self.reg_decay
+        # with open("decay.csv", "a") as f:
+        #    f.write(str(self.kwargs["r0_reg"]) + "\n")
+        # f.close()
+
         # Interaction
         v_int = 0.0
         if self._int_type == "Coulomb":
             r_cpy = copy.deepcopy(r).reshape(self._N, self._dim)
             r_dist = self.la.norm(r_cpy[None, ...] - r_cpy[:, None], axis=-1)
+
+            # Apply tanh regularization
+            f_r = 1  # self.regularized_potential(r_dist)
             v_int = self.backend.sum(
-                self.backend.triu(1 / (r_dist + 1e-6), k=1)
+                self.backend.triu(f_r / r_dist, k=1)
             )  # k=1 to remove diagonal, since we don't want self-interaction
+
         elif self._int_type == "Calogero":
             r_cpy = copy.deepcopy(r).reshape(self._N, self._dim)
             r_dist = self.la.norm(r_cpy[None, ...] - r_cpy[:, None], axis=-1)
@@ -104,9 +123,21 @@ class HarmonicOscillator(Hamiltonian):
 
     def local_energy(self, wf, r):
         """Local energy of the system"""
+        # print("r inside local energy", r)
+        # time.sleep(1)
+        # print("r0_reg", self.kwargs["r0_reg"])
         ke = self._local_kinetic_energy(wf, r)
         pe = self.potential(r)
+
         return pe + ke
+
+    def turn_reg_off(self):
+        # overwrite the regularized potential
+        def regularized_potential(r):
+            """Regularize the potential"""
+            return 1
+
+        self.regularized_potential = regularized_potential
 
     def drift_force(self, wf, r):
         """Drift force at each particle's location"""

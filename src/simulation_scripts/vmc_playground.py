@@ -17,16 +17,16 @@ jax.config.update("jax_platform_name", "cpu")
 # Config
 output_filename = "../data/vmc_playground.csv"
 nparticles = 2
-dim = 1
+dim = 2
 nsamples = int(2**18)  # 2**18 = 262144
 nchains = 4
-eta = 0.1
+eta = 0.01
 
-training_cycles = [50_000]  # this is cycles for the ansatz
+training_cycles = 50_000  # this is cycles for the ansatz
 mcmc_alg = "m"
 backend = "jax"
-optimizer = "gd"
-batch_size = 200
+optimizer = "sr"
+batch_size = 100
 detailed = True
 wf_type = "vmc"
 seed = 142
@@ -40,83 +40,80 @@ import time
 start = time.time()
 # for i in range(5):
 
+system = nqs.NQS(
+    nqs_repr="psi",
+    backend=backend,
+    log=True,
+    logger_level="INFO",
+    seed=seed,
+)
 
-for sr in [False]:
-    system = nqs.NQS(
-        nqs_repr="psi",
-        backend=backend,
-        log=True,
-        logger_level="INFO",
-        use_sr=sr,
-        seed=seed,
-    )
+system.set_wf(
+    wf_type,
+    nparticles,
+    dim,
+    sigma2=1.0,
+)
 
-    system.set_wf(
-        wf_type,
-        nparticles,
-        dim,
-        sigma2=1.0,
-    )
+system.set_sampler(mcmc_alg=mcmc_alg, scale=1.0)
+system.set_hamiltonian(
+    type_="ho", int_type="Coulomb", omega=1.0, r0_reg=3, training_cycles=training_cycles
+)
+system.set_optimizer(
+    optimizer=optimizer,
+    eta=eta,
+    beta1=0.9,
+    beta2=0.999,
+    epsilon=1e-8,
+)
 
-    system.set_sampler(mcmc_alg=mcmc_alg, scale=1.0)
-    system.set_hamiltonian(type_="ho", int_type=None, omega=1.0)
-    system.set_optimizer(
-        optimizer=optimizer,
-        eta=eta,
-        beta1=0.9,
-        beta2=0.999,
-        epsilon=1e-8,
-    )
+history = system.train(
+    max_iter=training_cycles,
+    batch_size=batch_size,
+    early_stop=False,
+    seed=seed,
+    history=True,
+)
 
-    history = system.train(
-        max_iter=training_cycles[0],
-        batch_size=batch_size,
-        early_stop=False,
-        seed=seed,
-        history=True,
-    )
+df = system.sample(nsamples, nchains=nchains, seed=seed)
+df_all.append(df)
 
-    df = system.sample(nsamples, nchains=nchains, seed=seed)
-    df_all.append(df)
-
-    sem_factor = 1 / np.sqrt(len(df))  # sem = standard error of the mean
-    mean_data = df[["energy", "std_error", "variance", "accept_rate"]].mean().to_dict()
-    mean_data["sem_energy"] = df["energy"].std() * sem_factor
-    mean_data["sem_std_error"] = df["std_error"].std() * sem_factor
-    mean_data["sem_variance"] = df["variance"].std() * sem_factor
-    mean_data["sem_accept_rate"] = df["accept_rate"].std() * sem_factor
-    info_data = (
-        df[
-            [
-                "nparticles",
-                "dim",
-                "eta",
-                "scale",
-                # "nvisible",
-                # "nhidden",
-                "mcmc_alg",
-                "nqs_type",
-                "nsamples",
-                "training_cycles",
-                "training_batch",
-                "sr",
-            ]
+sem_factor = 1 / np.sqrt(len(df))  # sem = standard error of the mean
+mean_data = df[["energy", "std_error", "variance", "accept_rate"]].mean().to_dict()
+mean_data["sem_energy"] = df["energy"].std() * sem_factor
+mean_data["sem_std_error"] = df["std_error"].std() * sem_factor
+mean_data["sem_variance"] = df["variance"].std() * sem_factor
+mean_data["sem_accept_rate"] = df["accept_rate"].std() * sem_factor
+info_data = (
+    df[
+        [
+            "nparticles",
+            "dim",
+            "eta",
+            "scale",
+            "mcmc_alg",
+            "nqs_type",
+            "nsamples",
+            "training_cycles",
+            "training_batch",
+            "Opti",
         ]
-        .iloc[0]
-        .to_dict()
-    )
+    ]
+    .iloc[0]
+    .to_dict()
+)
 
-    data = {**mean_data, **info_data}  # ** unpacks the dictionary
-    df_mean = pd.DataFrame([data])
-    dfs_mean.append(df_mean)
+data = {**mean_data, **info_data}  # ** unpacks the dictionary
+df_mean = pd.DataFrame([data])
+dfs_mean.append(df_mean)
 
-    epochs = np.arange(training_cycles[0])[::batch_size]
-    plt.plot(epochs, history["energy"], label="energy")
-    plt.legend()
-    plt.show()
-    plt.plot(epochs, history["grads"], label="gradient_norm")
-    plt.legend()
-    plt.show()
+epochs = np.arange(training_cycles)[::batch_size]
+plt.plot(epochs, history["energy"], label="energy")
+plt.legend()
+plt.show()
+plt.plot(epochs, history["grads"], label="gradient_norm")
+plt.legend()
+plt.show()
 end = time.time()
 print((end - start))
 
@@ -132,9 +129,9 @@ df_all = pd.concat(df_all)
 print(df_all)
 # energy with sr
 if nchains > 1:
-    sns.lineplot(data=df_all, x="chain_id", y="energy", hue="sr")
+    sns.lineplot(data=df_all, x="chain_id", y="energy")
 else:
-    sns.scatterplot(data=df_all, x="chain_id", y="energy", hue="sr")
+    sns.scatterplot(data=df_all, x="chain_id", y="energy")
 # ylim
 # plt.ylim(2.9, 3.6)
 

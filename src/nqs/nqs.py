@@ -52,7 +52,6 @@ class NQS:
         log=True,
         logger_level="INFO",
         rng=None,
-        use_sr=False,
         seed=None,
     ):
         """Neural Network Quantum State
@@ -64,7 +63,6 @@ class NQS:
         self._check_logger(log, logger_level)
         self._log = log
 
-        self.use_sr = use_sr
         self.nqs_type = None
         self.hamiltonian = None
         self._backend = backend
@@ -126,7 +124,6 @@ class NQS:
                     dim,
                     kwargs["layer_sizes"],
                     kwargs["activations"],
-                    kwargs["sigma2"],
                     log=self._log,
                     logger=self.logger,
                     rng=self.rng(self._seed),
@@ -170,16 +167,16 @@ class NQS:
         """
         Set the MCMC algorithm to be used for sampling.
         """
-        self.scale = scale
+
         if not isinstance(mcmc_alg, str):
             raise TypeError("'mcmc_alg' must be passed as str")
 
         self.mcmc_alg = mcmc_alg
 
         if self.mcmc_alg == "m":
-            self._sampler = Metro(self.rng, self.scale, self.logger)
+            self._sampler = Metro(self.rng, scale, self.logger)
         elif self.mcmc_alg == "lmh":
-            self._sampler = MetroHastings(self.rng, self.scale, self.logger)
+            self._sampler = MetroHastings(self.rng, scale, self.logger)
         else:
             msg = "Unsupported sampler, only Metropolis 'm' or Metropolis-Hastings 'lmh' is allowed"
             raise ValueError(msg)
@@ -214,9 +211,11 @@ class NQS:
 
             case "adagrad":
                 self._optimizer = opt.Adagrad(self.wf.params, eta)
-
+            case "sr":
+                self._optimizer = opt.Sr(self.wf.params, eta)
             case _:  # noqa
-                msg = "Unsupported optimizer, only adam 'adam' or gd 'gd' is allowed"
+                msg = "Unsupported optimizer. Choose between: \n"
+                msg += "    gd, adam, rmsprop, adagrad, sr"
                 raise ValueError(msg)
 
     def _is_initialized(self):
@@ -288,6 +287,7 @@ class NQS:
         grads_dict = {key: [] for key in param_keys}
         epoch = 0
         for _ in t_range:
+            # print("r inside train", state.positions)
             state = self._sampler.step(self.wf, state, seed_seq)
             loc_energy = self.hamiltonian.local_energy(self.wf, state.positions)
             energies.append(loc_energy)
@@ -308,9 +308,13 @@ class NQS:
 
                     if self._grad_clip:
                         grad_norm = np.linalg.norm(grad_np)
-                        grad_np = (
-                            self._grad_clip / max(grad_norm, self._grad_clip) * grad_np
-                        )
+
+                        if grad_norm > self._grad_clip:
+                            # print ("Gradient norm is larger than grad_clip, clipping")
+                            grad_np = self._grad_clip * grad_np / grad_norm
+
+                        # have to change grads_dict[key] as well
+                        grads_dict[key] = grad_np
 
                     new_shape = (batch_size,) + (1,) * (
                         grad_np.ndim - 1
@@ -328,7 +332,7 @@ class NQS:
                         - expval_energy * expval_grad_dict[key]
                     )
 
-                if self.use_sr:
+                if self._optimizer.__class__.__name__ == "Sr":
                     self.sr_matrices = self.wf.compute_sr_matrix(
                         expval_grad_dict, grads_dict
                     )
@@ -354,14 +358,14 @@ class NQS:
                     self._agent.log(
                         {"grads": grad_norms}, epoch
                     ) if self._agent else None
-                    self._agent.log(
-                        {"scale": self.scale}, epoch
-                    ) if self._agent else None
+                    # self._agent.log(
+                    #     {"scale": self.scale}, epoch
+                    # ) if self._agent else None
 
-                    if grad_norms < 10**-6:
-                        if self.logger is not None:
-                            self.logger.info("Gradient norm is zero, stopping training")
-                        break
+                    # if grad_norms < 10**-10:
+                    #     if self.logger is not None:
+                    #         self.logger.info("Gradient norm is zero, stopping training")
+                    #     break
 
                 if self._tune:
                     self.tune()
@@ -385,6 +389,7 @@ class NQS:
 
         self._is_initialized()
         self._is_trained()
+        self.hamiltonian.turn_reg_off()
 
         system_info = {
             "nparticles": self._N,
@@ -396,7 +401,7 @@ class NQS:
             "nqs_type": self.nqs_type,
             "training_cycles": self._training_cycles,
             "training_batch": self._training_batch,
-            "sr": self.use_sr,
+            "Opti": self._optimizer.__class__.__name__,
         }
 
         system_info = pd.DataFrame(system_info, index=[0])
@@ -428,7 +433,8 @@ class NQS:
 
     def tune(
         self,
-        tune_iter=3_000,
+
+        tune_iter=500,
         tune_interval=500,
         rtol=1e-05,
         atol=1e-08,
@@ -443,7 +449,6 @@ class NQS:
         self._is_initialized()
         state = self.wf.state
 
-        scale = self.scale
         self._log = log
 
         seed_seq = generate_seed_sequence(seed, 1)[0]
@@ -470,21 +475,20 @@ class NQS:
 
             if steps_before_tune == 0:
                 # Tune proposal scale
-                old_scale = scale
+                old_scale = self._sampler.scale
                 accept_rate = state.n_accepted / tune_interval
-
+                print("accept_rate: ", accept_rate)
                 if 0.3 < accept_rate < 0.7:  # maybe change this
-                    self.scale = scale
                     self._is_tuned_ = True
                     return
 
-                scale = self._sampler.tune_scale(old_scale, accept_rate)
-                # print("new scale: ", scale)
+                self._sampler.tune_scale(old_scale, accept_rate)
+                print("new scale: ", self._sampler.scale)
+
                 # Reset
                 steps_before_tune = tune_interval
-                state = State(state.positions, state.logp, 0, state.delta)
+                state = State(state.positions, state.logp, 0, 0)
 
         # Update shared values
         # self.state = state
-        self.scale = scale
         self._is_tuned_ = True

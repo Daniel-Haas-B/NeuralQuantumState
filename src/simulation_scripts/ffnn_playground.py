@@ -24,20 +24,21 @@ jax.config.update("jax_platform_name", "cpu")
 
 # Config
 output_filename = "../data/playground.csv"
-nparticles = 2
-dim = 2
+nparticles = 1
+dim = 1
+
 
 nsamples = int(2**15)  # 2**18 = 262144
 nchains = 2
 eta = 0.1
 
-training_cycles = 10000  # this is cycles for the ansatz
-mcmc_alg = "lmh"
-optimizer = "gd"
-batch_size = 1000
+training_cycles = 100_000  # this is cycles for the ansatz
+mcmc_alg = "m"
+optimizer = "adam"
+batch_size = 200
 detailed = True
 wf_type = "ffnn"
-seed = 142
+seed = 42
 
 dfs_mean = []
 df = []
@@ -48,91 +49,91 @@ import time
 start = time.time()
 # for i in range(5):
 
+system = nqs.NQS(
+    nqs_repr="psi",
+    backend="jax",
+    log=True,
+    logger_level="INFO",
+    seed=seed,
+)
 
-for sr in [False]:
-    system = nqs.NQS(
-        nqs_repr="psi",
-        backend="jax",
-        log=True,
-        logger_level="INFO",
-        use_sr=sr,
-        seed=seed,
-    )
+system.set_wf(
+    "ffnn",
+    nparticles,
+    dim,  # all after this is kwargs.
+    layer_sizes=[
+        5,
+        3,
+        1,  # should always be this
+    ],  # now includes input and output layers
+    activations=["gelu", "gelu", "linear"],
+)
 
-    system.set_wf(
-        "ffnn",
-        nparticles,
-        dim,  # all after this is kwargs.
-        layer_sizes=[
-            5,
-            3,
-            1,  # should always be this
-        ],  # now includes input and output layers
-        activations=["gelu", "gelu", "linear"],
-        sigma2=1.0,
-    )
+system.set_sampler(mcmc_alg=mcmc_alg, scale=1)
+system.set_hamiltonian(
+    type_="ho", int_type=None, omega=1.0, r0_reg=2, training_cycles=training_cycles
+)
 
-    system.set_sampler(mcmc_alg=mcmc_alg, scale=1)
-    system.set_hamiltonian(type_="ho", int_type="Coulomb", omega=1.0)
-    system.set_optimizer(
-        optimizer=optimizer,
-        eta=eta,
-        gamma=0,
-        beta1=0.9,
-        beta2=0.999,
-        epsilon=1e-8,
-    )
+system.set_optimizer(
+    optimizer=optimizer,
+    eta=eta,
+    gamma=0,
+    beta1=0.9,
+    beta2=0.999,
+    epsilon=1e-8,
+)
 
-    history = system.train(
-        max_iter=training_cycles,
-        batch_size=batch_size,
-        early_stop=False,
-        seed=seed,
-        history=True,
-        tune=True,
-        grad_clip=10,
-    )
+history = system.train(
+    max_iter=training_cycles,
+    batch_size=batch_size,
+    early_stop=False,
+    seed=seed,
+    history=True,
+    tune=False,
+    grad_clip=10,
+)
 
-    epochs = np.arange(len(history["energy"]))
-    plt.plot(epochs, history["energy"], label="energy")
-    plt.legend()
-    plt.show()
-    plt.plot(epochs, history["grads"], label="gradient_norm")
-    plt.legend()
-    plt.show()
+epochs = np.arange(len(history["energy"]))
+plt.plot(epochs, history["energy"], label="energy")
+plt.legend()
+plt.show()
+plt.plot(epochs, history["grads"], label="gradient_norm")
+plt.legend()
+plt.show()
 
-    df = system.sample(nsamples, nchains=nchains, seed=seed)
-    df_all.append(df)
+df = system.sample(nsamples, nchains=nchains, seed=seed)
+df_all.append(df)
 
-    sem_factor = 1 / np.sqrt(len(df))  # sem = standard error of the mean
-    mean_data = df[["energy", "std_error", "variance", "accept_rate"]].mean().to_dict()
-    mean_data["sem_energy"] = df["energy"].std() * sem_factor
-    mean_data["sem_std_error"] = df["std_error"].std() * sem_factor
-    mean_data["sem_variance"] = df["variance"].std() * sem_factor
-    mean_data["sem_accept_rate"] = df["accept_rate"].std() * sem_factor
-    info_data = (
-        df[
-            [
-                "nparticles",
-                "dim",
-                "eta",
-                "scale",
-                # "nvisible",
-                # "nhidden",
-                "mcmc_alg",
-                "nqs_type",
-                "nsamples",
-                "training_cycles",
-                "training_batch",
-                "sr",
-            ]
+sem_factor = 1 / np.sqrt(len(df))  # sem = standard error of the mean
+mean_data = df[["energy", "std_error", "variance", "accept_rate"]].mean().to_dict()
+mean_data["sem_energy"] = df["energy"].std() * sem_factor
+mean_data["sem_std_error"] = df["std_error"].std() * sem_factor
+mean_data["sem_variance"] = df["variance"].std() * sem_factor
+mean_data["sem_accept_rate"] = df["accept_rate"].std() * sem_factor
+info_data = (
+    df[
+        [
+            "nparticles",
+            "dim",
+            "eta",
+            "scale",
+            # "nvisible",
+            # "nhidden",
+            "mcmc_alg",
+            "nqs_type",
+            "nsamples",
+            "training_cycles",
+            "training_batch",
+            "Opti",
+
         ]
-        .iloc[0]
-        .to_dict()
-    )
-    data = {**mean_data, **info_data}
-    df_mean = pd.DataFrame([data])
-    dfs_mean.append(df_mean)
+    ]
+    .iloc[0]
+    .to_dict()
+)
+data = {**mean_data, **info_data}
+df_mean = pd.DataFrame([data])
+dfs_mean.append(df_mean)
 end = time.time()
 # print((end - start))
 

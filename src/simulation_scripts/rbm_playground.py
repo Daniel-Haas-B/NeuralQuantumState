@@ -20,6 +20,7 @@ output_filename = "../data/playground.csv"
 nparticles = 2
 dim = 2
 nhidden = 4
+
 nsamples = int(2**18)  # 2**18 = 262144
 nchains = 2
 eta = 0.1
@@ -118,6 +119,7 @@ info_data = (
             "training_cycles",
             "training_batch",
             "Opti",
+
         ]
     ]
     .iloc[0]
@@ -151,6 +153,7 @@ else:
 plt.xlabel("Chain")
 plt.ylabel("Energy")
 plt.show()
+
 
 positions, one_body_density = system.sample(
     2**12, nchains=1, seed=seed, one_body_density=True

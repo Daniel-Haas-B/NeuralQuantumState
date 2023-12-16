@@ -27,6 +27,7 @@ output_filename = "../data/playground.csv"
 nparticles = 1
 dim = 1
 
+
 nsamples = int(2**15)  # 2**18 = 262144
 nchains = 2
 eta = 0.1
@@ -124,6 +125,7 @@ info_data = (
             "training_cycles",
             "training_batch",
             "Opti",
+
         ]
     ]
     .iloc[0]

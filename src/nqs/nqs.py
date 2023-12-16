@@ -308,6 +308,7 @@ class NQS:
 
                     if self._grad_clip:
                         grad_norm = np.linalg.norm(grad_np)
+
                         if grad_norm > self._grad_clip:
                             # print ("Gradient norm is larger than grad_clip, clipping")
                             grad_np = self._grad_clip * grad_np / grad_norm
@@ -432,6 +433,7 @@ class NQS:
 
     def tune(
         self,
+
         tune_iter=500,
         tune_interval=500,
         rtol=1e-05,
@@ -482,6 +484,7 @@ class NQS:
 
                 self._sampler.tune_scale(old_scale, accept_rate)
                 print("new scale: ", self._sampler.scale)
+
                 # Reset
                 steps_before_tune = tune_interval
                 state = State(state.positions, state.logp, 0, 0)

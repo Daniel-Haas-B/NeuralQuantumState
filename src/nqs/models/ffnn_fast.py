@@ -64,13 +64,13 @@ class FFNNFAST:
 
         input_size_0 = self._N * self._dim
         output_size_0 = self._layer_sizes[0]
-        # limit_0 = jnp.sqrt(6 / (input_size_0 + output_size_0))
+        limit_0 = np.sqrt(6 / (input_size_0 + output_size_0))  # * 0.1
         # do not change this order
         self.params.set(
             "W0",
             jnp.array(
-                # jnp.array(rng.uniform(-limit_0, limit_0, (input_size_0, output_size_0))),
-                rng.standard_normal(size=(input_size_0, output_size_0))
+                np.array(rng.uniform(-limit_0, limit_0, (input_size_0, output_size_0))),
+                # rng.standard_normal(size=(input_size_0, output_size_0))
             ),
         )
         self.params.set("b0", jnp.zeros((output_size_0,)))
@@ -81,13 +81,13 @@ class FFNNFAST:
             output_size = self._layer_sizes[i]
 
             # Glorot initialization, considering the size of layers
-            # limit = jnp.sqrt(6 / (input_size + output_size)) * 0.1
+            limit = jnp.sqrt(6 / (input_size + output_size))  # * 0.1
 
             # Initialize weights and biases
             self.params.set(
                 f"W{i}",
-                # jnp.array(rng.uniform(-limit, limit, (input_size, output_size))),
-                rng.standard_normal(size=(input_size, output_size)),
+                np.array(rng.uniform(-limit, limit, (input_size, output_size))),
+                # rng.standard_normal(size=(input_size, output_size)),
             )
             self.params.set(
                 f"b{i}",

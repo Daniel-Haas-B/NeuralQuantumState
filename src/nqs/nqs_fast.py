@@ -19,7 +19,7 @@ jax.config.update("jax_platform_name", "cpu")
 import numpy as np
 import pandas as pd
 
-from nqs.models import RBM, FFNNFAST, VMC
+from nqs.models import RBM, FFNN, VMC
 
 from numpy.random import default_rng
 from tqdm.auto import tqdm
@@ -53,7 +53,6 @@ class NQS:
         log=True,
         logger_level="INFO",
         rng=None,
-        use_sr=False,
         seed=None,
     ):
         """Neural Network Quantum State
@@ -65,7 +64,6 @@ class NQS:
         self._check_logger(log, logger_level)
         self._log = log
 
-        self.use_sr = use_sr
         self.nqs_type = None
         self.hamiltonian = None
         self._backend = backend
@@ -122,7 +120,7 @@ class NQS:
                     backend=self._backend,
                 )
             case "ffnn":
-                self.wf = FFNNFAST(
+                self.wf = FFNN(
                     nparticles,
                     dim,
                     kwargs["layer_sizes"],
@@ -270,9 +268,14 @@ class NQS:
         # for _ in range(1000):
         #    state = self._sampler.step(self.wf, state, seed_seq)
         grads_dict = {key: [] for key in param_keys}
-
-        for _ in t_range:
+        burn_in = batch_size
+        for _ in range(burn_in):
             state = self._sampler.step(self.wf, state, seed_seq)
+        for _ in t_range:
+            batch_state = self._sampler.batch_step(self.wf, state, seed_seq)
+
+            print("batch_state", batch_state)
+            exit()
             loc_energy = self.hamiltonian.local_energy(self.wf, state.positions)
             energies.append(loc_energy)
             local_grads_dict = self.wf.grads(state.positions)
@@ -351,7 +354,7 @@ class NQS:
             "nqs_type": self.nqs_type,
             "training_cycles": self._training_cycles,
             "training_batch": self._training_batch,
-            "sr": self.use_sr,
+            "optimizer": self._optimizer.__class__.__name__,
         }
 
         system_info = pd.DataFrame(system_info, index=[0])

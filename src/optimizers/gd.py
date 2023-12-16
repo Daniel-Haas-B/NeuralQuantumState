@@ -6,7 +6,7 @@ from .optimizer import Optimizer
 class Gd(Optimizer):
     """Gradient descent optimizer."""
 
-    def __init__(self, params, eta):
+    def __init__(self, params, eta, gamma=0.9):
         """Initialize the optimizer.
 
         Args:
@@ -15,6 +15,8 @@ class Gd(Optimizer):
         """
         super().__init__(eta)
         self._param_keys = params.keys()
+        self.v = {key: np.zeros_like(params.get(key)) for key in self._param_keys}
+        self.gamma = gamma
 
     def step(self, params, grads, sr_matrices=None):
         """Update the parameters. Maybe performance bottleneck?"""
@@ -27,4 +29,5 @@ class Gd(Optimizer):
                 grads[key] = grads[key].reshape(params.get(key).shape)
 
         for key, grad in grads.items():
-            params.set([key], [params.get(key) - self.eta * grad])
+            self.v[key] = self.gamma * self.v[key] + grad
+            params.set([key], [params.get(key) - self.eta * self.v[key]])

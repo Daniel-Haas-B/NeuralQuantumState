@@ -81,7 +81,9 @@ class HarmonicOscillator(Hamiltonian):
         return self.backend.tanh(r / r0)
 
     def potential(self, r):
-        """Potential energy function"""
+        """
+        Potential energy function
+        """
         # HO trap
         v_trap = 0.5 * self.backend.sum(r * r) * self.kwargs["omega"]
 
@@ -93,7 +95,8 @@ class HarmonicOscillator(Hamiltonian):
         # Interaction
         v_int = 0.0
         if self._int_type == "Coulomb":
-            r_cpy = copy.deepcopy(r).reshape(self._N, self._dim)
+            r_cpy = copy.deepcopy(r).reshape(-1, self._N, self._dim)  # (nbatch, N, dim)
+
             r_dist = self.la.norm(r_cpy[None, ...] - r_cpy[:, None], axis=-1)
 
             # Apply tanh regularization
@@ -122,10 +125,10 @@ class HarmonicOscillator(Hamiltonian):
         return -0.5 * (_laplace + _grad2)
 
     def local_energy(self, wf, r):
-        """Local energy of the system"""
-        # print("r inside local energy", r)
-        # time.sleep(1)
-        # print("r0_reg", self.kwargs["r0_reg"])
+        """Local energy of the system
+        r can be one set of positions or a batch of positions now
+        """
+
         ke = self._local_kinetic_energy(wf, r)
         pe = self.potential(r)
 

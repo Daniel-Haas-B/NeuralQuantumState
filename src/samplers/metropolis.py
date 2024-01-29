@@ -1,7 +1,7 @@
 # import jax
 import numpy as np
 from nqs.utils import advance_PRNG_state
-from nqs.utils import State
+from nqs.utils import State  # , BatchState
 
 from .sampler import Sampler
 
@@ -12,7 +12,7 @@ class Metropolis(Sampler):
     def __init__(self, rng, scale, logger=None):
         super().__init__(rng, scale, logger)
 
-    def _step(self, wf, state, seed):
+    def _step(self, wf, state, seed, batch_size):
         """One step of the random walk Metropolis algorithm
 
         Parameters
@@ -28,39 +28,44 @@ class Metropolis(Sampler):
         new_state : nqs.State
             The updated state of the system.
 
-        # TODO: update the Metropolis Hastings and the fixed step and tunning
         """
 
-        # Advance RNG
-        next_gen = advance_PRNG_state(seed, state.delta)
-        rng = self._rng(next_gen)
+        # Advance RNG batch_size times
+        # create empty array of states of size batch_size
 
-        # Sample proposal positions, i.e., move walkers
-        proposals = rng.normal(loc=state.positions, scale=self.scale)
-        # print("self.scale", self.scale)
-        # Sample log uniform rvs
-        log_unif = np.log(rng.random())
+        state_batch = state.create_batch_of_states(batch_size)
 
-        # Compute proposal log density
+        for i in range(batch_size):
+            next_gen = advance_PRNG_state(seed, state_batch.delta[i - 1])
+            rng = self._rng(next_gen)
 
-        logp_proposal = wf.logprob(proposals)
+            # Sample proposal positions, i.e., move walkers
+            proposals = rng.normal(loc=state_batch.positions[i - 1], scale=self.scale)
 
-        # Metroplis acceptance criterion
-        accept = log_unif < logp_proposal - state.logp
+            # Sample log uniform rvs
+            log_unif = np.log(rng.random())
 
-        # If accept is True, yield proposal, otherwise keep old state
-        new_positions = proposals if accept else state.positions
+            # Compute proposal log density
+            logp_proposal = wf.logprob(proposals)
 
-        # Create new state
-        new_logp = wf.logprob(new_positions) if accept else state.logp
-        new_n_accepted = state.n_accepted + accept
-        new_delta = state.delta + 1
+            # Metroplis acceptance criterion
+            accept = log_unif < logp_proposal - state_batch.logp[i - 1]
 
-        state.positions = new_positions
-        state.logp = new_logp
-        state.n_accepted = new_n_accepted
-        state.delta = new_delta
-        return state
+            # If accept is True, yield proposal, otherwise keep old state
+            new_positions = proposals if accept else state_batch.positions[i - 1]
+
+            # Create new state
+            new_logp = wf.logprob(new_positions) if accept else state_batch.logp[i - 1]
+            new_n_accepted = state_batch.n_accepted[i - 1] + accept
+            new_delta = state_batch.delta[i - 1] + 1
+
+            state_batch.positions[i] = new_positions
+            state_batch.logp[i] = new_logp
+            state_batch.n_accepted[i] = new_n_accepted
+            state_batch.delta[i] = new_delta
+            # state_batch.append(state)
+
+        return state_batch
 
     def _fixed_step(self, wf, state, seed, fixed_index=0):
         # Advance RNG
@@ -91,8 +96,8 @@ class Metropolis(Sampler):
 
         return new_state
 
-    def step(self, wf, state, seed):
-        return self._step(wf, state, seed)
+    def step(self, wf, state, seed, batch_size=1):
+        return self._step(wf, state, seed, batch_size)
 
     # def batch_step(self, wf, state, seed):
     #     """Performs a Metropolis step on a batch of states.

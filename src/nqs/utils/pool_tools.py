@@ -92,4 +92,5 @@ def advance_PRNG_state(seed, delta):
     object : PCG64
         PRNG advanced delta steps.
     """
+
     return np.random.PCG64(seed).advance(delta)

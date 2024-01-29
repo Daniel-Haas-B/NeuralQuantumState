@@ -275,105 +275,95 @@ class NQS:
 
         expval_energies_dict = {key: None for key in param_keys}
         expval_grad_dict = {key: None for key in param_keys}
-        steps_before_optimize = batch_size
+        # steps_before_optimize = batch_size
 
         state = self.wf.state
         state = State(state.positions, state.logp, 0, state.delta)
 
         # equilibrate, burn in lets see if makes a difference
         # for _ in range(1000):
-        #     state = self._sampler.step(self.wf, state, seed_seq)
+        #    state = self._sampler.step(self.wf, state, seed_seq)
 
         grads_dict = {key: [] for key in param_keys}
         epoch = 0
         for _ in t_range:
-            # print("r inside train", state.positions)
-            state = self._sampler.step(self.wf, state, seed_seq)
-            loc_energy = self.hamiltonian.local_energy(self.wf, state.positions)
-            energies.append(loc_energy)
-            local_grads_dict = self.wf.grads(state.positions)
+            # this object contains the states of all the sequence of steps
+            states = self._sampler.step(self.wf, state, seed_seq, batch_size=batch_size)
+
+            # print("states.positions: ", states.positions)
+            energies = self.hamiltonian.local_energy(self.wf, states.positions)
+
+            # energies.append(loc_energy)
+            local_grads_dict = self.wf.grads(states.positions)
 
             for key in param_keys:
                 grads_dict[key].append(local_grads_dict.get(key))
 
-            steps_before_optimize -= 1
-            if steps_before_optimize == 0:
-                epoch += 1
-                energies = np.array(energies)
-                # print("Energy: ", energies)
-                expval_energy = np.mean(energies)
+            epoch += 1
+            energies = np.array(energies)
+            expval_energy = np.mean(energies)
 
-                for key in param_keys:
-                    grad_np = np.array(grads_dict[key])
+            for key in param_keys:
+                grad_np = np.array(grads_dict[key])
 
-                    if self._grad_clip:
-                        grad_norm = np.linalg.norm(grad_np)
+                if self._grad_clip:
+                    grad_norm = np.linalg.norm(grad_np)
 
-                        if grad_norm > self._grad_clip:
-                            # print ("Gradient norm is larger than grad_clip, clipping")
-                            grad_np = self._grad_clip * grad_np / grad_norm
+                    if grad_norm > self._grad_clip:
+                        # print ("Gradient norm is larger than grad_clip, clipping")
+                        grad_np = self._grad_clip * grad_np / grad_norm
+                    # have to change grads_dict[key] as well
+                    grads_dict[key] = grad_np
 
-                        # have to change grads_dict[key] as well
-                        grads_dict[key] = grad_np
+                # new_shape = (batch_size,) + (1,) * (
+                #    grad_np.ndim - 1
+                # )  # Subtracting 1 because the first dimension is already provided by batch_size
+                # reshaped_energy = energies.reshape(new_shape)
 
-                    new_shape = (batch_size,) + (1,) * (
-                        grad_np.ndim - 1
-                    )  # Subtracting 1 because the first dimension is already provided by batch_size
-                    reshaped_energy = energies.reshape(new_shape)
+                expval_energies_dict[key] = np.mean(energies * grad_np, axis=0)
 
-                    expval_energies_dict[key] = np.mean(
-                        reshaped_energy * grad_np, axis=0
-                    )
+                expval_grad_dict[key] = np.mean(grad_np, axis=0)
 
-                    expval_grad_dict[key] = np.mean(grad_np, axis=0)
+                final_grads[key] = 2 * (
+                    expval_energies_dict[key] - expval_energy * expval_grad_dict[key]
+                )
 
-                    final_grads[key] = 2 * (
-                        expval_energies_dict[key]
-                        - expval_energy * expval_grad_dict[key]
-                    )
+            if self._optimizer.__class__.__name__ == "Sr":
+                self.sr_matrices = self.wf.compute_sr_matrix(
+                    expval_grad_dict, grads_dict
+                )
 
-                if self._optimizer.__class__.__name__ == "Sr":
-                    self.sr_matrices = self.wf.compute_sr_matrix(
-                        expval_grad_dict, grads_dict
-                    )
+            # Descent
+            self._optimizer.step(
+                self.wf.params, final_grads, self.sr_matrices
+            )  # changes wf params inplace
 
-                # Descent
-                self._optimizer.step(
-                    self.wf.params, final_grads, self.sr_matrices
-                )  # changes wf params inplace
+            if self._history:
+                grad_norms = [np.linalg.norm(final_grads[key]) for key in param_keys]
+                grad_norms = np.mean(grad_norms)
 
-                if self._history:
-                    grad_norms = [
-                        np.linalg.norm(final_grads[key]) for key in param_keys
-                    ]
-                    grad_norms = np.mean(grad_norms)
+                self._history["energy"].append(expval_energy)
+                self._history["grads"].append(grad_norms)
 
-                    self._history["energy"].append(expval_energy)
-                    self._history["grads"].append(grad_norms)
+                self._agent.log(
+                    {"abs(energy - 3)": np.abs(expval_energy - 3)},
+                    epoch,  # change this if not 2 particles 2 dimensions
+                ) if self._agent else None
+                self._agent.log({"grads": grad_norms}, epoch) if self._agent else None
+                # self._agent.log(
+                #     {"scale": self.scale}, epoch
+                # ) if self._agent else None
 
-                    self._agent.log(
-                        {"abs(energy - 3)": np.abs(expval_energy - 3)},
-                        epoch,  # change this if not 2 particles 2 dimensions
-                    ) if self._agent else None
-                    self._agent.log(
-                        {"grads": grad_norms}, epoch
-                    ) if self._agent else None
-                    # self._agent.log(
-                    #     {"scale": self.scale}, epoch
-                    # ) if self._agent else None
+                # if grad_norms < 10**-10:
+                #     if self.logger is not None:
+                #         self.logger.info("Gradient norm is zero, stopping training")
+                #     break
 
-                    # if grad_norms < 10**-10:
-                    #     if self.logger is not None:
-                    #         self.logger.info("Gradient norm is zero, stopping training")
-                    #     break
+            if self._tune:
+                self.tune()
 
-                if self._tune:
-                    self.tune()
-
-                energies = []
-                final_grads = {key: None for key in param_keys}
-                grads_dict = {key: [] for key in param_keys}
-                steps_before_optimize = batch_size
+            final_grads = {key: None for key in param_keys}
+            grads_dict = {key: [] for key in param_keys}
 
         self.state = state
         self._is_trained_ = True
@@ -433,7 +423,6 @@ class NQS:
 
     def tune(
         self,
-
         tune_iter=500,
         tune_interval=500,
         rtol=1e-05,

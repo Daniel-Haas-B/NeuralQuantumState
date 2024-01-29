@@ -1,6 +1,7 @@
 import jax
 import jax.numpy as jnp
 import numpy as np
+from jax import vmap
 from nqs.utils import Parameter
 from nqs.utils import State
 
@@ -52,7 +53,7 @@ class VMC:
             self.grad_wf_closure = self.grad_wf_closure_jax
             self.grads_closure = self.grads_closure_jax
             self.laplacian_closure = self.laplacian_closure_jax
-            self._jit_functions()
+            # self._jit_functions()
         else:
             raise ValueError("Invalid backend:", backend)
 
@@ -77,6 +78,8 @@ class VMC:
         r_2 = r * r  # (N * dim)
 
         alpha_r_2 = alpha * r_2  # (N * dim)
+        # print("OUTPUT OF WF", -self.backend.sum(alpha_r_2, axis=-1))
+
         return -self.backend.sum(alpha_r_2, axis=-1)
 
     def logprob_closure(self, r, alpha):
@@ -103,7 +106,8 @@ class VMC:
         """
         Return a function that computes the gradient of the wavefunction
         """
-        grad_wf = jax.grad(self.wf, argnums=0)
+
+        grad_wf = vmap(jax.grad(self.wf, argnums=0))  # jax.grad(wrapped_wf)
 
         return grad_wf(r, alpha)
 
@@ -112,8 +116,9 @@ class VMC:
         Compute the gradient of the wavefunction
         """
         alpha = self.params.get("alpha")
-
-        return self.grad_wf_closure(r, alpha)
+        grads_alpha = self.grad_wf_closure(r, alpha)
+        print("successfull grad_wf")
+        return grads_alpha
 
     def grads(self, r):
         """
@@ -138,9 +143,8 @@ class VMC:
         """
         Return a function that computes the gradient of the log of the wavefunction squared
         """
-        grads_wf = jax.grad(
-            self.wf, argnums=1
-        )  # argnums=1 means we take the gradient wrt alpha
+
+        grads_wf = vmap(jax.grad(self.wf, argnums=1), in_axes=(0, None))
 
         return grads_wf(r, alpha)
 
@@ -178,16 +182,17 @@ class VMC:
         """
 
         def wrapped_wf(r_):
+            # print("self.wf(r_, alpha)", self.wf(r_, alpha))
+            # exit()
             return self.wf(r_, alpha)
 
-        grad_wf = jax.grad(wrapped_wf)
-
-        hessian_wf = jax.jacfwd(grad_wf)
+        hessian_wf = vmap(jax.hessian(wrapped_wf))
+        # Compute the Hessian for each element in the batch
         hessian_at_r = hessian_wf(r)
 
-        laplacian = jnp.trace(hessian_at_r)
+        laplacian = jnp.trace(hessian_at_r)  # Compute the trace of each Hessian
 
-        return laplacian
+        return laplacian.sum()
 
     def pdf(self, r):
         """

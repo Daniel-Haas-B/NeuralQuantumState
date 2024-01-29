@@ -32,13 +32,13 @@ class State:
 
     def create_batch_of_states(self, batch_size):
         """
-        # TODO: check if batch states are immutable because of the jnp
+        # TODO: there might be a more efficient way to do this
         """
         # Replicate each property of the state
-        batch_positions = jnp.array([self.positions] * batch_size)
-        batch_logp = jnp.array([self.logp] * batch_size)
-        batch_n_accepted = jnp.array([self.n_accepted] * batch_size)
-        batch_delta = jnp.array([self.delta] * batch_size)
+        batch_positions = np.array([self.positions] * batch_size)
+        batch_logp = np.array([self.logp] * batch_size)
+        batch_n_accepted = np.array([self.n_accepted] * batch_size)
+        batch_delta = np.array([self.delta] * batch_size)
 
         # Create a new State object with these batched properties
         batch_state = State(batch_positions, batch_logp, batch_n_accepted, batch_delta)

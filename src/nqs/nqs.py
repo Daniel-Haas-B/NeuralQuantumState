@@ -290,11 +290,13 @@ class NQS:
             # this object contains the states of all the sequence of steps
             states = self._sampler.step(self.wf, state, seed_seq, batch_size=batch_size)
 
-            # print("states.positions: ", states.positions)
+            print("> states.positions: ", states.positions.shape)
             energies = self.hamiltonian.local_energy(self.wf, states.positions)
 
+            print(" ====== energies values", energies)
             # energies.append(loc_energy)
             local_grads_dict = self.wf.grads(states.positions)
+            print("local_grads_dict", local_grads_dict)
 
             for key in param_keys:
                 grads_dict[key].append(local_grads_dict.get(key))
@@ -319,9 +321,8 @@ class NQS:
                 #    grad_np.ndim - 1
                 # )  # Subtracting 1 because the first dimension is already provided by batch_size
                 # reshaped_energy = energies.reshape(new_shape)
-
+                print("grad_np shape", grad_np.shape)
                 expval_energies_dict[key] = np.mean(energies * grad_np, axis=0)
-
                 expval_grad_dict[key] = np.mean(grad_np, axis=0)
 
                 final_grads[key] = 2 * (
@@ -334,6 +335,8 @@ class NQS:
                 )
 
             # Descent
+            print("self.wf.params shape", self.wf.params.get("alpha").shape)
+
             self._optimizer.step(
                 self.wf.params, final_grads, self.sr_matrices
             )  # changes wf params inplace

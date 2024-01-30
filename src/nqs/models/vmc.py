@@ -30,7 +30,7 @@ class VMC:
 
         self.log = log
         self.rng = rng if rng else np.random.default_rng()
-        r = rng.standard_normal(size=self._N * self._dim)
+        r = rng.standard_normal(size=(self._N * self._dim))
 
         self._initialize_variational_params(rng)
 
@@ -72,13 +72,18 @@ class VMC:
     def wf(self, r, alpha):
         """
         Ψ(r)=exp(- ∑_{i=1}^{N} alpha_i r_i * r_i) but in log domain
-        r: (N, dim) array so that r_i is a dim-dimensional vector
-        alpha: (N, dim) array so that alpha_i is a dim-dimensional vector
+        r: (batch_size, N * dim) array so
+        alpha: (batch_size, N * dim) array
         """
-        r_2 = r * r  # (N * dim)
+        # print("rshape", np.shape(r))
+        # print("alpha shape", np.shape(alpha))
+        r_2 = r * r
+        # print("r_2 shape", np.shape(r_2))
+        # print("alpha shape", np.shape(alpha))
+        alpha_r_2 = alpha * r_2
+        print("alpha_r_2 shape", np.shape(alpha_r_2))
 
-        alpha_r_2 = alpha * r_2  # (N * dim)
-        # print("OUTPUT OF WF", -self.backend.sum(alpha_r_2, axis=-1))
+        # print("wf output shape", np.shape(self.backend.sum(alpha_r_2, axis=-1)))
 
         return -self.backend.sum(alpha_r_2, axis=-1)
 
@@ -104,12 +109,26 @@ class VMC:
 
     def grad_wf_closure_jax(self, r, alpha):
         """
-        Return a function that computes the gradient of the wavefunction
+        Returns a function that computes the gradient of the wavefunction with respect to r
+        for each configuration in the batch.
+        r: (batch_size, N*dim) array where each row is a flattened array of all particle positions.
+        alpha: (batch_size, N*dim) array for the parameters.
         """
+        batch_size = np.shape(r)[0] if np.ndim(r) > 1 else 1
+        print("r shape", np.shape(r))
+        print("batch size", batch_size)
 
-        grad_wf = vmap(jax.grad(self.wf, argnums=0))  # jax.grad(wrapped_wf)
+        def scalar_wf(r_, alpha, i):
+            wf_values = self.wf(r_, alpha)[i]
+            return wf_values
 
-        return grad_wf(r, alpha)
+        # print("testing scalar_wf", scalar_wf(r, alpha, 0))
+        # de
+        grad_wf = vmap(lambda i: jax.grad(scalar_wf, argnums=0)(r, alpha, i))(
+            np.arange(batch_size)
+        )
+
+        return grad_wf
 
     def grad_wf(self, r):
         """
@@ -117,7 +136,7 @@ class VMC:
         """
         alpha = self.params.get("alpha")
         grads_alpha = self.grad_wf_closure(r, alpha)
-        print("successfull grad_wf")
+        print("> > > successfull grad_wf")
         return grads_alpha
 
     def grads(self, r):
@@ -143,10 +162,19 @@ class VMC:
         """
         Return a function that computes the gradient of the log of the wavefunction squared
         """
+        batch_size = np.shape(r)[0] if np.ndim(r) > 1 else 1
 
-        grads_wf = vmap(jax.grad(self.wf, argnums=1), in_axes=(0, None))
+        def scalar_wf(r_, alpha, i):
+            wf_values = self.wf(r_, alpha)[i]
+            return wf_values
 
-        return grads_wf(r, alpha)
+        print("testing scalar_wf", scalar_wf(r, alpha, 0))
+        # de
+        grads = vmap(lambda i: jax.grad(scalar_wf, argnums=1)(r, alpha, i))(
+            np.arange(batch_size)
+        )
+
+        return grads
 
     def _initialize_vars(self, nparticles, dim, sigma2, rng, log, logger, logger_level):
         self._N = nparticles
@@ -182,17 +210,22 @@ class VMC:
         """
 
         def wrapped_wf(r_):
-            # print("self.wf(r_, alpha)", self.wf(r_, alpha))
-            # exit()
             return self.wf(r_, alpha)
+
+        # print("> > > > > lap: size of r", np.shape(r))
+        # print("> > > > > lap: size of wf output", np.shape(wrapped_wf(r)))
 
         hessian_wf = vmap(jax.hessian(wrapped_wf))
         # Compute the Hessian for each element in the batch
         hessian_at_r = hessian_wf(r)
 
-        laplacian = jnp.trace(hessian_at_r)  # Compute the trace of each Hessian
+        # print("> > > > > lap: size of hessian", np.shape(hessian_at_r))
+        def trace_fn(x):
+            return jnp.trace(x)
 
-        return laplacian.sum()
+        laplacian = vmap(trace_fn)(hessian_at_r)
+        # print("> > > > > lap: size of laplacian", np.shape(laplacian))
+        return laplacian
 
     def pdf(self, r):
         """

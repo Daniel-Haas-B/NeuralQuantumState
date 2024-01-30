@@ -30,6 +30,7 @@ class Adam(Optimizer):
         self.epsilon = kwargs.get("epsilon", 1e-8)
 
     def step(self, params, grads, sr_matrices=None):
+        print("EVOLVING ADAM")
         """Update the parameters. Maybe performance bottleneck?"""
         self.t += 1  # increment time step
         # grads_dict = {key: grad for key, grad in zip(self._param_keys, grads)}

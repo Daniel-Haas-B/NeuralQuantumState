@@ -54,7 +54,7 @@ class VMC:
             self.grad_wf_closure = self.grad_wf_closure_jax
             self.grads_closure = self.grads_closure_jax
             self.laplacian_closure = self.laplacian_closure_jax
-            self._jit_functions()
+            # self._jit_functions()
         else:
             raise ValueError("Invalid backend:", backend)
 
@@ -107,17 +107,16 @@ class VMC:
         Returns a function that computes the gradient of the wavefunction with respect to r
         for each configuration in the batch.
         r: (batch_size, N*dim) array where each row is a flattened array of all particle positions.
-        alpha: (batch_size, N*dim) array for the parameters.
+        alpha: (N*dim) array for the parameters.
+        self.wf output is of size (batch_size, )
         """
-        batch_size = np.shape(r)[0] if np.ndim(r) > 1 else 1
+        grad_wf_closure = jax.grad(self.wf, argnums=0)
 
-        def scalar_wf(r_, alpha, i):
-            wf_values = self.wf(r_, alpha)[i]
-            return wf_values
+        # grad_wf = vmap(jax.grad(self.wf, argnums=0))(r, alpha)
 
-        grad_wf = vmap(lambda i: jax.grad(scalar_wf, argnums=0)(r, alpha, i))(
-            np.arange(batch_size)
-        )
+        grad_wf = vmap(grad_wf_closure, in_axes=(0, None))(
+            r, alpha
+        )  # 0, none will broadcast alpha to the batch size
 
         return grad_wf
 
@@ -126,7 +125,11 @@ class VMC:
         Compute the gradient of the wavefunction
         """
         alpha = self.params.get("alpha")
+
         grads_alpha = self.grad_wf_closure(r, alpha)
+        # save as txt
+        with open("grad_wf_batch.txt", "a") as f:
+            f.write(str(grads_alpha) + "\n")
 
         return grads_alpha
 
@@ -136,7 +139,9 @@ class VMC:
         """
         alpha = self.params.get("alpha")
         grads_alpha = self.grads_closure(r, alpha)
-
+        # save to txt
+        with open("grads_batch.txt", "a") as f:
+            f.write(str(grads_alpha) + "\n")
         grads_dict = {"alpha": grads_alpha}
         self.grads_performed += 1
         return grads_dict
@@ -182,7 +187,12 @@ class VMC:
         Compute the laplacian of the wavefunction
         """
         alpha = self.params.get("alpha")  # noqa
-        return self.laplacian_closure(r, alpha)
+        laplacian = self.laplacian_closure(r, alpha)
+
+        # save to txt
+        with open("laplacian_batch.txt", "a") as f:
+            f.write(str(laplacian) + "\n")
+        return laplacian
 
     def laplacian_closure(self, r, alpha):
         """

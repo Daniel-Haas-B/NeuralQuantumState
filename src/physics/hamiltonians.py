@@ -133,7 +133,7 @@ class HarmonicOscillator(Hamiltonian):
         # print("> > > > Laplacian success (shape", _laplace.shape, ")")
 
         _grad = wf.grad_wf(r)
-        # print("> > > > grad success (shape", _grad.shape, ")")
+        print("> > > > grad success (shape", _grad.shape, ")")
         _grad2 = self.backend.sum(_grad * _grad)  # summing over all particles
         return -0.5 * (_laplace + _grad2)
 

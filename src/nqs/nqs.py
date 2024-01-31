@@ -374,7 +374,8 @@ class NQS:
 
             final_grads = {key: None for key in param_keys}
             grads_dict = {key: [] for key in param_keys}
-
+        print("wf.grads_performed", self.wf.grads_performed)
+        exit()
         self.state = state  # careful as this is not the last state of states
         self._is_trained_ = True
 

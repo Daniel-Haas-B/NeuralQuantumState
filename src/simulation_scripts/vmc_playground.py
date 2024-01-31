@@ -20,7 +20,7 @@ nparticles = 2
 dim = 2
 nsamples = int(2**18)  # 2**18 = 262144
 nchains = 1
-eta = 0.1
+eta = 0.01
 
 training_cycles = 1000  # this is cycles for the ansatz
 mcmc_alg = "m"

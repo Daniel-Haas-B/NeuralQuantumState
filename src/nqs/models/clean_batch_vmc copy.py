@@ -42,7 +42,6 @@ class VMC:
                     self.params.get("alpha").size
                     } parameters"""
             self.logger.info(msg)
-        self.grads_performed = 0
 
     def configure_backend(self, backend):
         if backend == "numpy":
@@ -138,16 +137,8 @@ class VMC:
         grads_alpha = self.grads_closure(r, alpha)
 
         grads_dict = {"alpha": grads_alpha}
-        self.grads_performed += 1
+
         return grads_dict
-
-    def grads_closure(self, r, alpha):
-        """
-        Return a function that computes the gradient of the log of the wavefunction squared
-        """
-        r2 = r * r  # element-wise multiplication
-
-        return -2 * r2.sum(axis=-1)  # sum over particles
 
     def grads_closure_jax(self, r, alpha):
         """
@@ -184,15 +175,6 @@ class VMC:
         alpha = self.params.get("alpha")  # noqa
         return self.laplacian_closure(r, alpha)
 
-    def laplacian_closure(self, r, alpha):
-        """
-        Return a function that computes the laplacian of the wavefunction
-        Remember in log domain, the laplacian is
-        ∇^2 Ψ(r) = ∇^2 - ∑_{i=1}^{N} alpha_i r_i.T * r_i = -2 * alpha
-        """
-        # check if this is correct!
-        return -2 * alpha.sum(axis=-1)
-
     def laplacian_closure_jax(self, r, alpha):
         """
         Return a function that computes the laplacian of the wavefunction
@@ -201,19 +183,14 @@ class VMC:
         def wrapped_wf(r_):
             return self.wf(r_, alpha)
 
-        # print("> > > > > lap: size of r", np.shape(r))
-        # print("> > > > > lap: size of wf output", np.shape(wrapped_wf(r)))
-
         hessian_wf = vmap(jax.hessian(wrapped_wf))
         # Compute the Hessian for each element in the batch
         hessian_at_r = hessian_wf(r)
 
-        # print("> > > > > lap: size of hessian", np.shape(hessian_at_r))
         def trace_fn(x):
             return jnp.trace(x)
 
         laplacian = vmap(trace_fn)(hessian_at_r)
-        # print("> > > > > lap: size of laplacian", np.shape(laplacian))
         return laplacian
 
     def pdf(self, r):
@@ -222,51 +199,3 @@ class VMC:
         """
 
         return self.backend.exp(self.logprob(r)) ** 2
-
-    def compute_sr_matrix(self, expval_grads, grads, shift=1e-4):
-        """
-        expval_grads and grads should be dictionaries with keys "v_bias", "h_bias", "kernel" in the case of RBM
-        in the case of FFNN we have "weights" and "biases" and "kernel" is not present
-        WIP: for now this does not involve the averages because r will be a single sample
-        Compute the matrix for the stochastic reconfiguration algorithm
-            for now we do it only for the kernel
-            The expression here is for kernel element W_ij:
-                S_ij,kl = < (d/dW_ij log(psi)) (d/dW_kl log(psi)) > - < d/dW_ij log(psi) > < d/dW_kl log(psi) >
-
-            For bias (V or H) we have:
-                S_i,j = < (d/dV_i log(psi)) (d/dV_j log(psi)) > - < d/dV_i log(psi) > < d/dV_j log(psi) >
-
-
-            1. Compute the gradient ∂_W log(ψ) using the _grad_kernel function.
-            2. Compute the outer product of the gradient with itself: ∂_W log(ψ) ⊗ ∂_W log(ψ)
-            3. Compute the expectation value of the outer product over all the samples
-            4. Compute the expectation value of the gradient ∂_W log(ψ) over all the samples
-            5. Compute the outer product of the expectation value of the gradient with itself: <∂_W log(ψ)> ⊗ <∂_W log(ψ)>
-
-            OBS: < d/dW_ij log(psi) > is already done inside train of the RBM class but we need still the < (d/dW_ij log(psi)) (d/dW_kl log(psi)) >
-        """
-        sr_matrices = {}
-
-        for key, grad_value in grads.items():
-            grad_value = self.backend.array(
-                grad_value
-            )  # this should be done outside of the function
-
-            if self.backend.ndim(grad_value[0]) == 2:
-                # if key == "kernel":
-                grads_outer = self.backend.einsum(
-                    "nij,nkl->nijkl", grad_value, grad_value
-                )
-            elif self.backend.ndim(grad_value[0]) == 1:
-                # else:
-                grads_outer = self.backend.einsum("ni,nj->nij", grad_value, grad_value)
-
-            expval_outer_grad = self.backend.mean(grads_outer, axis=0)
-            outer_expval_grad = self.backend.outer(expval_grads[key], expval_grads[key])
-
-            sr_mat = (
-                expval_outer_grad.reshape(outer_expval_grad.shape) - outer_expval_grad
-            )
-            sr_matrices[key] = sr_mat + shift * self.backend.eye(sr_mat.shape[0])
-
-        return sr_matrices

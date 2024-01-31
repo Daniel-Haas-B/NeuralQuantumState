@@ -14,6 +14,7 @@ import jax
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
 
+import time
 
 import numpy as np
 import pandas as pd
@@ -291,7 +292,10 @@ class NQS:
             states = self._sampler.step(self.wf, state, seed_seq, batch_size=batch_size)
 
             # print("> states.positions: ", states.positions.shape)
+            t_0 = time.time()
             energies = self.hamiltonian.local_energy(self.wf, states.positions)
+            print("local_energy time: ", time.time() - t_0)
+            print(f"performed {energies.shape} measurements")
 
             # print(" ====== energies values", energies)
             # energies.append(loc_energy)

@@ -87,7 +87,7 @@ class HarmonicOscillator(Hamiltonian):
         # HO trap
 
         v_trap = 0.5 * self.backend.sum(r * r, axis=-1) * self.kwargs["omega"]
-        print("v_trap", v_trap)
+        # print("v_trap", v_trap)
         self.kwargs["r0_reg"] = self.kwargs["r0_reg"] * self.reg_decay
         # with open("decay.csv", "a") as f:
         #    f.write(str(self.kwargs["r0_reg"]) + "\n")
@@ -96,14 +96,14 @@ class HarmonicOscillator(Hamiltonian):
         # Interaction
         v_int = 0.0
         if self._int_type == "Coulomb":
-            print("r shape", r.shape)
+            # print("r shape", r.shape)
             r_cpy = copy.deepcopy(r).reshape(-1, self._N, self._dim)  # (nbatch, N, dim)
-            print("r_cpy shape", r_cpy.shape)
+            # print("r_cpy shape", r_cpy.shape)
             # r_dist = self.la.norm(r_cpy[None, ...] - r_cpy[:, None], axis=-1)
             r_dist = self.la.norm(r_cpy[:, None, :, :] - r_cpy[:, :, None, :], axis=-1)
 
-            print("r_dist shape", r_dist.shape)
-            print("r_dist", r_dist)
+            # print("r_dist shape", r_dist.shape)
+            # print("r_dist", r_dist)
             # Apply tanh regularization
             f_r = 1  # self.regularized_potential(r_dist)
             v_int = self.backend.sum(
@@ -111,7 +111,7 @@ class HarmonicOscillator(Hamiltonian):
             )
             # k=1 to remove diagonal, since we don't want self-interaction
             # the axis=(-2, -1) is to sum over the last two axes, so that we get a (nbatch, ) array
-            print("v_int", v_int.shape)
+
         elif self._int_type == "Calogero":
             r_cpy = copy.deepcopy(r).reshape(self._N, self._dim)
             r_dist = self.la.norm(r_cpy[None, ...] - r_cpy[:, None], axis=-1)
@@ -130,10 +130,10 @@ class HarmonicOscillator(Hamiltonian):
         _laplace = wf.laplacian(
             r
         )  # MAYBE NEED self.backend.sum(wf.laplacian(r), axis=-1)  # summing over all particles
-        print("> > > > Laplacian success (shape", _laplace.shape, ")")
+        # print("> > > > Laplacian success (shape", _laplace.shape, ")")
 
         _grad = wf.grad_wf(r)
-        print("> > > > grad success (shape", _grad.shape, ")")
+        # print("> > > > grad success (shape", _grad.shape, ")")
         _grad2 = self.backend.sum(_grad * _grad)  # summing over all particles
         return -0.5 * (_laplace + _grad2)
 
@@ -141,12 +141,12 @@ class HarmonicOscillator(Hamiltonian):
         """Local energy of the system
         r can be one set of positions or a batch of positions now
         """
-        print("> > Enter local energy")
+        # print("> > Enter local energy")
 
         pe = self.potential(r)
-        print(f"> > potential energy success (value {pe})")
+        # print(f"> > potential energy success (value {pe})")
         ke = self._local_kinetic_energy(wf, r)
-        print(f"> > kinetic energy success (value {ke})")
+        # print(f"> > kinetic energy success (value {ke})")
 
         return pe + ke
 

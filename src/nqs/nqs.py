@@ -290,18 +290,18 @@ class NQS:
             # this object contains the states of all the sequence of steps
             states = self._sampler.step(self.wf, state, seed_seq, batch_size=batch_size)
 
-            print("> states.positions: ", states.positions.shape)
+            # print("> states.positions: ", states.positions.shape)
             energies = self.hamiltonian.local_energy(self.wf, states.positions)
 
-            print(" ====== energies values", energies)
+            # print(" ====== energies values", energies)
             # energies.append(loc_energy)
             local_grads_dict = self.wf.grads(states.positions)
-            print("local_grads_dict", local_grads_dict["alpha"].shape)
+            # print("local_grads_dict", local_grads_dict["alpha"].shape)
             # print("grads_alpha", grads_dict["alpha"].shape)
             for key in param_keys:
                 grads_dict[key].append(local_grads_dict.get(key))
 
-            print("grads_alpha", np.shape(grads_dict["alpha"][0]))
+            # print("grads_alpha", np.shape(grads_dict["alpha"][0]))
 
             epoch += 1
             energies = np.array(energies)
@@ -325,9 +325,11 @@ class NQS:
                 #    grad_np.ndim - 1
                 # )  # Subtracting 1 because the first dimension is already provided by batch_size
                 # reshaped_energy = energies.reshape(new_shape)
-                print("grad_np shape", grad_np.shape)
-                print("energies shape", energies.shape)
-                expval_energies_dict[key] = np.mean(energies * grad_np, axis=0)
+
+                energies = np.expand_dims(energies, axis=1)
+                expval_energies_dict[key] = np.mean(
+                    energies * grad_np, axis=0
+                )  # TODO: check this
                 expval_grad_dict[key] = np.mean(grad_np, axis=0)
 
                 final_grads[key] = 2 * (
@@ -340,7 +342,7 @@ class NQS:
                 )
 
             # Descent
-            print("self.wf.params shape", self.wf.params.get("alpha").shape)
+            # print("self.wf.params shape", self.wf.params.get("alpha").shape)
 
             self._optimizer.step(
                 self.wf.params, final_grads, self.sr_matrices
@@ -373,7 +375,7 @@ class NQS:
             final_grads = {key: None for key in param_keys}
             grads_dict = {key: [] for key in param_keys}
 
-        self.state = state
+        self.state = state  # careful as this is not the last state of states
         self._is_trained_ = True
 
         if self.logger is not None:

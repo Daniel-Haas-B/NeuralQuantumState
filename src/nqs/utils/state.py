@@ -35,6 +35,7 @@ class State:
         # TODO: there might be a more efficient way to do this
         """
         # Replicate each property of the state
+
         batch_positions = np.array([self.positions] * batch_size)
         batch_logp = np.array([self.logp] * batch_size)
         batch_n_accepted = np.array([self.n_accepted] * batch_size)

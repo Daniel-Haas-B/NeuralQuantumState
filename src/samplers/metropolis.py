@@ -12,7 +12,7 @@ class Metropolis(Sampler):
     def __init__(self, rng, scale, logger=None):
         super().__init__(rng, scale, logger)
 
-    def _step(self, wf, state, seed, batch_size):
+    def _step(self, wf, state_batch, seed, batch_size):
         """One step of the random walk Metropolis algorithm
 
         Parameters
@@ -33,8 +33,7 @@ class Metropolis(Sampler):
         # Advance RNG batch_size times
         # create empty array of states of size batch_size
 
-        state_batch = state.create_batch_of_states(batch_size)
-
+        # print("state_batch", state_batch)
         for i in range(batch_size):
             next_gen = advance_PRNG_state(seed, state_batch.delta[i - 1])
             rng = self._rng(next_gen)
@@ -97,6 +96,8 @@ class Metropolis(Sampler):
         return new_state
 
     def step(self, wf, state, seed, batch_size=1):
+        state = state.create_batch_of_states(batch_size)
+
         return self._step(wf, state, seed, batch_size)
 
     # def batch_step(self, wf, state, seed):

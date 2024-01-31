@@ -53,7 +53,7 @@ class VMC:
             self.grad_wf_closure = self.grad_wf_closure_jax
             self.grads_closure = self.grads_closure_jax
             self.laplacian_closure = self.laplacian_closure_jax
-            # self._jit_functions()
+            self._jit_functions()
         else:
             raise ValueError("Invalid backend:", backend)
 
@@ -81,7 +81,7 @@ class VMC:
         # print("r_2 shape", np.shape(r_2))
         # print("alpha shape", np.shape(alpha))
         alpha_r_2 = alpha * r_2
-        print("alpha_r_2 shape", np.shape(alpha_r_2))
+        # print("alpha_r_2 shape", np.shape(alpha_r_2))
 
         # print("wf output shape", np.shape(self.backend.sum(alpha_r_2, axis=-1)))
 
@@ -114,15 +114,18 @@ class VMC:
         r: (batch_size, N*dim) array where each row is a flattened array of all particle positions.
         alpha: (batch_size, N*dim) array for the parameters.
         """
+
+        # print(" ==== entering grad_wf_closure_jax")
         batch_size = np.shape(r)[0] if np.ndim(r) > 1 else 1
-        print("r shape", np.shape(r))
-        print("batch size", batch_size)
+
+        # print("r shape", np.shape(r))
+        # print("batch size", batch_size)
 
         def scalar_wf(r_, alpha, i):
             wf_values = self.wf(r_, alpha)[i]
             return wf_values
 
-        # print("testing scalar_wf", scalar_wf(r, alpha, 0))
+        # print("print of self.wf(r_, alpha)", self.wf(r, alpha))
         # de
         grad_wf = vmap(lambda i: jax.grad(scalar_wf, argnums=0)(r, alpha, i))(
             np.arange(batch_size)
@@ -136,7 +139,7 @@ class VMC:
         """
         alpha = self.params.get("alpha")
         grads_alpha = self.grad_wf_closure(r, alpha)
-        print("> > > successfull grad_wf")
+        # print("> > > successfull grad_wf")
         return grads_alpha
 
     def grads(self, r):
@@ -169,7 +172,6 @@ class VMC:
             wf_values = self.wf(r_, alpha)[i]
             return wf_values
 
-        print("testing scalar_wf", scalar_wf(r, alpha, 0))
         # de
         grads = vmap(lambda i: jax.grad(scalar_wf, argnums=1)(r, alpha, i))(
             np.arange(batch_size)

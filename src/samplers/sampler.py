@@ -108,11 +108,16 @@ class Sampler:
             t_range = range(nsamples)
 
         # Config
+
         state = State(state.positions, state.logp, 0, state.delta)
+        state = state.create_batch_of_states(batch_size=1)  # this NEEDS to be 1 now
+
         energies = np.zeros(nsamples)
 
         for i in t_range:
-            state = self._step(wf, state, seed)
+            state = self._step(
+                wf, state, seed, batch_size=1
+            )  # this NEEDS to be batch_size=1 now
             energies[i] = self.hamiltonian.local_energy(wf, state.positions)
 
         if self._logger is not None:

@@ -54,7 +54,7 @@ class VMC:
             self.grad_wf_closure = self.grad_wf_closure_jax
             self.grads_closure = self.grads_closure_jax
             self.laplacian_closure = self.laplacian_closure_jax
-            # self._jit_functions()
+            self._jit_functions()
         else:
             raise ValueError("Invalid backend:", backend)
 

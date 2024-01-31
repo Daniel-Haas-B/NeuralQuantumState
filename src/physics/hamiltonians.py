@@ -109,7 +109,7 @@ class HarmonicOscillator(Hamiltonian):
             v_int = self.backend.sum(
                 self.backend.triu(f_r / r_dist, k=1), axis=(-2, -1)
             )
-            print(">>>> v_int", v_int[0])
+
             # k=1 to remove diagonal, since we don't want self-interaction
             # the axis=(-2, -1) is to sum over the last two axes, so that we get a (nbatch, ) array
 

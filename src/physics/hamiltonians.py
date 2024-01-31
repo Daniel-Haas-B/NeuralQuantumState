@@ -87,7 +87,7 @@ class HarmonicOscillator(Hamiltonian):
         # HO trap
 
         v_trap = 0.5 * self.backend.sum(r * r, axis=-1) * self.kwargs["omega"]
-        # print("v_trap", v_trap)
+
         self.kwargs["r0_reg"] = self.kwargs["r0_reg"] * self.reg_decay
         # with open("decay.csv", "a") as f:
         #    f.write(str(self.kwargs["r0_reg"]) + "\n")
@@ -109,6 +109,7 @@ class HarmonicOscillator(Hamiltonian):
             v_int = self.backend.sum(
                 self.backend.triu(f_r / r_dist, k=1), axis=(-2, -1)
             )
+            print(">>>> v_int", v_int[0])
             # k=1 to remove diagonal, since we don't want self-interaction
             # the axis=(-2, -1) is to sum over the last two axes, so that we get a (nbatch, ) array
 
@@ -133,8 +134,9 @@ class HarmonicOscillator(Hamiltonian):
         # print("> > > > Laplacian success (shape", _laplace.shape, ")")
 
         _grad = wf.grad_wf(r)
-        print("> > > > grad success (shape", _grad.shape, ")")
-        _grad2 = self.backend.sum(_grad * _grad)  # summing over all particles
+
+        _grad2 = self.backend.sum(_grad * _grad, axis=1)  # summing over all particles
+
         return -0.5 * (_laplace + _grad2)
 
     def local_energy(self, wf, r):
@@ -144,9 +146,8 @@ class HarmonicOscillator(Hamiltonian):
         # print("> > Enter local energy")
         wf.grads_performed += 1
         pe = self.potential(r)
-        # print(f"> > potential energy success (value {pe})")
+
         ke = self._local_kinetic_energy(wf, r)
-        # print(f"> > kinetic energy success (value {ke})")
 
         return pe + ke
 

@@ -296,17 +296,21 @@ class NQS:
             print(" ====== energies values", energies)
             # energies.append(loc_energy)
             local_grads_dict = self.wf.grads(states.positions)
-            print("local_grads_dict", local_grads_dict)
-
+            print("local_grads_dict", local_grads_dict["alpha"].shape)
+            # print("grads_alpha", grads_dict["alpha"].shape)
             for key in param_keys:
                 grads_dict[key].append(local_grads_dict.get(key))
+
+            print("grads_alpha", np.shape(grads_dict["alpha"][0]))
 
             epoch += 1
             energies = np.array(energies)
             expval_energy = np.mean(energies)
 
             for key in param_keys:
-                grad_np = np.array(grads_dict[key])
+                grad_np = np.array(
+                    grads_dict[key][0]
+                )  # try to later eliminate this [0] indexing
 
                 if self._grad_clip:
                     grad_norm = np.linalg.norm(grad_np)
@@ -322,6 +326,7 @@ class NQS:
                 # )  # Subtracting 1 because the first dimension is already provided by batch_size
                 # reshaped_energy = energies.reshape(new_shape)
                 print("grad_np shape", grad_np.shape)
+                print("energies shape", energies.shape)
                 expval_energies_dict[key] = np.mean(energies * grad_np, axis=0)
                 expval_grad_dict[key] = np.mean(grad_np, axis=0)
 

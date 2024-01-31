@@ -147,6 +147,7 @@ class VMC:
         grads_alpha = self.grads_closure(r, alpha)
 
         grads_dict = {"alpha": grads_alpha}
+
         # print(grads_dict["alpha"])
         return grads_dict
 

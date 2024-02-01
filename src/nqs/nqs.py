@@ -10,11 +10,11 @@ from nqs.utils import generate_seed_sequence
 from nqs.utils import setup_logger
 from nqs.utils import State
 import jax
+import time
 
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
 
-import time
 
 import numpy as np
 import pandas as pd
@@ -291,27 +291,19 @@ class NQS:
             # this object contains the states of all the sequence of steps
             states = self._sampler.step(self.wf, state, seed_seq, batch_size=batch_size)
             # save positions to txt file
-            with open("positions_batch.txt", "a") as f:
-                np.savetxt(f, states.positions)
+            # with open("positions_batch.txt", "a") as f:
+            #     np.savetxt(f, states.positions)
             # print("> states.positions: ", states.positions.shape)
-            t_0 = time.time()
+
             energies = self.hamiltonian.local_energy(self.wf, states.positions)
             # put to txt file
-            with open("energies_batch.txt", "a") as f:
-                np.savetxt(f, energies)
+            # with open("energies_batch.txt", "a") as f:
+            #     np.savetxt(f, energies)
 
-            print("local_energy time: ", time.time() - t_0)
-            print(f"performed {energies.shape} measurements")
-
-            # print(" ====== energies values", energies)
-            # energies.append(loc_energy)
             local_grads_dict = self.wf.grads(states.positions)
-            # print("local_grads_dict", local_grads_dict["alpha"].shape)
-            # print("grads_alpha", grads_dict["alpha"].shape)
+
             for key in param_keys:
                 grads_dict[key].append(local_grads_dict.get(key))
-
-            # print("grads_alpha", np.shape(grads_dict["alpha"][0]))
 
             epoch += 1
             energies = np.array(energies)
@@ -384,7 +376,6 @@ class NQS:
 
             final_grads = {key: None for key in param_keys}
             grads_dict = {key: [] for key in param_keys}
-        print("wf.grads_performed", self.wf.grads_performed)
 
         self.state = state  # careful as this is not the last state of states
         self._is_trained_ = True
@@ -392,12 +383,13 @@ class NQS:
         if self.logger is not None:
             self.logger.info("Training done")
 
+        print("epoch: ", epoch)
         if self._history:
             return self._history
 
     def sample(self, nsamples, nchains=1, seed=None, one_body_density=False):
         """helper for the sample method from the Sampler class"""
-
+        t0 = time.time()
         self._is_initialized()
         self._is_trained()
         self.hamiltonian.turn_reg_off()
@@ -426,8 +418,10 @@ class NQS:
             ].reset_index(drop=True)
 
             self._results = pd.concat([system_info_repeated, sample_results], axis=1)
-
+            t1 = time.time()
+            print("Sampling time: ", t1 - t0)
             return self._results
+
         else:
             sample_results = self._sampler.sample_obd(
                 self.wf,

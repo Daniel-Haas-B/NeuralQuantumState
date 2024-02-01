@@ -128,8 +128,8 @@ class VMC:
 
         grads_alpha = self.grad_wf_closure(r, alpha)
         # save as txt
-        with open("grad_wf_batch.txt", "a") as f:
-            f.write(str(grads_alpha) + "\n")
+        # with open("grad_wf_batch.txt", "a") as f:
+        #     f.write(str(grads_alpha) + "\n")
 
         return grads_alpha
 
@@ -140,8 +140,8 @@ class VMC:
         alpha = self.params.get("alpha")
         grads_alpha = self.grads_closure(r, alpha)
         # save to txt
-        with open("grads_batch.txt", "a") as f:
-            f.write(str(grads_alpha) + "\n")
+        # with open("grads_batch.txt", "a") as f:
+        #     f.write(str(grads_alpha) + "\n")
         grads_dict = {"alpha": grads_alpha}
         self.grads_performed += 1
         return grads_dict
@@ -190,8 +190,8 @@ class VMC:
         laplacian = self.laplacian_closure(r, alpha)
 
         # save to txt
-        with open("laplacian_batch.txt", "a") as f:
-            f.write(str(laplacian) + "\n")
+        # with open("laplacian_batch.txt", "a") as f:
+        #     f.write(str(laplacian) + "\n")
         return laplacian
 
     def laplacian_closure(self, r, alpha):

@@ -80,6 +80,10 @@ class VMC:
         r_2 = r * r
         alpha_r_2 = alpha * r_2
 
+        print("shape alpha", alpha.shape)
+        print("shape r_2", r_2.shape)
+        print("shape alpha_r_2", alpha_r_2.shape)
+
         return -self.backend.sum(alpha_r_2, axis=-1)
 
     def logprob_closure(self, r, alpha):

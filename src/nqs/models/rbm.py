@@ -1,9 +1,11 @@
 import jax
 import jax.numpy as jnp
 import numpy as np
+from jax import vmap
 from nqs.utils import Parameter
 from nqs.utils import State
 from scipy.special import expit
+
 
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
@@ -94,28 +96,6 @@ class RBM:
         else:
             raise ValueError(f"Invalid backend: {backend}")
 
-    def clone(self):
-        """Returns a copy of the object"""
-        clone = self.__class__(
-            self._N,
-            self._dim,
-            self._nhidden,
-            self._factor,
-            self._sigma2,
-            self.rng,
-            self.log,
-            self.logger,
-            self.backend,
-        )
-
-        clone.params = self.params
-        return clone
-
-    def _convert_constants_to_jnp(self):
-        constants = ["_factor", "_rbm_psi_repr", "_sigma2", "_sigma4", "_sigma2_factor"]
-        for const in constants:
-            setattr(self, const, jnp.float64(getattr(self, const)))
-
     def _jit_functions(self):
         functions_to_jit = [
             "_log_wf",
@@ -181,13 +161,16 @@ class RBM:
             self.params.get("h_bias"),
             self.params.get("kernel"),
         )
-        # v_bias, h_bias, kernel = self.params.get(["v_bias", "h_bias", "kernel"])
+
         return self.logprob_closure(r, v_bias, h_bias, kernel)
 
     def grad_wf_closure(self, r, v_bias, h_bias, kernel):
         """
         This is the gradient of the logarithm of the wave function w.r.t. the coordinates
         """
+        print("hbias shape", h_bias.shape)
+        print("kernel shape", kernel.shape)
+        print("r shape", r.shape)
         _expit = self.sigmoid(h_bias + (r @ kernel) * self._sigma2_factor)
         gr = -(r - v_bias) + kernel @ _expit
         gr *= self._sigma2 * self._factor
@@ -200,8 +183,14 @@ class RBM:
         """
 
         grad_wf = jax.grad(self.wf, argnums=0)
+        # grad_wf(r, v_bias, h_bias, kernel)
 
-        return grad_wf(r, v_bias, h_bias, kernel)
+        grad_wf = vmap(
+            grad_wf,
+            in_axes=(0, None, None, None),
+        )(r, v_bias, h_bias, kernel)
+
+        return grad_wf
 
     def grad_wf(self, r):
         """
@@ -233,16 +222,14 @@ class RBM:
         def wrapped_wf(r_):
             return self.wf(r_, v_bias, h_bias, kernel)
 
-        grad_wf = jax.grad(wrapped_wf)
-        hessian_wf = jax.jacfwd(
-            grad_wf
-        )  # This computes the Jacobian of the gradient, which is the (trace of the) Hessian.
-
-        hessian_at_r = hessian_wf(r)
+        hessian_wf = vmap(jax.hessian(wrapped_wf))
 
         # If you want the Laplacian, you'd sum the diagonal of the Hessian.
         # This assumes r is a vector and you want the Laplacian w.r.t. each element.
-        laplacian = jnp.trace(hessian_at_r)
+        def trace_fn(x):
+            return jnp.trace(x)
+
+        laplacian = vmap(trace_fn)(hessian_wf(r))
 
         return laplacian
 
@@ -252,8 +239,9 @@ class RBM:
             self.params.get("h_bias"),
             self.params.get("kernel"),
         )
-        # v_bias, h_bias, kernel = self.params.get(["v_bias", "h_bias", "kernel"])
-        return self.laplacian_closure(r, v_bias, h_bias, kernel)
+        laplacian = self.laplacian_closure(r, v_bias, h_bias, kernel)
+
+        return laplacian
 
     def grads_closure(self, r, v_bias, h_bias, kernel):
         _expit = self.sigmoid(h_bias + (r @ kernel) * self._sigma2_factor)
@@ -272,15 +260,25 @@ class RBM:
         This is the autograd version of the gradient of the logarithm of the wave function w.r.t. the parameters
         """
 
-        grad_v_bias = jax.grad(self.wf, argnums=1)
-        grad_h_bias = jax.grad(self.wf, argnums=2)
-        grad_kernel = jax.grad(self.wf, argnums=3)
+        batch_size = r.shape[0] if np.ndim(r) > 1 else 1
 
-        return (
-            grad_v_bias(r, v_bias, h_bias, kernel),
-            grad_h_bias(r, v_bias, h_bias, kernel),
-            grad_kernel(r, v_bias, h_bias, kernel),
+        def scalar_wf(r_, v_bias, h_bias, kernel, i):
+            wf_values = self.wf(r_, v_bias, h_bias, kernel)
+            return wf_values[i]
+
+        grads = (
+            vmap(
+                lambda i: jax.grad(scalar_wf, argnums=1)(r, v_bias, h_bias, kernel, i)
+            )(np.arange(batch_size)),
+            vmap(
+                lambda i: jax.grad(scalar_wf, argnums=2)(r, v_bias, h_bias, kernel, i)
+            )(np.arange(batch_size)),
+            vmap(
+                lambda i: jax.grad(scalar_wf, argnums=3)(r, v_bias, h_bias, kernel, i)
+            )(np.arange(batch_size)),
         )
+
+        return grads
 
     def grads(self, r):
         """Gradients of the wave function w.r.t. the parameters"""

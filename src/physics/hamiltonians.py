@@ -143,8 +143,7 @@ class HarmonicOscillator(Hamiltonian):
         """Local energy of the system
         r can be one set of positions or a batch of positions now
         """
-        # print("> > Enter local energy")
-        wf.grads_performed += 1
+
         pe = self.potential(r)
 
         ke = self._local_kinetic_energy(wf, r)

@@ -112,13 +112,9 @@ class VMC:
         """
         grad_wf_closure = jax.grad(self.wf, argnums=0)
 
-        # grad_wf = vmap(jax.grad(self.wf, argnums=0))(r, alpha)
-
-        grad_wf = vmap(grad_wf_closure, in_axes=(0, None))(
+        return vmap(grad_wf_closure, in_axes=(0, None))(
             r, alpha
         )  # 0, none will broadcast alpha to the batch size
-
-        return grad_wf
 
     def grad_wf(self, r):
         """
@@ -127,9 +123,6 @@ class VMC:
         alpha = self.params.get("alpha")
 
         grads_alpha = self.grad_wf_closure(r, alpha)
-        # save as txt
-        # with open("grad_wf_batch.txt", "a") as f:
-        #     f.write(str(grads_alpha) + "\n")
 
         return grads_alpha
 
@@ -139,9 +132,7 @@ class VMC:
         """
         alpha = self.params.get("alpha")
         grads_alpha = self.grads_closure(r, alpha)
-        # save to txt
-        # with open("grads_batch.txt", "a") as f:
-        #     f.write(str(grads_alpha) + "\n")
+
         grads_dict = {"alpha": grads_alpha}
         self.grads_performed += 1
         return grads_dict
@@ -189,9 +180,6 @@ class VMC:
         alpha = self.params.get("alpha")  # noqa
         laplacian = self.laplacian_closure(r, alpha)
 
-        # save to txt
-        # with open("laplacian_batch.txt", "a") as f:
-        #     f.write(str(laplacian) + "\n")
         return laplacian
 
     def laplacian_closure(self, r, alpha):
@@ -211,20 +199,14 @@ class VMC:
         def wrapped_wf(r_):
             return self.wf(r_, alpha)
 
-        # print("> > > > > lap: size of r", np.shape(r))
-        # print("> > > > > lap: size of wf output", np.shape(wrapped_wf(r)))
-
         hessian_wf = vmap(jax.hessian(wrapped_wf))
         # Compute the Hessian for each element in the batch
         hessian_at_r = hessian_wf(r)
 
-        # print("> > > > > lap: size of hessian", np.shape(hessian_at_r))
         def trace_fn(x):
             return jnp.trace(x)
 
-        laplacian = vmap(trace_fn)(hessian_at_r)
-        # print("> > > > > lap: size of laplacian", np.shape(laplacian))
-        return laplacian
+        return vmap(trace_fn)(hessian_at_r)
 
     def pdf(self, r):
         """

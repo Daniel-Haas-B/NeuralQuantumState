@@ -309,7 +309,7 @@ class NQS:
             if steps_before_optimize == 0:
                 epoch += 1
                 energies = np.array(energies)
-                # print("Energy: ", energies)
+                print("Energy: ", energies)
                 expval_energy = np.mean(energies)
 
                 for key in param_keys:

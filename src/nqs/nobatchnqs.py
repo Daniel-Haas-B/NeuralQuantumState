@@ -307,8 +307,6 @@ class NQS:
 
             epoch += 1
             energies = np.array(energies)
-            # print energies
-            print("energies", energies)
             expval_energy = np.mean(energies)
 
             for key in param_keys:

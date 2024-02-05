@@ -22,11 +22,11 @@ nsamples = int(2**10)  # 2**18 = 262144
 nchains = 1
 eta = 0.1
 
-training_cycles = 5  # this is cycles for the ansatz
+training_cycles = 1  # this is cycles for the ansatz
 mcmc_alg = "m"
 backend = "jax"
 optimizer = "adam"
-batch_size = 2
+batch_size = 1
 detailed = True
 wf_type = "dummy"
 seed = 142

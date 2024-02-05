@@ -1,2 +1,2 @@
 energy,std_error,variance,accept_rate,sem_energy,sem_std_error,sem_variance,sem_accept_rate,nparticles,dim,eta,scale,mcmc_alg,nqs_type,nsamples,training_cycles,training_batch,Opti
-1810.835468776833,357.7863615405288,2138408.158737666,0.970703125,,,,,2,2,0.1,1.0,m,,1024,5,2,Adam
+1810.835468776833,357.7863615405288,2138408.158737666,0.970703125,,,,,2,2,0.1,1.0,m,,1024,1,1,Adam

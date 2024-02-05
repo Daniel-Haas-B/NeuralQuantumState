@@ -95,7 +95,7 @@ class Sampler:
 
     def _sample(self, wf, nsamples, state, scale, seed, chain_id):
         """To be called by process"""
-        batch_size = 2**5  # this NEEDS to be 1 now. I am trying to change
+        batch_size = 2**5
 
         if self._logger is not None:
             t_range = tqdm(

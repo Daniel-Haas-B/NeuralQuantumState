@@ -52,7 +52,7 @@ class Dummy:
             self.grad_wf_closure = self.grad_wf_closure_jax
             self.grads_closure = self.grads_closure_jax
             self.laplacian_closure = self.laplacian_closure_jax
-            self._jit_functions()
+            # self._jit_functions()
         else:
             raise ValueError(f"Invalid backend: {backend}, only jax is supported")
 
@@ -73,7 +73,7 @@ class Dummy:
         Ψ(r)= sum r
         r: (N, dim) array so that r_i is a dim-dimensional vector
         """
-        return r.sum(axis=-1)
+        return self.backend.sum(r, axis=0)  # r.sum(axis=0)
 
     def logprob_closure(self, r, alpha):
         return self.backend.log(self.backend.abs(self.wf(r, alpha)) ** 2)
@@ -90,6 +90,8 @@ class Dummy:
         Return a function that computes the gradient of the wavefunction
         """
         grad_wf_closure = jax.grad(self.wf, argnums=0)
+
+        # either vmap(grad_wf_closure, in_axes=(0, None))(r, alpha) or we loop ourselves over ba
 
         return vmap(grad_wf_closure, in_axes=(0, None))(r, alpha)
 
@@ -122,7 +124,7 @@ class Dummy:
             return wf_values
 
         grads = vmap(lambda i: jax.grad(scalar_wf, argnums=1)(r, alpha, i))(
-            np.arange(batch_size)
+            self.backend.arange(batch_size)
         )
 
         return grads

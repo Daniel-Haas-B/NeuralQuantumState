@@ -290,16 +290,7 @@ class NQS:
         for _ in t_range:
             # this object contains the states of all the sequence of steps
             states = self._sampler.step(self.wf, state, seed_seq, batch_size=batch_size)
-            # save positions to txt file
-            # with open("positions_batch.txt", "a") as f:
-            #     np.savetxt(f, states.positions)
-            # print("> states.positions: ", states.positions.shape)
-
             energies = self.hamiltonian.local_energy(self.wf, states.positions)
-            # put to txt file
-            # with open("energies_batch.txt", "a") as f:
-            #     np.savetxt(f, energies)
-
             local_grads_dict = self.wf.grads(states.positions)
 
             for key in param_keys:

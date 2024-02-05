@@ -30,7 +30,7 @@ class VMC:
 
         self.log = log
         self.rng = rng if rng else np.random.default_rng()
-        r = rng.standard_normal(size=(self._N * self._dim))
+        r = rng.standard_normal(size=self._N * self._dim)
 
         self._initialize_variational_params(rng)
 

@@ -28,6 +28,9 @@ class Metropolis(Sampler):
         new_state : nqs.State
             The updated state of the system.
 
+
+        TODO: I implemented the __getitem__ method in the State class, so I can use the [] operator to access the properties of the state.
+                Need to propage this change to the rest of the code.
         """
 
         # Advance RNG batch_size times
@@ -96,7 +99,7 @@ class Metropolis(Sampler):
         return new_state
 
     def step(self, wf, state, seed, batch_size=1):
-        state = state.create_batch_of_states(batch_size)
+        # state = state.create_batch_of_states(batch_size)
 
         return self._step(wf, state, seed, batch_size)
 

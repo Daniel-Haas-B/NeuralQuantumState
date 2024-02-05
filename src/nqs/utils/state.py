@@ -44,3 +44,11 @@ class State:
         # Create a new State object with these batched properties
         batch_state = State(batch_positions, batch_logp, batch_n_accepted, batch_delta)
         return batch_state
+
+    def __repr__(self):
+        return f"State(positions={self.positions}, logp={self.logp}, n_accepted={self.n_accepted}, delta={self.delta})"
+
+    def __getitem__(self, key):
+        return State(
+            self.positions[key], self.logp[key], self.n_accepted[key], self.delta[key]
+        )

@@ -290,6 +290,7 @@ class NQS:
         state = self.wf.state
         state = State(state.positions, state.logp, 0, state.delta)
 
+        states = state.create_batch_of_states(batch_size=batch_size)
         # equilibrate, burn in lets see if makes a difference
         # for _ in range(1000):
         #    state = self._sampler.step(self.wf, state, seed_seq)
@@ -298,7 +299,9 @@ class NQS:
         epoch = 0
         for _ in t_range:
             # this object contains the states of all the sequence of steps
-            states = self._sampler.step(self.wf, state, seed_seq, batch_size=batch_size)
+            states = self._sampler.step(
+                self.wf, states, seed_seq, batch_size=batch_size
+            )
             energies = self.hamiltonian.local_energy(self.wf, states.positions)
             local_grads_dict = self.wf.grads(states.positions)
 
@@ -308,9 +311,9 @@ class NQS:
             epoch += 1
             energies = np.array(energies)
             # print energies
-            print("energies", energies)
+
             expval_energy = np.mean(energies)
-            print("expval_energy", expval_energy)
+
             for key in param_keys:
                 grad_np = np.array(
                     grads_dict[key][0]
@@ -339,7 +342,6 @@ class NQS:
                 final_grads[key] = 2 * (
                     expval_energies_dict[key] - expval_energy * expval_grad_dict[key]
                 )
-                print(f"final_grads[{key}]", final_grads[key])
 
             if self._optimizer.__class__.__name__ == "Sr":
                 self.sr_matrices = self.wf.compute_sr_matrix(
@@ -352,7 +354,6 @@ class NQS:
             self._optimizer.step(
                 self.wf.params, final_grads, self.sr_matrices
             )  # changes wf params inplace
-            print("self.wf.params after step", self.wf.params.get("alpha"))
 
             if self._history:
                 grad_norms = [np.linalg.norm(final_grads[key]) for key in param_keys]
@@ -381,7 +382,8 @@ class NQS:
             final_grads = {key: None for key in param_keys}
             grads_dict = {key: [] for key in param_keys}
 
-        self.state = state  # careful as this is not the last state of states
+        self.state = states[-1]  # last state
+
         self._is_trained_ = True
 
         if self.logger is not None:
@@ -414,7 +416,6 @@ class NQS:
         system_info = pd.DataFrame(system_info, index=[0])
 
         if not one_body_density:
-            print("state pre sample", self.state)
             sample_results = self._sampler.sample(
                 self.wf, self.state, nsamples, nchains, seed
             )

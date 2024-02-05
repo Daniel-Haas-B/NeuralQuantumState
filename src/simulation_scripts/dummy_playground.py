@@ -22,7 +22,7 @@ nsamples = int(2**10)  # 2**18 = 262144
 nchains = 1
 eta = 0.1
 
-training_cycles = 10  # this is cycles for the ansatz
+training_cycles = 5  # this is cycles for the ansatz
 mcmc_alg = "m"
 backend = "jax"
 optimizer = "adam"
@@ -107,7 +107,7 @@ data = {**mean_data, **info_data}  # ** unpacks the dictionary
 df_mean = pd.DataFrame([data])
 dfs_mean.append(df_mean)
 
-epochs = np.arange(training_cycles)[::batch_size]
+epochs = np.arange(training_cycles)
 plt.plot(epochs, history["energy"], label="energy")
 plt.legend()
 plt.show()

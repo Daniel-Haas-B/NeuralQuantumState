@@ -352,6 +352,7 @@ class NQS:
             self._optimizer.step(
                 self.wf.params, final_grads, self.sr_matrices
             )  # changes wf params inplace
+            print("self.wf.params after step", self.wf.params.get("alpha"))
 
             if self._history:
                 grad_norms = [np.linalg.norm(final_grads[key]) for key in param_keys]
@@ -413,6 +414,7 @@ class NQS:
         system_info = pd.DataFrame(system_info, index=[0])
 
         if not one_body_density:
+            print("state pre sample", self.state)
             sample_results = self._sampler.sample(
                 self.wf, self.state, nsamples, nchains, seed
             )

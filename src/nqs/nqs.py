@@ -311,6 +311,7 @@ class NQS:
                 energies = np.array(energies)
                 print("Energy: ", energies)
                 expval_energy = np.mean(energies)
+                print("expval_energy", expval_energy)
 
                 for key in param_keys:
                     grad_np = np.array(grads_dict[key])
@@ -340,6 +341,7 @@ class NQS:
                         expval_energies_dict[key]
                         - expval_energy * expval_grad_dict[key]
                     )
+                    print("final_grads", final_grads[key])
 
                 if self._optimizer.__class__.__name__ == "Sr":
                     self.sr_matrices = self.wf.compute_sr_matrix(
@@ -350,7 +352,7 @@ class NQS:
                 self._optimizer.step(
                     self.wf.params, final_grads, self.sr_matrices
                 )  # changes wf params inplace
-
+                print("params", self.wf.params)
                 if self._history:
                     grad_norms = [
                         np.linalg.norm(final_grads[key]) for key in param_keys

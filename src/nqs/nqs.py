@@ -18,7 +18,7 @@ jax.config.update("jax_platform_name", "cpu")
 import numpy as np
 import pandas as pd
 
-from nqs.models import RBM, FFNN, VMC
+from nqs.models import RBM, FFNN, VMC, Dummy
 
 from numpy.random import default_rng
 from tqdm.auto import tqdm
@@ -131,6 +131,15 @@ class NQS:
                 )
             case "vmc":
                 self.wf = VMC(
+                    nparticles,
+                    dim,
+                    log=self._log,
+                    logger=self.logger,
+                    rng=self.rng(self._seed),
+                    backend=self._backend,
+                )
+            case "dummy":
+                self.wf = Dummy(
                     nparticles,
                     dim,
                     log=self._log,
@@ -433,7 +442,6 @@ class NQS:
 
     def tune(
         self,
-
         tune_iter=500,
         tune_interval=500,
         rtol=1e-05,

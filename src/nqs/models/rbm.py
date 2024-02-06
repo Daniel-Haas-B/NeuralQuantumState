@@ -128,20 +128,30 @@ class RBM:
         """Logarithmic gaussian-binary RBM"""
 
         # visible layer
-        x_v = self.la.norm(r - v_bias)
-        x_v *= -x_v * self._sigma2_factor2
+        x_v = self.la.norm(
+            r - v_bias, axis=-1
+        )  # axis = -1 means the last axis which is correct no matter the dimension of r
+
+        x_v *= -x_v * self._sigma2_factor2  # this will also be broadcasted correctly
 
         # hidden layer
-        x_h = self._softplus(h_bias + (r.T @ kernel) * self._sigma2_factor)
+        # print("r shape", r.shape)
+        # print("r.T shape", r.T.shape)
+        # print("h_bias shape", h_bias.shape)
+        # print("kernel shape", kernel.shape)
+        # print("(r @ kernel) shape", (r @ kernel).shape)
+        # TODO: note I remove the transpose in the r here. This could be wrong.
+        x_h = self._softplus(
+            h_bias + (r @ kernel) * self._sigma2_factor
+        )  # potential failure point
         x_h = self.backend.sum(x_h, axis=-1)
 
         return x_v + x_h
 
     def wf(self, r, v_bias, h_bias, kernel):
         """Evaluate the wave function"""
-        return (
-            self._factor * self._log_wf(r, v_bias, h_bias, kernel).sum()
-        )  # we sum because we are in the log domain
+
+        return self._factor * self._log_wf(r, v_bias, h_bias, kernel)
 
     def pdf(self, r):
         """
@@ -168,9 +178,9 @@ class RBM:
         """
         This is the gradient of the logarithm of the wave function w.r.t. the coordinates
         """
-        print("hbias shape", h_bias.shape)
-        print("kernel shape", kernel.shape)
-        print("r shape", r.shape)
+        # print("hbias shape", h_bias.shape)
+        # print("kernel shape", kernel.shape)
+        # print("r shape", r.shape)
         _expit = self.sigmoid(h_bias + (r @ kernel) * self._sigma2_factor)
         gr = -(r - v_bias) + kernel @ _expit
         gr *= self._sigma2 * self._factor
@@ -182,15 +192,11 @@ class RBM:
         This is the autograd version of the gradient of the logarithm of the wave function w.r.t. the coordinates
         """
 
-        grad_wf = jax.grad(self.wf, argnums=0)
-        # grad_wf(r, v_bias, h_bias, kernel)
+        grad_wf_closure = jax.grad(self.wf, argnums=0)
 
-        grad_wf = vmap(
-            grad_wf,
-            in_axes=(0, None, None, None),
-        )(r, v_bias, h_bias, kernel)
-
-        return grad_wf
+        return vmap(grad_wf_closure, in_axes=(0, None, None, None))(
+            r, v_bias, h_bias, kernel
+        )
 
     def grad_wf(self, r):
         """
@@ -202,7 +208,9 @@ class RBM:
             self.params.get("kernel"),
         )
         # v_bias, h_bias, kernel = self.params.get(["v_bias", "h_bias", "kernel"])
-        return self.grad_wf_closure(r, v_bias, h_bias, kernel)
+        grads = self.grad_wf_closure(r, v_bias, h_bias, kernel)
+
+        return grads
 
     def laplacian_closure(self, r, v_bias, h_bias, kernel):
         _expit = self.sigmoid(h_bias + (r @ kernel) * self._sigma2_factor)
@@ -259,23 +267,22 @@ class RBM:
         """
         This is the autograd version of the gradient of the logarithm of the wave function w.r.t. the parameters
         """
+        grad_v_bias = vmap(jax.grad(self.wf, argnums=1), in_axes=(0, None, None, None))(
+            r, v_bias, h_bias, kernel
+        )
 
-        batch_size = r.shape[0] if np.ndim(r) > 1 else 1
+        grad_h_bias = vmap(jax.grad(self.wf, argnums=2), in_axes=(0, None, None, None))(
+            r, v_bias, h_bias, kernel
+        )
 
-        def scalar_wf(r_, v_bias, h_bias, kernel, i):
-            wf_values = self.wf(r_, v_bias, h_bias, kernel)
-            return wf_values[i]
+        grad_kernel = vmap(jax.grad(self.wf, argnums=3), in_axes=(0, None, None, None))(
+            r, v_bias, h_bias, kernel
+        )
 
         grads = (
-            vmap(
-                lambda i: jax.grad(scalar_wf, argnums=1)(r, v_bias, h_bias, kernel, i)
-            )(np.arange(batch_size)),
-            vmap(
-                lambda i: jax.grad(scalar_wf, argnums=2)(r, v_bias, h_bias, kernel, i)
-            )(np.arange(batch_size)),
-            vmap(
-                lambda i: jax.grad(scalar_wf, argnums=3)(r, v_bias, h_bias, kernel, i)
-            )(np.arange(batch_size)),
+            grad_v_bias,
+            grad_h_bias,
+            grad_kernel,
         )
 
         return grads
@@ -354,70 +361,3 @@ class RBM:
     def sigma2(self, value):
         self._sigma2 = value
         self._precompute()
-
-    # def tune(
-    #     self,
-    #     tune_iter=20_000,
-    #     tune_interval=500,
-    #     early_stop=False,  # set to True later
-    #     rtol=1e-05,
-    #     atol=1e-08,
-    #     seed=None,
-    #     mcmc_alg=None,
-    # ):
-    #     """
-    #     !! BROKEN NOW due to self.scale
-    #     Tune proposal scale so that the acceptance rate is around 0.5.
-    #     """
-
-    #     state = self.state
-    #     v_bias, h_bias, kernel = self.wf.params.get(["v_bias", "h_bias", "kernel"])
-
-    #     scale = self.scale
-
-    #     if mcmc_alg is not None:
-    #         self._sampler = Sampler(self.mcmc_alg, self.rbm, self.rng, self._log)
-
-    #     # Used to throw warnings if tuned alg mismatch chosen alg
-    #     # in other procedures
-    #     self._tuned_mcmc_alg = self.mcmc_alg
-
-    #     # Config
-    #     # did_early_stop = False
-    #     seed_seq = generate_seed_sequence(seed, 1)[0]
-
-    #     # Reset n_accepted
-    #     state = State(state.positions, state.logp, 0, state.delta)
-
-    #     if self._log:
-    #         t_range = tqdm(
-    #             range(tune_iter),
-    #             desc="[Tuning progress]",
-    #             position=0,
-    #             leave=True,
-    #             colour="green",
-    #         )
-    #     else:
-    #         t_range = range(tune_iter)
-
-    #     steps_before_tune = tune_interval
-
-    #     for i in t_range:
-    #         state = self._sampler.step(state, v_bias, h_bias, kernel, seed_seq)
-    #         steps_before_tune -= 1
-
-    #         if steps_before_tune == 0:
-    #             # Tune proposal scale
-    #             old_scale = scale
-    #             accept_rate = state.n_accepted / tune_interval
-    #             scale = self._sampler.tune_scale(old_scale, accept_rate)
-
-    #             # Reset
-    #             steps_before_tune = tune_interval
-    #             state = State(state.positions, state.logp, 0, state.delta)
-
-    #     # Update shared values
-    #     self.state = state
-    #     self.wf.params.set(["v_bias", "h_bias", "kernel"], [v_bias, h_bias, kernel])
-    #     self.scale = scale
-    #     self._is_tuned_ = True

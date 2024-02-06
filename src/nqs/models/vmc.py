@@ -54,7 +54,7 @@ class VMC:
             self.grad_wf_closure = self.grad_wf_closure_jax
             self.grads_closure = self.grads_closure_jax
             self.laplacian_closure = self.laplacian_closure_jax
-            self._jit_functions()
+            # self._jit_functions()
         else:
             raise ValueError("Invalid backend:", backend)
 
@@ -93,6 +93,7 @@ class VMC:
         Compute the log of the wavefunction squared
         """
         alpha = self.params.get("alpha")  #
+        print("alpha", alpha.shape)
         return self.logprob_closure(r, alpha)
 
     def grad_wf_closure(self, r, alpha):
@@ -110,6 +111,7 @@ class VMC:
         alpha: (N*dim) array for the parameters.
         self.wf output is of size (batch_size, )
         """
+
         grad_wf_closure = jax.grad(self.wf, argnums=0)
 
         return vmap(grad_wf_closure, in_axes=(0, None))(
@@ -133,9 +135,7 @@ class VMC:
         alpha = self.params.get("alpha")
         grads_alpha = self.grads_closure(r, alpha)
 
-        grads_dict = {"alpha": grads_alpha}
-        self.grads_performed += 1
-        return grads_dict
+        return {"alpha": grads_alpha}
 
     def grads_closure(self, r, alpha):
         """

@@ -34,6 +34,7 @@ class Adam(Optimizer):
         """Update the parameters. Maybe performance bottleneck?"""
         self.t += 1  # increment time step
         # grads_dict = {key: grad for key, grad in zip(self._param_keys, grads)}
+
         if sr_matrices is not None:
             for key in sr_matrices.keys():
                 sr_matrix = sr_matrices[key]

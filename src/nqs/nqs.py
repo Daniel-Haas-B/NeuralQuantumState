@@ -304,7 +304,7 @@ class NQS:
             )
             energies = self.hamiltonian.local_energy(self.wf, states.positions)
             local_grads_dict = self.wf.grads(states.positions)
-
+            # print("local_grads_dict: ", local_grads_dict)
             for key in param_keys:
                 grads_dict[key].append(local_grads_dict.get(key))
 
@@ -315,10 +315,11 @@ class NQS:
             expval_energy = np.mean(energies)
 
             for key in param_keys:
+                # print("======== key: ", key)
                 grad_np = np.array(
                     grads_dict[key][0]
                 )  # try to later eliminate this [0] indexing
-
+                # print("grad_np: ", grad_np)
                 if self._grad_clip:
                     grad_norm = np.linalg.norm(grad_np)
 
@@ -328,12 +329,12 @@ class NQS:
                     # have to change grads_dict[key] as well
                     grads_dict[key] = grad_np
 
-                # new_shape = (batch_size,) + (1,) * (
-                #    grad_np.ndim - 1
-                # )  # Subtracting 1 because the first dimension is already provided by batch_size
-                # reshaped_energy = energies.reshape(new_shape)
+                new_shape = (batch_size,) + (1,) * (
+                    grad_np.ndim - 1
+                )  # Subtracting 1 because the first dimension is already provided by batch_size
+                energies = energies.reshape(new_shape)
 
-                energies = np.expand_dims(energies, axis=1)
+                # energies = np.expand_dims(energies, axis=1) if energies.ndim == 1 else energies
                 expval_energies_dict[key] = np.mean(
                     energies * grad_np, axis=0
                 )  # TODO: check this
@@ -389,7 +390,6 @@ class NQS:
         if self.logger is not None:
             self.logger.info("Training done")
 
-        print("epoch: ", epoch)
         if self._history:
             return self._history
 

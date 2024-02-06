@@ -92,8 +92,7 @@ class VMC:
         """
         Compute the log of the wavefunction squared
         """
-        alpha = self.params.get("alpha")  #
-        print("alpha", alpha.shape)
+        alpha = self.params.get("alpha")
         return self.logprob_closure(r, alpha)
 
     def grad_wf_closure(self, r, alpha):

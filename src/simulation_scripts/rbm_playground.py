@@ -22,14 +22,14 @@ dim = 2
 nhidden = 4
 
 nsamples = int(2**18)  # 2**18 = 262144
-nchains = 1
+nchains = 2
 eta = 0.1
 
 training_cycles = 250  # this is cycles for the NN
 mcmc_alg = "m"
-backend = "jax"
+backend = "numpy"
 optimizer = "adam"
-batch_size = 5
+batch_size = 100
 detailed = True
 wf_type = "rbm"
 seed = 142
@@ -62,7 +62,7 @@ system.set_wf(
 system.set_sampler(mcmc_alg=mcmc_alg, scale=1)
 system.set_hamiltonian(
     type_="ho",
-    int_type=None,
+    int_type="Coulomb",
     omega=1.0,
     r0_reg=5,
     training_cycles=training_cycles,

@@ -135,11 +135,6 @@ class RBM:
         x_v *= -x_v * self._sigma2_factor2  # this will also be broadcasted correctly
 
         # hidden layer
-        # print("r shape", r.shape)
-        # print("r.T shape", r.T.shape)
-        # print("h_bias shape", h_bias.shape)
-        # print("kernel shape", kernel.shape)
-        # print("(r @ kernel) shape", (r @ kernel).shape)
         # TODO: note I remove the transpose in the r here. This could be wrong.
         x_h = self._softplus(
             h_bias + (r @ kernel) * self._sigma2_factor
@@ -178,10 +173,13 @@ class RBM:
         """
         This is the gradient of the logarithm of the wave function w.r.t. the coordinates
         """
-        # print("hbias shape", h_bias.shape)
-        # print("kernel shape", kernel.shape)
-        # print("r shape", r.shape)
+
         _expit = self.sigmoid(h_bias + (r @ kernel) * self._sigma2_factor)
+        print("r", r.shape)
+        print("kernel", kernel.shape)
+        print("expit", _expit.shape)
+        print("kernel", kernel.shape)
+        print("_expit.T @ kernel", (_expit @ kernel).shape)
         gr = -(r - v_bias) + kernel @ _expit
         gr *= self._sigma2 * self._factor
         return gr
@@ -207,16 +205,22 @@ class RBM:
             self.params.get("h_bias"),
             self.params.get("kernel"),
         )
-        # v_bias, h_bias, kernel = self.params.get(["v_bias", "h_bias", "kernel"])
         grads = self.grad_wf_closure(r, v_bias, h_bias, kernel)
 
         return grads
 
     def laplacian_closure(self, r, v_bias, h_bias, kernel):
+        kernel = self.backend.expand_dims(kernel, axis=0)
+        print("stopped here")
         _expit = self.sigmoid(h_bias + (r @ kernel) * self._sigma2_factor)
         _expos = self.sigmoid(-h_bias - (r @ kernel) * self._sigma2_factor)
         kernel2 = self.backend.square(kernel)
+        # print("r", r.shape)
+        print("kernel2", kernel2.shape)
+        # print("expit", _expit.shape)
+        # print("expit", _expit.shape)
         exp_prod = _expos * _expit
+        print("exp_prod", exp_prod.shape)
         gr = -self._sigma2 + self._sigma4 * kernel2 @ exp_prod
         gr *= self._factor
         return gr
@@ -232,8 +236,6 @@ class RBM:
 
         hessian_wf = vmap(jax.hessian(wrapped_wf))
 
-        # If you want the Laplacian, you'd sum the diagonal of the Hessian.
-        # This assumes r is a vector and you want the Laplacian w.r.t. each element.
         def trace_fn(x):
             return jnp.trace(x)
 
@@ -253,13 +255,29 @@ class RBM:
 
     def grads_closure(self, r, v_bias, h_bias, kernel):
         _expit = self.sigmoid(h_bias + (r @ kernel) * self._sigma2_factor)
+
         grad_h_bias = self._factor * _expit
+
+        # grad_kernel calculation needs to handle the outer product for each pair in the batch
+        # r[:, None] adds an extra dimension making it (batch_size, previous_len, 1)
+        # _expit[:, None] changes _expit to have shape (batch_size, 1, hidden_units),
+        # enabling broadcasting for batch-wise outer product
         grad_kernel = (
-            self._sigma2
-            * r[:, self.backend.newaxis]
-            @ _expit[:, self.backend.newaxis].T
+            self._sigma2 * (r[:, :, None] @ _expit[:, None, :])
         ) * self._factor
+
+        # old
+        # grad_kernel = (
+        #     self._sigma2
+        #     * r[:, self.backend.newaxis]
+        #     @ _expit[:, self.backend.newaxis].T
+        # ) * self._factor
+
         grad_v_bias = (r - v_bias) * self._sigma2 * self._factor
+
+        print("grad_v_bias", grad_v_bias.shape)
+        print("grad_h_bias", grad_h_bias.shape)
+        print("grad_kernel", grad_kernel.shape)
         return grad_v_bias, grad_h_bias, grad_kernel
 
     # @partial(jax.jit, static_argnums=(0,))

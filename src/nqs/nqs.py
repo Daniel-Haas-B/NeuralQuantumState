@@ -304,27 +304,21 @@ class NQS:
             )
             energies = self.hamiltonian.local_energy(self.wf, states.positions)
             local_grads_dict = self.wf.grads(states.positions)
-            # print("local_grads_dict: ", local_grads_dict)
+
             for key in param_keys:
                 grads_dict[key].append(local_grads_dict.get(key))
 
             epoch += 1
             energies = np.array(energies)
-            # print energies
-
             expval_energy = np.mean(energies)
 
             for key in param_keys:
                 # print("======== key: ", key)
-                grad_np = np.array(
-                    grads_dict[key][0]
-                )  # try to later eliminate this [0] indexing
-                # print("grad_np: ", grad_np)
+                grad_np = np.array(grads_dict[key][0])
                 if self._grad_clip:
                     grad_norm = np.linalg.norm(grad_np)
 
                     if grad_norm > self._grad_clip:
-                        # print ("Gradient norm is larger than grad_clip, clipping")
                         grad_np = self._grad_clip * grad_np / grad_norm
                     # have to change grads_dict[key] as well
                     grads_dict[key] = grad_np
@@ -350,8 +344,6 @@ class NQS:
                 )
 
             # Descent
-            # print("self.wf.params shape", self.wf.params.get("alpha").shape)
-
             self._optimizer.step(
                 self.wf.params, final_grads, self.sr_matrices
             )  # changes wf params inplace

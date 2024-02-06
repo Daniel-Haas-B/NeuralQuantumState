@@ -28,9 +28,6 @@ class Metropolis(Sampler):
         new_state : nqs.State
             The updated state of the system.
 
-
-        TODO: I implemented the __getitem__ method in the State class, so I can use the [] operator to access the properties of the state.
-                Need to propage this change to the rest of the code.
         """
 
         # Advance RNG batch_size times
@@ -38,11 +35,12 @@ class Metropolis(Sampler):
 
         # print("state_batch", state_batch)
         for i in range(batch_size):
-            next_gen = advance_PRNG_state(seed, state_batch.delta[i - 1])
+            state = state_batch[i - 1]
+            next_gen = advance_PRNG_state(seed, state.delta)
             rng = self._rng(next_gen)
 
             # Sample proposal positions, i.e., move walkers
-            proposals = rng.normal(loc=state_batch.positions[i - 1], scale=self.scale)
+            proposals = rng.normal(loc=state.positions, scale=self.scale)
 
             # Sample log uniform rvs
             log_unif = np.log(rng.random())
@@ -51,21 +49,17 @@ class Metropolis(Sampler):
             logp_proposal = wf.logprob(proposals)
 
             # Metroplis acceptance criterion
-            accept = log_unif < logp_proposal - state_batch.logp[i - 1]
+            accept = log_unif < logp_proposal - state.logp
 
             # If accept is True, yield proposal, otherwise keep old state
-            new_positions = proposals if accept else state_batch.positions[i - 1]
+            new_positions = proposals if accept else state.positions
 
             # Create new state
-            new_logp = wf.logprob(new_positions) if accept else state_batch.logp[i - 1]
-            new_n_accepted = state_batch.n_accepted[i - 1] + accept
-            new_delta = state_batch.delta[i - 1] + 1
+            new_logp = wf.logprob(new_positions) if accept else state.logp
+            new_n_accepted = state.n_accepted + accept
+            new_delta = state.delta + 1
 
-            state_batch.positions[i] = new_positions
-            state_batch.logp[i] = new_logp
-            state_batch.n_accepted[i] = new_n_accepted
-            state_batch.delta[i] = new_delta
-            # state_batch.append(state)
+            state_batch[i] = State(new_positions, new_logp, new_n_accepted, new_delta)
 
         return state_batch
 

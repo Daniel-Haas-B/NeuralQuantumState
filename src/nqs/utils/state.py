@@ -52,3 +52,9 @@ class State:
         return State(
             self.positions[key], self.logp[key], self.n_accepted[key], self.delta[key]
         )
+
+    def __setitem__(self, key, value):
+        self.positions[key] = value.positions
+        self.logp[key] = value.logp
+        self.n_accepted[key] = value.n_accepted
+        self.delta[key] = value.delta

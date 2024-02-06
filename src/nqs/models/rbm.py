@@ -175,12 +175,8 @@ class RBM:
         """
 
         _expit = self.sigmoid(h_bias + (r @ kernel) * self._sigma2_factor)
-        print("r", r.shape)
-        print("kernel", kernel.shape)
-        print("expit", _expit.shape)
-        print("kernel", kernel.shape)
-        print("_expit.T @ kernel", (_expit @ kernel).shape)
-        gr = -(r - v_bias) + kernel @ _expit
+
+        gr = -(r - v_bias) + self.backend.einsum("ij,bj->bi", kernel, _expit)
         gr *= self._sigma2 * self._factor
         return gr
 
@@ -210,20 +206,21 @@ class RBM:
         return grads
 
     def laplacian_closure(self, r, v_bias, h_bias, kernel):
-        kernel = self.backend.expand_dims(kernel, axis=0)
-        print("stopped here")
-        _expit = self.sigmoid(h_bias + (r @ kernel) * self._sigma2_factor)
+        _expit = self.sigmoid(
+            h_bias + (r @ kernel) * self._sigma2_factor
+        )  # r @ kernel is the r1 * W1 + r2 * W2 + ...
         _expos = self.sigmoid(-h_bias - (r @ kernel) * self._sigma2_factor)
-        kernel2 = self.backend.square(kernel)
-        # print("r", r.shape)
-        print("kernel2", kernel2.shape)
-        # print("expit", _expit.shape)
-        # print("expit", _expit.shape)
+
+        kernel2 = self.backend.square(kernel)  # shape: (4, 4) if 2d
+
+        # Element-wise multiplication, results in shape: (batch_size, 4)
         exp_prod = _expos * _expit
-        print("exp_prod", exp_prod.shape)
-        gr = -self._sigma2 + self._sigma4 * kernel2 @ exp_prod
+
+        # Use einsum for the batched matrix-vector product, kernel2 @ exp_prod for each item in the batch
+        # This computes the dot product for each vector in exp_prod with kernel2, resulting in shape: (batch_size, 4)
+        gr = -self._sigma2 + self._sigma4 * np.einsum("ij,bj->bi", kernel2, exp_prod)
         gr *= self._factor
-        return gr
+        return gr.sum(axis=-1)  # sum over the coordinates
 
     # @partial(jax.jit, static_argnums=(0,))
     def laplacian_closure_jax(self, r, v_bias, h_bias, kernel):
@@ -275,9 +272,6 @@ class RBM:
 
         grad_v_bias = (r - v_bias) * self._sigma2 * self._factor
 
-        print("grad_v_bias", grad_v_bias.shape)
-        print("grad_h_bias", grad_h_bias.shape)
-        print("grad_kernel", grad_kernel.shape)
         return grad_v_bias, grad_h_bias, grad_kernel
 
     # @partial(jax.jit, static_argnums=(0,))

@@ -128,11 +128,7 @@ class HarmonicOscillator(Hamiltonian):
     def _local_kinetic_energy(self, wf, r):
         """Evaluate the local kinetic energy of the system"""
 
-        _laplace = wf.laplacian(
-            r
-        )  # MAYBE NEED self.backend.sum(wf.laplacian(r), axis=-1)  # summing over all particles
-        # print("> > > > Laplacian success (shape", _laplace.shape, ")")
-
+        _laplace = wf.laplacian(r)
         _grad = wf.grad_wf(r)
 
         _grad2 = self.backend.sum(_grad * _grad, axis=1)  # summing over all particles

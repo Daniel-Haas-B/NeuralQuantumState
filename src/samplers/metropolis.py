@@ -1,7 +1,7 @@
 # import jax
 import numpy as np
 from nqs.utils import advance_PRNG_state
-from nqs.utils import State  # , BatchState
+from nqs.utils import State
 
 from .sampler import Sampler
 

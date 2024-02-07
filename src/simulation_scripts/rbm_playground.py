@@ -27,7 +27,7 @@ eta = 0.1
 
 training_cycles = 250  # this is cycles for the NN
 mcmc_alg = "m"
-backend = "numpy"
+backend = "jax"
 optimizer = "adam"
 batch_size = 100
 detailed = True

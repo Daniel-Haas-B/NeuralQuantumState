@@ -54,7 +54,7 @@ class VMC:
             self.grad_wf_closure = self.grad_wf_closure_jax
             self.grads_closure = self.grads_closure_jax
             self.laplacian_closure = self.laplacian_closure_jax
-            # self._jit_functions()
+            self._jit_functions()
         else:
             raise ValueError("Invalid backend:", backend)
 
@@ -86,7 +86,7 @@ class VMC:
         """
         Return a function that computes the log of the wavefunction squared
         """
-        return self.wf(r, alpha).sum()  # maybe there should be a factor of 2 here?
+        return 2 * self.wf(r, alpha).sum()
 
     def logprob(self, r):
         """

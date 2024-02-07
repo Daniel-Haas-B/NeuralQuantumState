@@ -24,18 +24,18 @@ jax.config.update("jax_platform_name", "cpu")
 
 # Config
 output_filename = "../data/playground.csv"
-nparticles = 1
-dim = 1
+nparticles = 2
+dim = 2
 
 
 nsamples = int(2**15)  # 2**18 = 262144
 nchains = 2
 eta = 0.1
 
-training_cycles = 100_000  # this is cycles for the ansatz
+training_cycles = 500  # this is cycles for the ansatz
 mcmc_alg = "m"
 optimizer = "adam"
-batch_size = 200
+batch_size = 100
 detailed = True
 wf_type = "ffnn"
 seed = 42
@@ -64,9 +64,9 @@ system.set_wf(
     layer_sizes=[
         5,
         3,
-        1,  # should always be this
+        1,  # should always be one
     ],  # now includes input and output layers
-    activations=["gelu", "gelu", "linear"],
+    activations=["elu", "elu", "linear"],
 )
 
 system.set_sampler(mcmc_alg=mcmc_alg, scale=1)
@@ -90,7 +90,7 @@ history = system.train(
     seed=seed,
     history=True,
     tune=False,
-    grad_clip=10,
+    grad_clip=0,
 )
 
 epochs = np.arange(len(history["energy"]))
@@ -125,7 +125,6 @@ info_data = (
             "training_cycles",
             "training_batch",
             "Opti",
-
         ]
     ]
     .iloc[0]
@@ -162,12 +161,12 @@ print(df_all)
 
 # plot probability
 
-positions, one_body_density = system.sample(
-    2**12, nchains=1, seed=seed, one_body_density=True
-)
+# positions, one_body_density = system.sample(
+#     2**12, nchains=1, seed=seed, one_body_density=True
+# )
 
-plt.plot(positions, one_body_density)
-plt.show()
+# plt.plot(positions, one_body_density)
+# plt.show()
 
 
 # plot_psi2(system.wf, num_points=300, r_min=-5, r_max=5)

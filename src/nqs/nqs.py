@@ -313,14 +313,13 @@ class NQS:
             expval_energy = np.mean(energies)
 
             for key in param_keys:
-                # print("======== key: ", key)
                 grad_np = np.array(grads_dict[key][0])
                 if self._grad_clip:
                     grad_norm = np.linalg.norm(grad_np)
 
                     if grad_norm > self._grad_clip:
                         grad_np = self._grad_clip * grad_np / grad_norm
-                    # have to change grads_dict[key] as well
+
                     grads_dict[key] = grad_np
 
                 new_shape = (batch_size,) + (1,) * (
@@ -328,7 +327,6 @@ class NQS:
                 )  # Subtracting 1 because the first dimension is already provided by batch_size
                 energies = energies.reshape(new_shape)
 
-                # energies = np.expand_dims(energies, axis=1) if energies.ndim == 1 else energies
                 expval_energies_dict[key] = np.mean(
                     energies * grad_np, axis=0
                 )  # TODO: check this

@@ -20,9 +20,6 @@ class Gd(Optimizer):
 
     def step(self, params, grads, sr_matrices=None):
         """Update the parameters. Maybe performance bottleneck?"""
-        print("EVOLVING GD")
-        print("params before", params)
-
         if sr_matrices is not None:
             for key, sr_matrix in sr_matrices.items():
                 # for the love of god change this later
@@ -33,5 +30,3 @@ class Gd(Optimizer):
         for key, grad in grads.items():
             self.v[key] = self.gamma * self.v[key] + grad
             params.set([key], [params.get(key) - self.eta * self.v[key]])
-
-        print("params after", params)

@@ -1,6 +1,7 @@
 import jax
 import jax.numpy as jnp
 import numpy as np
+from jax import vmap
 from nqs.utils import Parameter
 from nqs.utils import State
 from scipy.special import expit
@@ -28,7 +29,7 @@ class FFNN:
         """
         Initializes the FFNN Neural Network Quantum State.
         We here assume Ψ(x) = exp(FFNN(x)) so logΨ(x) = FFNN(x).
-        Note that we are only going to use JAX backend for this.
+        Note that we are only going to use JAX backend for this, because we do not want to derive the gradients by hand.
 
         Args:
         - nparticles (int): Number of particles.
@@ -61,7 +62,7 @@ class FFNN:
         """Always initialize all as rectangle for now"""
         self.params = Parameter()  # Initialize empty Parameter object
 
-        input_size_0 = self._N * self._dim
+        input_size_0 = self._nvisible
         output_size_0 = self._layer_sizes[0]
         # limit_0 = np.sqrt(2 / (input_size_0))
 
@@ -132,6 +133,8 @@ class FFNN:
                 return lambda x: x
             case "exp":
                 return jnp.exp
+            case "elu":
+                return jax.nn.elu
             case _:  # default
                 raise ValueError(f"Invalid activation function {activation_str}")
 
@@ -144,7 +147,6 @@ class FFNN:
         self.backend = jnp
         self.la = jnp.linalg
         self.sigmoid = expit  # jax.nn.sigmoid
-        # self._convert_constants_to_jnp()
         self._jit_functions()
 
     def __str__(self):
@@ -175,7 +177,7 @@ class FFNN:
             "grad_wf_closure",
             "laplacian_closure",
             "grads_closure",
-            "forward",
+            "logprob_closure",
             "wf",
             "grad_wf_closure",
             "grads_closure",
@@ -185,9 +187,25 @@ class FFNN:
             setattr(self, func_name, jax.jit(getattr(self, func_name)))
         return self
 
-    def forward(self, x, params):
+    def log_wf(self, x, params):
+        """
+        This is the forward pass of the FFNN
+
+        x: (batch_size, part * dim) array
+
+        example:
+
+        W_0 is (part * dim, neurons_layer_0)
+        x @ W_0 is (batch_size, neurons_layer_0)
+        then b_0 is broadcasted to (batch_size, neurons_layer_0)
+        layer_0 output= activation(x @ W_0 + b_0) which is size (batch_size, neurons_layer_0)
+        ...
+        W_n is (neurons_layer_n-1, 1)
+        returns: (batch_size,) array
+        """
+        # print("shape of x inside log_wf", x.shape)
         for i in range(0, len(self._layer_sizes)):
-            x = params.get(f"W{i}").T @ x + params.get(f"b{i}")
+            x = x @ params.get(f"W{i}") + params.get(f"b{i}")
 
             # Batch Normalization
             # mean = x.mean(axis=0, keepdims=True)
@@ -196,15 +214,16 @@ class FFNN:
 
             x = self.activation(self._activations[i])(x)
 
-        return x
+        # print("shape before squeeze", x.shape)
+        # print("shape after squeeze", x.squeeze(-1).shape)
 
-    def log_wf(self, r, params):
-        """Compute the logarithm of the wave function from the neural network output."""
-        return self.forward(r, params).sum(axis=0)
+        return x.squeeze(-1)
 
     def wf(self, r, params):
         """Compute the wave function from the neural network output.
         this is actually
+
+        This looks stupid but it is just to make things the same structure as the RBM and outside classes
         """
         return self.log_wf(r, params)
 
@@ -212,15 +231,11 @@ class FFNN:
     def grad_wf_closure(self, r, params):
         """
         This is the autograd version of the gradient of the logarithm of the wave function w.r.t. the coordinates
-
-        we can optimize this by
-        grad_log_fun = grad(
-            self._log_wf
-        )  # grad of log(wf) due to the property of exponential
-        return grad_log_fun(r) * self.wf(r)  # Chain rule to get grad of wf itself like we are doing in the laplacian
         """
         grad_wf = jax.grad(self.wf, argnums=0)
-        return grad_wf(r, params)
+
+        return vmap(grad_wf, in_axes=(0, None))(r, params)
+        # return grad_wf(r, params)
 
     def grad_wf(self, r):
         """
@@ -239,16 +254,12 @@ class FFNN:
         def wrapped_wf(r_):
             return self.wf(r_, params)
 
-        grad_wf = jax.grad(wrapped_wf)
-        hessian_wf = jax.jacfwd(
-            grad_wf
-        )  # This computes the Jacobian of the gradient, which is the Hessian
+        hessian_wf = vmap(jax.hessian(wrapped_wf))
 
-        hessian_at_r = hessian_wf(r)
+        def trace_fn(x):
+            return jnp.trace(x)
 
-        # If you want the Laplacian, you'd sum the diagonal of the Hessian.
-        # This assumes r is a vector and you want the Laplacian w.r.t. each element.
-        laplacian = jnp.trace(hessian_at_r)
+        laplacian = vmap(trace_fn)(hessian_wf(r))
 
         return laplacian
 
@@ -260,9 +271,8 @@ class FFNN:
         return self.laplacian_closure(r, self.params)
 
     def grads_closure(self, r, params):
-        grad_fn = jax.grad(self.wf, argnums=1)
+        grad_fn = vmap(jax.grad(self.wf, argnums=1), in_axes=(0, None))
         grad_eval = grad_fn(r, params)  # still a parameter type
-
         return grad_eval
 
     def grads(self, r):

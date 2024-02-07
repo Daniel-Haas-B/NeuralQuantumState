@@ -144,7 +144,10 @@ class RBM:
         return x_v + x_h
 
     def wf(self, r, v_bias, h_bias, kernel):
-        """Evaluate the wave function"""
+        """Evaluate the wave function
+        This factor is 2 because we are evaluating the wave function squared.
+        So p_rbm = |Ψ(r)|^2 = exp(-2 * log(Ψ(r))) which in log domain is -2 * log(Ψ(r))
+        """
 
         return self._factor * self._log_wf(r, v_bias, h_bias, kernel)
 

@@ -72,9 +72,9 @@ class VMC:
 
     def wf(self, r, alpha):
         """
-        Ψ(r)=exp(- ∑_{i=1}^{N} alpha_i r_i * r_i) but in log domain
-        r: (batch_size, N * dim) array so
-        alpha: (batch_size, N * dim) array
+        Ψ(r)=exp(- ∑_{i=1}^{N*DIM} alpha_i r_i * r_i) but in log domain
+        r: (N * dim) array so that r_i is a dim-dimensional vector
+        alpha: (N * dim) array so that alpha_i is a dim-dimensional vector
         """
 
         r_2 = r * r
@@ -100,6 +100,7 @@ class VMC:
             Return a function that computes the gradient of the wavefunction
         # TODO: check if this is correct CHECK DIMS
         """
+
         return -2 * alpha * r  # again, element-wise multiplication
 
     def grad_wf_closure_jax(self, r, alpha):
@@ -129,7 +130,7 @@ class VMC:
 
     def grads(self, r):
         """
-        Compute the gradient of the log of the wavefunction squared
+        Compute the gradient of the log of the wavefunction squared (why squared?)
         """
         alpha = self.params.get("alpha")
         grads_alpha = self.grads_closure(r, alpha)
@@ -142,7 +143,7 @@ class VMC:
         """
         r2 = r * r  # element-wise multiplication
 
-        return -2 * r2.sum(axis=-1)  # sum over particles
+        return -r2
 
     def grads_closure_jax(self, r, alpha):
         """

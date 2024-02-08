@@ -22,10 +22,10 @@ nsamples = int(2**18)  # 2**18 = 262144
 nchains = 1
 eta = 0.1
 
-training_cycles = 100  # this is cycles for the ansatz
-mcmc_alg = "m"
-backend = "numpy"
-optimizer = "sr"
+training_cycles = 1000  # this is cycles for the ansatz
+mcmc_alg = "lmh"
+backend = "jax"
+optimizer = "adam"
 batch_size = 200
 detailed = True
 wf_type = "vmc"

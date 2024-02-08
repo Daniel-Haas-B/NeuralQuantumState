@@ -305,14 +305,13 @@ class NQS:
             energies = self.hamiltonian.local_energy(self.wf, states.positions)
             local_grads_dict = self.wf.grads(states.positions)
 
-            for key in param_keys:
-                grads_dict[key].append(local_grads_dict.get(key))
-
             epoch += 1
             energies = np.array(energies)
             expval_energy = np.mean(energies)
 
             for key in param_keys:
+                grads_dict[key].append(local_grads_dict.get(key))
+
                 grad_np = np.array(grads_dict[key][0])
                 if self._grad_clip:
                     grad_norm = np.linalg.norm(grad_np)
@@ -327,9 +326,7 @@ class NQS:
                 )  # Subtracting 1 because the first dimension is already provided by batch_size
                 energies = energies.reshape(new_shape)
 
-                expval_energies_dict[key] = np.mean(
-                    energies * grad_np, axis=0
-                )  # TODO: check this
+                expval_energies_dict[key] = np.mean(energies * grad_np, axis=0)
                 expval_grad_dict[key] = np.mean(grad_np, axis=0)
 
                 final_grads[key] = 2 * (

@@ -215,50 +215,42 @@ class VMC:
 
         return self.backend.exp(self.logprob(r)) ** 2
 
-    def compute_sr_matrix(self, expval_grads, grads, shift=1e-4):
+    def compute_sr_matrix(self, expval_grads, grads, shift=1e-3):
         """
-        expval_grads and grads should be dictionaries with keys "v_bias", "h_bias", "kernel" in the case of RBM
-        in the case of FFNN we have "weights" and "biases" and "kernel" is not present
-        WIP: for now this does not involve the averages because r will be a single sample
+
         Compute the matrix for the stochastic reconfiguration algorithm
-            for now we do it only for the kernel
-            The expression here is for kernel element W_ij:
-                S_ij,kl = < (d/dW_ij log(psi)) (d/dW_kl log(psi)) > - < d/dW_ij log(psi) > < d/dW_kl log(psi) >
 
-            For bias (V or H) we have:
-                S_i,j = < (d/dV_i log(psi)) (d/dV_j log(psi)) > - < d/dV_i log(psi) > < d/dV_j log(psi) >
+            For alpha vector, we have:
+                S_i,j = < (d/dalpha_i log(psi)) (d/dalpha_j log(psi)) > - < d/dalpha_i log(psi) > < d/dalpha_j log(psi) >
 
 
-            1. Compute the gradient ∂_W log(ψ) using the _grad_kernel function.
-            2. Compute the outer product of the gradient with itself: ∂_W log(ψ) ⊗ ∂_W log(ψ)
+            1. Compute the gradient ∂_alpha log(ψ) using the grads function.
+            2. Compute the outer product of the gradient with itself: ∂_W log(ψ) ⊗ ∂_W log(ψ) )
             3. Compute the expectation value of the outer product over all the samples
             4. Compute the expectation value of the gradient ∂_W log(ψ) over all the samples
             5. Compute the outer product of the expectation value of the gradient with itself: <∂_W log(ψ)> ⊗ <∂_W log(ψ)>
 
-            OBS: < d/dW_ij log(psi) > is already done inside train of the RBM class but we need still the < (d/dW_ij log(psi)) (d/dW_kl log(psi)) >
+            OBS: < d/dW_ij log(psi) > is already done inside train of the NQS class (expval_grads) but we need still the < (d/dW_i log(psi)) (d/dW_j log(psi)) >
         """
         sr_matrices = {}
 
         for key, grad_value in grads.items():
-            grad_value = self.backend.array(
-                grad_value
-            )  # this should be done outside of the function
+            grad_value = self.backend.array(grad_value)[
+                0
+            ]  # this is annoying, but first we need to convert the grads to a numpy or jax array. This zero index is also annoying, but it is because the grads are returned as a list of arrays due to the .items() method.
 
-            if self.backend.ndim(grad_value[0]) == 2:
-                # if key == "kernel":
-                grads_outer = self.backend.einsum(
-                    "nij,nkl->nijkl", grad_value, grad_value
-                )
-            elif self.backend.ndim(grad_value[0]) == 1:
-                # else:
-                grads_outer = self.backend.einsum("ni,nj->nij", grad_value, grad_value)
+            grads_outer = self.backend.einsum(
+                "ni,nj->nij", grad_value, grad_value
+            )  # this is ∂_W log(ψ) ⊗ ∂_W log(ψ) for the batch
+            expval_outer_grad = self.backend.mean(
+                grads_outer, axis=0
+            )  # this is < (d/dW_i log(psi)) (d/dW_j log(psi)) > over the batch
+            outer_expval_grad = self.backend.einsum(
+                "i,j->ij", expval_grads[key], expval_grads[key]
+            )  # this is <∂_W log(ψ)> ⊗ <∂_W log(ψ)>
 
-            expval_outer_grad = self.backend.mean(grads_outer, axis=0)
-            outer_expval_grad = self.backend.outer(expval_grads[key], expval_grads[key])
+            sr_mat = expval_outer_grad - outer_expval_grad
 
-            sr_mat = (
-                expval_outer_grad.reshape(outer_expval_grad.shape) - outer_expval_grad
-            )
             sr_matrices[key] = sr_mat + shift * self.backend.eye(sr_mat.shape[0])
 
         return sr_matrices

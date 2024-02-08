@@ -203,7 +203,6 @@ class FFNN:
         W_n is (neurons_layer_n-1, 1)
         returns: (batch_size,) array
         """
-        # print("shape of x inside log_wf", x.shape)
         for i in range(0, len(self._layer_sizes)):
             x = x @ params.get(f"W{i}") + params.get(f"b{i}")
 

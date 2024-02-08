@@ -91,7 +91,6 @@ class RBM:
             self.grad_wf_closure = self.grad_wf_closure_jax
             self.grads_closure = self.grads_closure_jax
             self.laplacian_closure = self.laplacian_closure_jax
-            # self._convert_constants_to_jnp()
             self._jit_functions()
         else:
             raise ValueError(f"Invalid backend: {backend}")
@@ -106,6 +105,7 @@ class RBM:
             "laplacian_closure",
             "_precompute",
             "_softplus",
+            "compute_sr_matrix",
         ]
         for func_name in functions_to_jit:
             setattr(self, func_name, jax.jit(getattr(self, func_name)))
@@ -126,7 +126,6 @@ class RBM:
 
     def _log_wf(self, r, v_bias, h_bias, kernel):
         """Logarithmic gaussian-binary RBM"""
-
         # visible layer
         x_v = self.la.norm(
             r - v_bias, axis=-1
@@ -135,7 +134,7 @@ class RBM:
         x_v *= -x_v * self._sigma2_factor2  # this will also be broadcasted correctly
 
         # hidden layer
-        # TODO: note I remove the transpose in the r here. This could be wrong.
+
         x_h = self._softplus(
             h_bias + (r @ kernel) * self._sigma2_factor
         )  # potential failure point

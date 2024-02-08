@@ -40,7 +40,8 @@ class MetroHastings(Sampler):
 
             # Compute drift force at current positions
             F = self.hamiltonian.drift_force(wf, state.positions)
-
+            print(F)
+            exit()
             # Sample proposal positions, i.e., move walkers
             proposals = (
                 state.positions

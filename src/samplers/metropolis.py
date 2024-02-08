@@ -33,7 +33,6 @@ class Metropolis(Sampler):
         # Advance RNG batch_size times
         # create empty array of states of size batch_size
 
-        # print("state_batch", state_batch)
         for i in range(batch_size):
             state = state_batch[i - 1]
             next_gen = advance_PRNG_state(seed, state.delta)

@@ -156,6 +156,8 @@ class HarmonicOscillator(Hamiltonian):
 
     def drift_force(self, wf, r):
         """Drift force at each particle's location"""
+        # reashape r to be (1, rshape)
+        r = r.reshape(1, -1)
 
         F = 2 * wf.grad_wf(r)
 

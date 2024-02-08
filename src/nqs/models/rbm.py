@@ -178,7 +178,8 @@ class RBM:
 
         _expit = self.sigmoid(h_bias + (r @ kernel) * self._sigma2_factor)
 
-        gr = -(r - v_bias) + self.backend.einsum("ij,bj->bi", kernel, _expit)
+        einsum_str = "ij,bj->bi"  # if r.ndim == 2 else "ij,j->i"  # TODO: CHANGE THIS
+        gr = -(r - v_bias) + self.backend.einsum(einsum_str, kernel, _expit)
         gr *= self._sigma2 * self._factor
         return gr
 
@@ -189,7 +190,6 @@ class RBM:
         """
 
         grad_wf_closure = jax.grad(self.wf, argnums=0)
-
         return vmap(grad_wf_closure, in_axes=(0, None, None, None))(
             r, v_bias, h_bias, kernel
         )

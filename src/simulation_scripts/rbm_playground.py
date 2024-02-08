@@ -26,9 +26,9 @@ nchains = 2
 eta = 0.01
 
 training_cycles = 50  # this is cycles for the NN
-mcmc_alg = "m"
-backend = "numpy"
-optimizer = "sr"
+mcmc_alg = "lmh"
+backend = "jax"
+optimizer = "adam"
 batch_size = 50
 detailed = True
 wf_type = "rbm"

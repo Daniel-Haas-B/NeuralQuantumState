@@ -32,14 +32,29 @@ class State:
 
     def create_batch_of_states(self, batch_size):
         """
-        # TODO: check if batch states are immutable because of the jnp
+        # TODO: there might be a more efficient way to do this
         """
         # Replicate each property of the state
-        batch_positions = jnp.array([self.positions] * batch_size)
-        batch_logp = jnp.array([self.logp] * batch_size)
-        batch_n_accepted = jnp.array([self.n_accepted] * batch_size)
-        batch_delta = jnp.array([self.delta] * batch_size)
+
+        batch_positions = np.array([self.positions] * batch_size)
+        batch_logp = np.array([self.logp] * batch_size)
+        batch_n_accepted = np.array([self.n_accepted] * batch_size)
+        batch_delta = np.array([self.delta] * batch_size)
 
         # Create a new State object with these batched properties
         batch_state = State(batch_positions, batch_logp, batch_n_accepted, batch_delta)
         return batch_state
+
+    def __repr__(self):
+        return f"State(positions={self.positions}, logp={self.logp}, n_accepted={self.n_accepted}, delta={self.delta})"
+
+    def __getitem__(self, key):
+        return State(
+            self.positions[key], self.logp[key], self.n_accepted[key], self.delta[key]
+        )
+
+    def __setitem__(self, key, value):
+        self.positions[key] = value.positions
+        self.logp[key] = value.logp
+        self.n_accepted[key] = value.n_accepted
+        self.delta[key] = value.delta

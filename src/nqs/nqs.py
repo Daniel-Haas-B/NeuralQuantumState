@@ -10,6 +10,7 @@ from nqs.utils import generate_seed_sequence
 from nqs.utils import setup_logger
 from nqs.utils import State
 import jax
+import time
 
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
@@ -284,109 +285,93 @@ class NQS:
 
         expval_energies_dict = {key: None for key in param_keys}
         expval_grad_dict = {key: None for key in param_keys}
-        steps_before_optimize = batch_size
+        # steps_before_optimize = batch_size
 
         state = self.wf.state
         state = State(state.positions, state.logp, 0, state.delta)
 
+        states = state.create_batch_of_states(batch_size=batch_size)
         # equilibrate, burn in lets see if makes a difference
         # for _ in range(1000):
-        #     state = self._sampler.step(self.wf, state, seed_seq)
+        #    state = self._sampler.step(self.wf, state, seed_seq)
 
         grads_dict = {key: [] for key in param_keys}
         epoch = 0
         for _ in t_range:
-            # print("r inside train", state.positions)
-            state = self._sampler.step(self.wf, state, seed_seq)
-            loc_energy = self.hamiltonian.local_energy(self.wf, state.positions)
-            energies.append(loc_energy)
-            local_grads_dict = self.wf.grads(state.positions)
+            # this object contains the states of all the sequence of steps
+            states = self._sampler.step(
+                self.wf, states, seed_seq, batch_size=batch_size
+            )
+            energies = self.hamiltonian.local_energy(self.wf, states.positions)
+            local_grads_dict = self.wf.grads(states.positions)
+
+            epoch += 1
+            energies = np.array(energies)
+            expval_energy = np.mean(energies)
 
             for key in param_keys:
                 grads_dict[key].append(local_grads_dict.get(key))
 
-            steps_before_optimize -= 1
-            if steps_before_optimize == 0:
-                epoch += 1
-                energies = np.array(energies)
-                print("Energy: ", energies)
-                expval_energy = np.mean(energies)
-                print("expval_energy", expval_energy)
+                grad_np = np.array(grads_dict[key][0])
+                if self._grad_clip:
+                    grad_norm = np.linalg.norm(grad_np)
 
-                for key in param_keys:
-                    grad_np = np.array(grads_dict[key])
+                    if grad_norm > self._grad_clip:
+                        grad_np = self._grad_clip * grad_np / grad_norm
 
-                    if self._grad_clip:
-                        grad_norm = np.linalg.norm(grad_np)
+                    grads_dict[key] = grad_np
 
-                        if grad_norm > self._grad_clip:
-                            # print ("Gradient norm is larger than grad_clip, clipping")
-                            grad_np = self._grad_clip * grad_np / grad_norm
+                new_shape = (batch_size,) + (1,) * (
+                    grad_np.ndim - 1
+                )  # Subtracting 1 because the first dimension is already provided by batch_size
+                energies = energies.reshape(new_shape)
 
-                        # have to change grads_dict[key] as well
-                        grads_dict[key] = grad_np
+                expval_energies_dict[key] = np.mean(energies * grad_np, axis=0)
+                expval_grad_dict[key] = np.mean(grad_np, axis=0)
 
-                    new_shape = (batch_size,) + (1,) * (
-                        grad_np.ndim - 1
-                    )  # Subtracting 1 because the first dimension is already provided by batch_size
-                    reshaped_energy = energies.reshape(new_shape)
+                final_grads[key] = 2 * (
+                    expval_energies_dict[key] - expval_energy * expval_grad_dict[key]
+                )
 
-                    expval_energies_dict[key] = np.mean(
-                        reshaped_energy * grad_np, axis=0
-                    )
+            if self._optimizer.__class__.__name__ == "Sr":
+                self.sr_matrices = self.wf.compute_sr_matrix(
+                    expval_grad_dict, grads_dict
+                )
 
-                    expval_grad_dict[key] = np.mean(grad_np, axis=0)
+            # Descent
+            self._optimizer.step(
+                self.wf.params, final_grads, self.sr_matrices
+            )  # changes wf params inplace
 
-                    final_grads[key] = 2 * (
-                        expval_energies_dict[key]
-                        - expval_energy * expval_grad_dict[key]
-                    )
-                    print("final_grads", final_grads[key])
+            if self._history:
+                grad_norms = [np.linalg.norm(final_grads[key]) for key in param_keys]
+                grad_norms = np.mean(grad_norms)
 
-                if self._optimizer.__class__.__name__ == "Sr":
-                    self.sr_matrices = self.wf.compute_sr_matrix(
-                        expval_grad_dict, grads_dict
-                    )
+                self._history["energy"].append(expval_energy)
+                self._history["grads"].append(grad_norms)
 
-                # Descent
-                self._optimizer.step(
-                    self.wf.params, final_grads, self.sr_matrices
-                )  # changes wf params inplace
-                print("params", self.wf.params)
-                if self._history:
-                    grad_norms = [
-                        np.linalg.norm(final_grads[key]) for key in param_keys
-                    ]
-                    grad_norms = np.mean(grad_norms)
+                self._agent.log(
+                    {"abs(energy - 3)": np.abs(expval_energy - 3)},
+                    epoch,  # change this if not 2 particles 2 dimensions
+                ) if self._agent else None
+                self._agent.log({"grads": grad_norms}, epoch) if self._agent else None
+                # self._agent.log(
+                #     {"scale": self.scale}, epoch
+                # ) if self._agent else None
 
-                    self._history["energy"].append(expval_energy)
-                    self._history["grads"].append(grad_norms)
+                # if grad_norms < 10**-10:
+                #     if self.logger is not None:
+                #         self.logger.info("Gradient norm is zero, stopping training")
+                #     break
 
-                    self._agent.log(
-                        {"abs(energy - 3)": np.abs(expval_energy - 3)},
-                        epoch,  # change this if not 2 particles 2 dimensions
-                    ) if self._agent else None
-                    self._agent.log(
-                        {"grads": grad_norms}, epoch
-                    ) if self._agent else None
-                    # self._agent.log(
-                    #     {"scale": self.scale}, epoch
-                    # ) if self._agent else None
+            if self._tune:
+                self.tune()
 
-                    # if grad_norms < 10**-10:
-                    #     if self.logger is not None:
-                    #         self.logger.info("Gradient norm is zero, stopping training")
-                    #     break
+            final_grads = {key: None for key in param_keys}
+            grads_dict = {key: [] for key in param_keys}
 
-                if self._tune:
-                    self.tune()
+        self.state = states[-1]  # last state
 
-                energies = []
-                final_grads = {key: None for key in param_keys}
-                grads_dict = {key: [] for key in param_keys}
-                steps_before_optimize = batch_size
-
-        self.state = state
         self._is_trained_ = True
 
         if self.logger is not None:
@@ -397,7 +382,7 @@ class NQS:
 
     def sample(self, nsamples, nchains=1, seed=None, one_body_density=False):
         """helper for the sample method from the Sampler class"""
-
+        t0 = time.time()
         self._is_initialized()
         self._is_trained()
         self.hamiltonian.turn_reg_off()
@@ -426,8 +411,10 @@ class NQS:
             ].reset_index(drop=True)
 
             self._results = pd.concat([system_info_repeated, sample_results], axis=1)
-
+            t1 = time.time()
+            print("Sampling time: ", t1 - t0)
             return self._results
+
         else:
             sample_results = self._sampler.sample_obd(
                 self.wf,

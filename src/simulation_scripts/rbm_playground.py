@@ -23,16 +23,17 @@ nhidden = 4
 
 nsamples = int(2**18)  # 2**18 = 262144
 nchains = 2
-eta = 0.1
+eta = 0.01
 
-training_cycles = [250_000]  # this is cycles for the NN
-mcmc_alg = "m"
+training_cycles = 50  # this is cycles for the NN
+mcmc_alg = "lmh"
 backend = "jax"
-optimizer = "sr"
-batch_size = 100
+optimizer = "adam"
+batch_size = 50
 detailed = True
 wf_type = "rbm"
 seed = 142
+int_type = "Coulomb"  # None
 
 dfs_mean = []
 df = []
@@ -62,10 +63,10 @@ system.set_wf(
 system.set_sampler(mcmc_alg=mcmc_alg, scale=1)
 system.set_hamiltonian(
     type_="ho",
-    int_type="Coulomb",
+    int_type=int_type,
     omega=1.0,
     r0_reg=5,
-    training_cycles=training_cycles[0],
+    training_cycles=training_cycles,
 )
 system.set_optimizer(
     optimizer=optimizer,
@@ -77,7 +78,7 @@ system.set_optimizer(
 )
 
 history = system.train(
-    max_iter=training_cycles[0],
+    max_iter=training_cycles,
     batch_size=batch_size,
     early_stop=False,
     history=True,
@@ -119,7 +120,6 @@ info_data = (
             "training_cycles",
             "training_batch",
             "Opti",
-
         ]
     ]
     .iloc[0]

@@ -22,9 +22,9 @@ nsamples = int(2**18)  # 2**18 = 262144
 nchains = 1
 eta = 0.1
 
-training_cycles = 1000  # this is cycles for the ansatz
-mcmc_alg = "m"
-backend = "jax"
+training_cycles = 5  # this is cycles for the ansatz
+mcmc_alg = "lmh"
+backend = "numpy"
 optimizer = "adam"
 batch_size = 200
 detailed = True
@@ -106,16 +106,16 @@ info_data = (
 data = {**mean_data, **info_data}  # ** unpacks the dictionary
 df_mean = pd.DataFrame([data])
 dfs_mean.append(df_mean)
+end = time.time()
+print((end - start))
+epochs = np.arange(training_cycles)
 
-epochs = np.arange(training_cycles)[::batch_size]
 plt.plot(epochs, history["energy"], label="energy")
 plt.legend()
 plt.show()
 plt.plot(epochs, history["grads"], label="gradient_norm")
 plt.legend()
 plt.show()
-end = time.time()
-print((end - start))
 
 
 df_final = pd.concat(dfs_mean)

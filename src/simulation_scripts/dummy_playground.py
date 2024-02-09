@@ -8,7 +8,8 @@ import pandas as pd
 import seaborn as sns
 
 from nqs import nqs
-from nqs.utils import plot_psi2
+
+# from nqs.utils import plot_psi2
 
 
 jax.config.update("jax_enable_x64", True)
@@ -22,7 +23,7 @@ nsamples = int(2**10)  # 2**18 = 262144
 nchains = 1
 eta = 0.1
 
-training_cycles = 1  # this is cycles for the ansatz
+training_cycles = 5  # this is cycles for the ansatz
 mcmc_alg = "m"
 backend = "jax"
 optimizer = "adam"
@@ -107,7 +108,7 @@ data = {**mean_data, **info_data}  # ** unpacks the dictionary
 df_mean = pd.DataFrame([data])
 dfs_mean.append(df_mean)
 
-epochs = np.arange(training_cycles)[::batch_size]
+epochs = np.arange(training_cycles)
 plt.plot(epochs, history["energy"], label="energy")
 plt.legend()
 plt.show()
@@ -138,57 +139,10 @@ else:
 plt.xlabel("Chain")
 plt.ylabel("Energy")
 plt.show()
-
+exit()
 positions, one_body_density = system.sample(
     nsamples, nchains=1, seed=seed, one_body_density=True
 )
 
 plt.plot(positions, one_body_density)
 plt.show()
-
-
-# system_omega_2 = nqs.NQS(
-#     nqs_repr="psi",
-#     backend=backend,
-#     log=True,
-#     logger_level="INFO",
-#     use_sr=False,  # Assuming you want to keep Stochastic Reconfiguration the same
-#     seed=seed,
-# )
-
-# system_omega_2.set_wf(
-#     wf_type,
-#     nparticles,
-#     dim,
-#     nhidden=nhidden,
-#     sigma2=1.0,
-# )
-
-# system_omega_2.set_sampler(mcmc_alg=mcmc_alg, scale=1.0)
-# system_omega_2.set_hamiltonian(type_="ho", int_type="Coulomb", omega=2.0)  # Changed omega to 2
-# system_omega_2.set_optimizer(
-#     optimizer=optimizer,
-#     eta=eta,
-#     beta1=0.9,
-#     beta2=0.999,
-#     epsilon=1e-8,
-# )
-
-# system_omega_2.train(
-#     max_iter=training_cycles[0],
-#     batch_size=batch_size,
-#     early_stop=False,
-#     seed=seed,
-# )
-
-# system_omega_2.sample(nsamples, nchains=nchains, seed=seed)
-
-# # Plotting psi2 for both wave functions
-# plt.figure(figsize=(10, 6))
-plot_psi2(system.wf, r_min=-4, r_max=4, num_points=300)
-# plot_psi2(system_omega_2.wf, r_min=-4, r_max=4, num_points=300)
-plt.legend()
-plt.xlabel("Position")
-plt.ylabel("Psi^2")
-# plt.title("Comparison of Psi^2 for Different Omega Values")
-# plt.show()

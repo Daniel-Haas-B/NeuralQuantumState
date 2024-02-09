@@ -1,9 +1,11 @@
 import jax
 import jax.numpy as jnp
 import numpy as np
+from jax import vmap
 from nqs.utils import Parameter
 from nqs.utils import State
 from scipy.special import expit
+
 
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
@@ -89,32 +91,9 @@ class RBM:
             self.grad_wf_closure = self.grad_wf_closure_jax
             self.grads_closure = self.grads_closure_jax
             self.laplacian_closure = self.laplacian_closure_jax
-            # self._convert_constants_to_jnp()
             self._jit_functions()
         else:
             raise ValueError(f"Invalid backend: {backend}")
-
-    def clone(self):
-        """Returns a copy of the object"""
-        clone = self.__class__(
-            self._N,
-            self._dim,
-            self._nhidden,
-            self._factor,
-            self._sigma2,
-            self.rng,
-            self.log,
-            self.logger,
-            self.backend,
-        )
-
-        clone.params = self.params
-        return clone
-
-    def _convert_constants_to_jnp(self):
-        constants = ["_factor", "_rbm_psi_repr", "_sigma2", "_sigma4", "_sigma2_factor"]
-        for const in constants:
-            setattr(self, const, jnp.float64(getattr(self, const)))
 
     def _jit_functions(self):
         functions_to_jit = [
@@ -126,6 +105,7 @@ class RBM:
             "laplacian_closure",
             "_precompute",
             "_softplus",
+            "compute_sr_matrix",
         ]
         for func_name in functions_to_jit:
             setattr(self, func_name, jax.jit(getattr(self, func_name)))
@@ -146,22 +126,29 @@ class RBM:
 
     def _log_wf(self, r, v_bias, h_bias, kernel):
         """Logarithmic gaussian-binary RBM"""
-
         # visible layer
-        x_v = self.la.norm(r - v_bias)
-        x_v *= -x_v * self._sigma2_factor2
+        x_v = self.la.norm(
+            r - v_bias, axis=-1
+        )  # axis = -1 means the last axis which is correct no matter the dimension of r
+
+        x_v *= -x_v * self._sigma2_factor2  # this will also be broadcasted correctly
 
         # hidden layer
-        x_h = self._softplus(h_bias + (r.T @ kernel) * self._sigma2_factor)
+
+        x_h = self._softplus(
+            h_bias + (r @ kernel) * self._sigma2_factor
+        )  # potential failure point
         x_h = self.backend.sum(x_h, axis=-1)
 
         return x_v + x_h
 
     def wf(self, r, v_bias, h_bias, kernel):
-        """Evaluate the wave function"""
-        return (
-            self._factor * self._log_wf(r, v_bias, h_bias, kernel).sum()
-        )  # we sum because we are in the log domain
+        """Evaluate the wave function
+        This factor is 2 because we are evaluating the wave function squared.
+        So p_rbm = |Ψ(r)|^2 = exp(-2 * log(Ψ(r))) which in log domain is -2 * log(Ψ(r))
+        """
+
+        return self._factor * self._log_wf(r, v_bias, h_bias, kernel)
 
     def pdf(self, r):
         """
@@ -181,15 +168,18 @@ class RBM:
             self.params.get("h_bias"),
             self.params.get("kernel"),
         )
-        # v_bias, h_bias, kernel = self.params.get(["v_bias", "h_bias", "kernel"])
+
         return self.logprob_closure(r, v_bias, h_bias, kernel)
 
     def grad_wf_closure(self, r, v_bias, h_bias, kernel):
         """
         This is the gradient of the logarithm of the wave function w.r.t. the coordinates
         """
+
         _expit = self.sigmoid(h_bias + (r @ kernel) * self._sigma2_factor)
-        gr = -(r - v_bias) + kernel @ _expit
+
+        einsum_str = "ij,bj->bi"  # if r.ndim == 2 else "ij,j->i"  # TODO: CHANGE THIS
+        gr = -(r - v_bias) + self.backend.einsum(einsum_str, kernel, _expit)
         gr *= self._sigma2 * self._factor
         return gr
 
@@ -199,9 +189,10 @@ class RBM:
         This is the autograd version of the gradient of the logarithm of the wave function w.r.t. the coordinates
         """
 
-        grad_wf = jax.grad(self.wf, argnums=0)
-
-        return grad_wf(r, v_bias, h_bias, kernel)
+        grad_wf_closure = jax.grad(self.wf, argnums=0)
+        return vmap(grad_wf_closure, in_axes=(0, None, None, None))(
+            r, v_bias, h_bias, kernel
+        )
 
     def grad_wf(self, r):
         """
@@ -212,17 +203,26 @@ class RBM:
             self.params.get("h_bias"),
             self.params.get("kernel"),
         )
-        # v_bias, h_bias, kernel = self.params.get(["v_bias", "h_bias", "kernel"])
-        return self.grad_wf_closure(r, v_bias, h_bias, kernel)
+        grads = self.grad_wf_closure(r, v_bias, h_bias, kernel)
+
+        return grads
 
     def laplacian_closure(self, r, v_bias, h_bias, kernel):
-        _expit = self.sigmoid(h_bias + (r @ kernel) * self._sigma2_factor)
+        _expit = self.sigmoid(
+            h_bias + (r @ kernel) * self._sigma2_factor
+        )  # r @ kernel is the r1 * W1 + r2 * W2 + ...
         _expos = self.sigmoid(-h_bias - (r @ kernel) * self._sigma2_factor)
-        kernel2 = self.backend.square(kernel)
+
+        kernel2 = self.backend.square(kernel)  # shape: (4, 4) if 2d
+
+        # Element-wise multiplication, results in shape: (batch_size, 4)
         exp_prod = _expos * _expit
-        gr = -self._sigma2 + self._sigma4 * kernel2 @ exp_prod
+
+        # Use einsum for the batched matrix-vector product, kernel2 @ exp_prod for each item in the batch
+        # This computes the dot product for each vector in exp_prod with kernel2, resulting in shape: (batch_size, 4)
+        gr = -self._sigma2 + self._sigma4 * np.einsum("ij,bj->bi", kernel2, exp_prod)
         gr *= self._factor
-        return gr
+        return gr.sum(axis=-1)  # sum over the coordinates
 
     # @partial(jax.jit, static_argnums=(0,))
     def laplacian_closure_jax(self, r, v_bias, h_bias, kernel):
@@ -233,16 +233,12 @@ class RBM:
         def wrapped_wf(r_):
             return self.wf(r_, v_bias, h_bias, kernel)
 
-        grad_wf = jax.grad(wrapped_wf)
-        hessian_wf = jax.jacfwd(
-            grad_wf
-        )  # This computes the Jacobian of the gradient, which is the (trace of the) Hessian.
+        hessian_wf = vmap(jax.hessian(wrapped_wf))
 
-        hessian_at_r = hessian_wf(r)
+        def trace_fn(x):
+            return jnp.trace(x)
 
-        # If you want the Laplacian, you'd sum the diagonal of the Hessian.
-        # This assumes r is a vector and you want the Laplacian w.r.t. each element.
-        laplacian = jnp.trace(hessian_at_r)
+        laplacian = vmap(trace_fn)(hessian_wf(r))
 
         return laplacian
 
@@ -252,18 +248,32 @@ class RBM:
             self.params.get("h_bias"),
             self.params.get("kernel"),
         )
-        # v_bias, h_bias, kernel = self.params.get(["v_bias", "h_bias", "kernel"])
-        return self.laplacian_closure(r, v_bias, h_bias, kernel)
+        laplacian = self.laplacian_closure(r, v_bias, h_bias, kernel)
+
+        return laplacian
 
     def grads_closure(self, r, v_bias, h_bias, kernel):
         _expit = self.sigmoid(h_bias + (r @ kernel) * self._sigma2_factor)
+
         grad_h_bias = self._factor * _expit
+
+        # grad_kernel calculation needs to handle the outer product for each pair in the batch
+        # r[:, None] adds an extra dimension making it (batch_size, previous_len, 1)
+        # _expit[:, None] changes _expit to have shape (batch_size, 1, hidden_units),
+        # enabling broadcasting for batch-wise outer product
         grad_kernel = (
-            self._sigma2
-            * r[:, self.backend.newaxis]
-            @ _expit[:, self.backend.newaxis].T
+            self._sigma2 * (r[:, :, None] @ _expit[:, None, :])
         ) * self._factor
+
+        # old
+        # grad_kernel = (
+        #     self._sigma2
+        #     * r[:, self.backend.newaxis]
+        #     @ _expit[:, self.backend.newaxis].T
+        # ) * self._factor
+
         grad_v_bias = (r - v_bias) * self._sigma2 * self._factor
+
         return grad_v_bias, grad_h_bias, grad_kernel
 
     # @partial(jax.jit, static_argnums=(0,))
@@ -271,16 +281,25 @@ class RBM:
         """
         This is the autograd version of the gradient of the logarithm of the wave function w.r.t. the parameters
         """
-
-        grad_v_bias = jax.grad(self.wf, argnums=1)
-        grad_h_bias = jax.grad(self.wf, argnums=2)
-        grad_kernel = jax.grad(self.wf, argnums=3)
-
-        return (
-            grad_v_bias(r, v_bias, h_bias, kernel),
-            grad_h_bias(r, v_bias, h_bias, kernel),
-            grad_kernel(r, v_bias, h_bias, kernel),
+        grad_v_bias = vmap(jax.grad(self.wf, argnums=1), in_axes=(0, None, None, None))(
+            r, v_bias, h_bias, kernel
         )
+
+        grad_h_bias = vmap(jax.grad(self.wf, argnums=2), in_axes=(0, None, None, None))(
+            r, v_bias, h_bias, kernel
+        )
+
+        grad_kernel = vmap(jax.grad(self.wf, argnums=3), in_axes=(0, None, None, None))(
+            r, v_bias, h_bias, kernel
+        )
+
+        grads = (
+            grad_v_bias,
+            grad_h_bias,
+            grad_kernel,
+        )
+
+        return grads
 
     def grads(self, r):
         """Gradients of the wave function w.r.t. the parameters"""
@@ -356,70 +375,3 @@ class RBM:
     def sigma2(self, value):
         self._sigma2 = value
         self._precompute()
-
-    # def tune(
-    #     self,
-    #     tune_iter=20_000,
-    #     tune_interval=500,
-    #     early_stop=False,  # set to True later
-    #     rtol=1e-05,
-    #     atol=1e-08,
-    #     seed=None,
-    #     mcmc_alg=None,
-    # ):
-    #     """
-    #     !! BROKEN NOW due to self.scale
-    #     Tune proposal scale so that the acceptance rate is around 0.5.
-    #     """
-
-    #     state = self.state
-    #     v_bias, h_bias, kernel = self.wf.params.get(["v_bias", "h_bias", "kernel"])
-
-    #     scale = self.scale
-
-    #     if mcmc_alg is not None:
-    #         self._sampler = Sampler(self.mcmc_alg, self.rbm, self.rng, self._log)
-
-    #     # Used to throw warnings if tuned alg mismatch chosen alg
-    #     # in other procedures
-    #     self._tuned_mcmc_alg = self.mcmc_alg
-
-    #     # Config
-    #     # did_early_stop = False
-    #     seed_seq = generate_seed_sequence(seed, 1)[0]
-
-    #     # Reset n_accepted
-    #     state = State(state.positions, state.logp, 0, state.delta)
-
-    #     if self._log:
-    #         t_range = tqdm(
-    #             range(tune_iter),
-    #             desc="[Tuning progress]",
-    #             position=0,
-    #             leave=True,
-    #             colour="green",
-    #         )
-    #     else:
-    #         t_range = range(tune_iter)
-
-    #     steps_before_tune = tune_interval
-
-    #     for i in t_range:
-    #         state = self._sampler.step(state, v_bias, h_bias, kernel, seed_seq)
-    #         steps_before_tune -= 1
-
-    #         if steps_before_tune == 0:
-    #             # Tune proposal scale
-    #             old_scale = scale
-    #             accept_rate = state.n_accepted / tune_interval
-    #             scale = self._sampler.tune_scale(old_scale, accept_rate)
-
-    #             # Reset
-    #             steps_before_tune = tune_interval
-    #             state = State(state.positions, state.logp, 0, state.delta)
-
-    #     # Update shared values
-    #     self.state = state
-    #     self.wf.params.set(["v_bias", "h_bias", "kernel"], [v_bias, h_bias, kernel])
-    #     self.scale = scale
-    #     self._is_tuned_ = True

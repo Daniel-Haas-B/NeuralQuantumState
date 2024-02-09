@@ -1,6 +1,7 @@
 import jax
 import jax.numpy as jnp
 import numpy as np
+from jax import vmap
 from nqs.utils import Parameter
 from nqs.utils import State
 
@@ -41,6 +42,7 @@ class VMC:
                     self.params.get("alpha").size
                     } parameters"""
             self.logger.info(msg)
+        self.grads_performed = 0
 
     def configure_backend(self, backend):
         if backend == "numpy":
@@ -74,23 +76,23 @@ class VMC:
         r: (N * dim) array so that r_i is a dim-dimensional vector
         alpha: (N * dim) array so that alpha_i is a dim-dimensional vector
         """
-        r_2 = r * r  # (N * dim)
 
-        alpha_r_2 = alpha * r_2  # (N * dim)
+        r_2 = r * r
+        alpha_r_2 = alpha * r_2
+
         return -self.backend.sum(alpha_r_2, axis=-1)
 
     def logprob_closure(self, r, alpha):
         """
         Return a function that computes the log of the wavefunction squared
         """
-        return self.wf(r, alpha).sum()  # maybe there should be a factor of 2 here?
+        return 2 * self.wf(r, alpha).sum()
 
     def logprob(self, r):
         """
         Compute the log of the wavefunction squared
         """
-        alpha = self.params.get("alpha")  #
-
+        alpha = self.params.get("alpha")
         return self.logprob_closure(r, alpha)
 
     def grad_wf_closure(self, r, alpha):
@@ -103,11 +105,18 @@ class VMC:
 
     def grad_wf_closure_jax(self, r, alpha):
         """
-        Return a function that computes the gradient of the wavefunction
+        Returns a function that computes the gradient of the wavefunction with respect to r
+        for each configuration in the batch.
+        r: (batch_size, N*dim) array where each row is a flattened array of all particle positions.
+        alpha: (N*dim) array for the parameters.
+        self.wf output is of size (batch_size, )
         """
-        grad_wf = jax.grad(self.wf, argnums=0)
 
-        return grad_wf(r, alpha)
+        grad_wf_closure = jax.grad(self.wf, argnums=0)
+
+        return vmap(grad_wf_closure, in_axes=(0, None))(
+            r, alpha
+        )  # 0, none will broadcast alpha to the batch size
 
     def grad_wf(self, r):
         """
@@ -115,7 +124,9 @@ class VMC:
         """
         alpha = self.params.get("alpha")
 
-        return self.grad_wf_closure(r, alpha)
+        grads_alpha = self.grad_wf_closure(r, alpha)
+
+        return grads_alpha
 
     def grads(self, r):
         """
@@ -124,9 +135,7 @@ class VMC:
         alpha = self.params.get("alpha")
         grads_alpha = self.grads_closure(r, alpha)
 
-        grads_dict = {"alpha": grads_alpha}
-        # print(grads_dict["alpha"])
-        return grads_dict
+        return {"alpha": grads_alpha}
 
     def grads_closure(self, r, alpha):
         """
@@ -140,11 +149,17 @@ class VMC:
         """
         Return a function that computes the gradient of the log of the wavefunction squared
         """
-        grads_wf = jax.grad(
-            self.wf, argnums=1
-        )  # argnums=1 means we take the gradient wrt alpha
+        batch_size = np.shape(r)[0] if np.ndim(r) > 1 else 1
 
-        return grads_wf(r, alpha)
+        def scalar_wf(r_, alpha, i):
+            wf_values = self.wf(r_, alpha)[i]
+            return wf_values
+
+        grads = vmap(lambda i: jax.grad(scalar_wf, argnums=1)(r, alpha, i))(
+            np.arange(batch_size)
+        )
+
+        return grads
 
     def _initialize_vars(self, nparticles, dim, sigma2, rng, log, logger, logger_level):
         self._N = nparticles
@@ -162,9 +177,10 @@ class VMC:
         """
         Compute the laplacian of the wavefunction
         """
-        alpha = self.params.get("alpha")
+        alpha = self.params.get("alpha")  # noqa
+        laplacian = self.laplacian_closure(r, alpha)
 
-        return self.laplacian_closure(r, alpha)
+        return laplacian
 
     def laplacian_closure(self, r, alpha):
         """
@@ -183,14 +199,14 @@ class VMC:
         def wrapped_wf(r_):
             return self.wf(r_, alpha)
 
-        grad_wf = jax.grad(wrapped_wf)
-
-        hessian_wf = jax.jacfwd(grad_wf)
+        hessian_wf = vmap(jax.hessian(wrapped_wf))
+        # Compute the Hessian for each element in the batch
         hessian_at_r = hessian_wf(r)
 
-        laplacian = jnp.trace(hessian_at_r)
+        def trace_fn(x):
+            return jnp.trace(x)
 
-        return laplacian
+        return vmap(trace_fn)(hessian_at_r)
 
     def pdf(self, r):
         """
@@ -199,50 +215,42 @@ class VMC:
 
         return self.backend.exp(self.logprob(r)) ** 2
 
-    def compute_sr_matrix(self, expval_grads, grads, shift=1e-4):
+    def compute_sr_matrix(self, expval_grads, grads, shift=1e-3):
         """
-        expval_grads and grads should be dictionaries with keys "v_bias", "h_bias", "kernel" in the case of RBM
-        in the case of FFNN we have "weights" and "biases" and "kernel" is not present
-        WIP: for now this does not involve the averages because r will be a single sample
+
         Compute the matrix for the stochastic reconfiguration algorithm
-            for now we do it only for the kernel
-            The expression here is for kernel element W_ij:
-                S_ij,kl = < (d/dW_ij log(psi)) (d/dW_kl log(psi)) > - < d/dW_ij log(psi) > < d/dW_kl log(psi) >
 
-            For bias (V or H) we have:
-                S_i,j = < (d/dV_i log(psi)) (d/dV_j log(psi)) > - < d/dV_i log(psi) > < d/dV_j log(psi) >
+            For alpha vector, we have:
+                S_i,j = < (d/dalpha_i log(psi)) (d/dalpha_j log(psi)) > - < d/dalpha_i log(psi) > < d/dalpha_j log(psi) >
 
 
-            1. Compute the gradient ∂_W log(ψ) using the _grad_kernel function.
-            2. Compute the outer product of the gradient with itself: ∂_W log(ψ) ⊗ ∂_W log(ψ)
+            1. Compute the gradient ∂_alpha log(ψ) using the grads function.
+            2. Compute the outer product of the gradient with itself: ∂_W log(ψ) ⊗ ∂_W log(ψ) )
             3. Compute the expectation value of the outer product over all the samples
             4. Compute the expectation value of the gradient ∂_W log(ψ) over all the samples
             5. Compute the outer product of the expectation value of the gradient with itself: <∂_W log(ψ)> ⊗ <∂_W log(ψ)>
 
-            OBS: < d/dW_ij log(psi) > is already done inside train of the RBM class but we need still the < (d/dW_ij log(psi)) (d/dW_kl log(psi)) >
+            OBS: < d/dW_ij log(psi) > is already done inside train of the NQS class (expval_grads) but we need still the < (d/dW_i log(psi)) (d/dW_j log(psi)) >
         """
         sr_matrices = {}
 
         for key, grad_value in grads.items():
-            grad_value = self.backend.array(
-                grad_value
-            )  # this should be done outside of the function
+            grad_value = self.backend.array(grad_value)[
+                0
+            ]  # this is annoying, but first we need to convert the grads to a numpy or jax array. This zero index is also annoying, but it is because the grads are returned as a list of arrays due to the .items() method.
 
-            if self.backend.ndim(grad_value[0]) == 2:
-                # if key == "kernel":
-                grads_outer = self.backend.einsum(
-                    "nij,nkl->nijkl", grad_value, grad_value
-                )
-            elif self.backend.ndim(grad_value[0]) == 1:
-                # else:
-                grads_outer = self.backend.einsum("ni,nj->nij", grad_value, grad_value)
+            grads_outer = self.backend.einsum(
+                "ni,nj->nij", grad_value, grad_value
+            )  # this is ∂_W log(ψ) ⊗ ∂_W log(ψ) for the batch
+            expval_outer_grad = self.backend.mean(
+                grads_outer, axis=0
+            )  # this is < (d/dW_i log(psi)) (d/dW_j log(psi)) > over the batch
+            outer_expval_grad = self.backend.einsum(
+                "i,j->ij", expval_grads[key], expval_grads[key]
+            )  # this is <∂_W log(ψ)> ⊗ <∂_W log(ψ)>
 
-            expval_outer_grad = self.backend.mean(grads_outer, axis=0)
-            outer_expval_grad = self.backend.outer(expval_grads[key], expval_grads[key])
+            sr_mat = expval_outer_grad - outer_expval_grad
 
-            sr_mat = (
-                expval_outer_grad.reshape(outer_expval_grad.shape) - outer_expval_grad
-            )
             sr_matrices[key] = sr_mat + shift * self.backend.eye(sr_mat.shape[0])
 
         return sr_matrices

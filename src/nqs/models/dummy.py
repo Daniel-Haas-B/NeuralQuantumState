@@ -1,6 +1,7 @@
 import jax
 import jax.numpy as jnp
 import numpy as np
+from jax import vmap
 from nqs.utils import Parameter
 from nqs.utils import State
 
@@ -51,7 +52,7 @@ class Dummy:
             self.grad_wf_closure = self.grad_wf_closure_jax
             self.grads_closure = self.grads_closure_jax
             self.laplacian_closure = self.laplacian_closure_jax
-            self._jit_functions()
+            # self._jit_functions()
         else:
             raise ValueError(f"Invalid backend: {backend}, only jax is supported")
 
@@ -72,7 +73,7 @@ class Dummy:
         Ψ(r)= sum r
         r: (N, dim) array so that r_i is a dim-dimensional vector
         """
-        return r.sum(axis=-1)
+        return self.backend.sum(r, axis=0)  # r.sum(axis=0)
 
     def logprob_closure(self, r, alpha):
         return self.backend.log(self.backend.abs(self.wf(r, alpha)) ** 2)
@@ -88,9 +89,11 @@ class Dummy:
         """
         Return a function that computes the gradient of the wavefunction
         """
-        grad_wf = jax.grad(self.wf, argnums=0)
+        grad_wf_closure = jax.grad(self.wf, argnums=0)
 
-        return grad_wf(r, alpha)
+        # either vmap(grad_wf_closure, in_axes=(0, None))(r, alpha) or we loop ourselves over ba
+
+        return vmap(grad_wf_closure, in_axes=(0, None))(r, alpha)
 
     def grad_wf(self, r):
         """
@@ -114,11 +117,17 @@ class Dummy:
         """
         Return a function that computes the gradient of the log of the wavefunction squared
         """
-        grads_wf = jax.grad(
-            self.wf, argnums=1
-        )  # argnums=1 means we take the gradient wrt alpha
+        batch_size = np.shape(r)[0] if np.ndim(r) > 1 else 1
 
-        return grads_wf(r, alpha)
+        def scalar_wf(r_, alpha, i):
+            wf_values = self.wf(r_, alpha)[i]
+            return wf_values
+
+        grads = vmap(lambda i: jax.grad(scalar_wf, argnums=1)(r, alpha, i))(
+            self.backend.arange(batch_size)
+        )
+
+        return grads
 
     def _initialize_vars(self, nparticles, dim, rng, log, logger, logger_level):
         self._N = nparticles
@@ -146,13 +155,14 @@ class Dummy:
         def wrapped_wf(r_):
             return self.wf(r_, alpha)
 
-        grad_wf = jax.grad(wrapped_wf)
+        hessian_wf = vmap(jax.hessian(wrapped_wf))
 
-        hessian_wf = jax.jacfwd(grad_wf)
         hessian_at_r = hessian_wf(r)
-        laplacian = jnp.trace(hessian_at_r)
 
-        return laplacian
+        def trace_fn(x):
+            return jnp.trace(x)
+
+        return vmap(trace_fn)(hessian_at_r)
 
     def pdf(self, r):
         """
@@ -162,27 +172,7 @@ class Dummy:
         return self.backend.abs(self.wf(r, alpha)) ** 2
 
     def compute_sr_matrix(self, expval_grads, grads, shift=1e-4):
-        """
-        expval_grads and grads should be dictionaries with keys "v_bias", "h_bias", "kernel" in the case of RBM
-        in the case of FFNN we have "weights" and "biases" and "kernel" is not present
-        WIP: for now this does not involve the averages because r will be a single sample
-        Compute the matrix for the stochastic reconfiguration algorithm
-            for now we do it only for the kernel
-            The expression here is for kernel element W_ij:
-                S_ij,kl = < (d/dW_ij log(psi)) (d/dW_kl log(psi)) > - < d/dW_ij log(psi) > < d/dW_kl log(psi) >
-
-            For bias (V or H) we have:
-                S_i,j = < (d/dV_i log(psi)) (d/dV_j log(psi)) > - < d/dV_i log(psi) > < d/dV_j log(psi) >
-
-
-            1. Compute the gradient ∂_W log(ψ) using the _grad_kernel function.
-            2. Compute the outer product of the gradient with itself: ∂_W log(ψ) ⊗ ∂_W log(ψ)
-            3. Compute the expectation value of the outer product over all the samples
-            4. Compute the expectation value of the gradient ∂_W log(ψ) over all the samples
-            5. Compute the outer product of the expectation value of the gradient with itself: <∂_W log(ψ)> ⊗ <∂_W log(ψ)>
-
-            OBS: < d/dW_ij log(psi) > is already done inside train of the RBM class but we need still the < (d/dW_ij log(psi)) (d/dW_kl log(psi)) >
-        """
+        """ """
         sr_matrices = {}
 
         for key, grad_value in grads.items():

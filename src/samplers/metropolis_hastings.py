@@ -1,5 +1,6 @@
 import numpy as np
 from nqs.utils import advance_PRNG_state
+from nqs.utils import State
 
 from .sampler import Sampler
 
@@ -8,7 +9,7 @@ class MetroHastings(Sampler):
     def __init__(self, rng, scale, logger=None):
         super().__init__(rng, scale, logger)
 
-    def _step(self, wf, state, seed):
+    def _step(self, wf, state_batch, seed, batch_size):
         """One step of the Langevin Metropolis-Hastings algorithm
 
         Parameters
@@ -27,55 +28,58 @@ class MetroHastings(Sampler):
         dt = self._scale**2
         Ddt = 0.5 * dt
         quarterDdt = 1 / (4 * Ddt)
-        sys_size = state.positions.shape
 
-        # Advance RNG
-        next_gen = advance_PRNG_state(seed, state.delta)
-        rng = self._rng(next_gen)
+        for i in range(batch_size):
+            state = state_batch[i - 1]
 
-        # Compute drift force at current positions
-        F = self.hamiltonian.drift_force(wf, state.positions)
+            sys_size = state.positions.shape
 
-        # Sample proposal positions, i.e., move walkers
-        proposals = (
-            state.positions
-            + F * Ddt
-            + rng.normal(loc=0, scale=self._scale, size=sys_size)
-        )
+            # Advance RNG
+            next_gen = advance_PRNG_state(seed, state.delta)
+            rng = self._rng(next_gen)
 
-        # Compute proposal log density
-        logp_proposal = wf.logprob(proposals)
+            # Compute drift force at current positions
+            F = self.hamiltonian.drift_force(wf, state.positions)
 
-        # Green's function conditioned on proposals
-        F_prop = self.hamiltonian.drift_force(wf, proposals)
-        G_prop = -((state.positions - proposals - Ddt * F_prop) ** 2) * quarterDdt
+            # Sample proposal positions, i.e., move walkers
+            proposals = (
+                state.positions
+                + F * Ddt
+                + rng.normal(loc=0, scale=self._scale, size=sys_size)
+            )
 
-        # Green's function conditioned on current positions
-        G_cur = -((proposals - state.positions - Ddt * F) ** 2) * quarterDdt
+            # Compute proposal log density
+            logp_proposal = wf.logprob(proposals)
 
-        # Metroplis-Hastings ratio
-        ratio = logp_proposal + np.sum(G_prop) - state.logp - np.sum(G_cur)
+            # Green's function conditioned on proposals
+            F_prop = self.hamiltonian.drift_force(wf, proposals)
+            G_prop = -((state.positions - proposals - Ddt * F_prop) ** 2) * quarterDdt
 
-        # Sample log uniform rvs
-        log_unif = np.log(rng.random())
+            # Green's function conditioned on current positions
+            G_cur = -((proposals - state.positions - Ddt * F) ** 2) * quarterDdt
 
-        # Metroplis acceptance criterion
-        accept = log_unif < ratio
+            # Metroplis-Hastings ratio
+            ratio = logp_proposal + np.sum(G_prop) - state.logp - np.sum(G_cur)
 
-        # If accept is True, yield proposal, otherwise keep old state
-        new_positions = proposals if accept else state.positions
+            # Sample log uniform rvs
+            log_unif = np.log(rng.random())
 
-        # Create new state
-        new_logp = wf.logprob(new_positions) if accept else state.logp
-        new_n_accepted = state.n_accepted + accept
-        new_delta = state.delta + 1
+            # Metroplis acceptance criterion
+            accept = log_unif < ratio
 
-        state.positions = new_positions
-        state.logp = new_logp
-        state.n_accepted = new_n_accepted
-        state.delta = new_delta
+            # If accept is True, yield proposal, otherwise keep old state
+            new_positions = proposals if accept else state.positions
 
-        return state
+            # Create new state
+            new_logp = wf.logprob(new_positions) if accept else state.logp
+            new_n_accepted = state.n_accepted + accept
+            new_delta = state.delta + 1
+
+            state_batch[i] = State(
+                new_positions, new_logp, new_n_accepted, new_delta
+            )  # could be slow
+
+        return state_batch
 
     def tune_scale(self, scale, acc_rate):
         """Proposal dt (squared scale for importance sampler) lookup table.
@@ -115,5 +119,5 @@ class MetroHastings(Sampler):
 
         return scale
 
-    def step(self, wf, state, seed):
-        return self._step(wf, state, seed)
+    def step(self, wf, state, seed, batch_size):
+        return self._step(wf, state, seed, batch_size)

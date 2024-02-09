@@ -81,9 +81,12 @@ class HarmonicOscillator(Hamiltonian):
         return self.backend.tanh(r / r0)
 
     def potential(self, r):
-        """Potential energy function"""
+        """
+        Potential energy function
+        """
         # HO trap
-        v_trap = 0.5 * self.backend.sum(r * r) * self.kwargs["omega"]
+
+        v_trap = 0.5 * self.backend.sum(r * r, axis=-1) * self.kwargs["omega"]
 
         self.kwargs["r0_reg"] = self.kwargs["r0_reg"] * self.reg_decay
         # with open("decay.csv", "a") as f:
@@ -93,14 +96,22 @@ class HarmonicOscillator(Hamiltonian):
         # Interaction
         v_int = 0.0
         if self._int_type == "Coulomb":
-            r_cpy = copy.deepcopy(r).reshape(self._N, self._dim)
-            r_dist = self.la.norm(r_cpy[None, ...] - r_cpy[:, None], axis=-1)
+            # print("r shape", r.shape)
+            r_cpy = copy.deepcopy(r).reshape(-1, self._N, self._dim)  # (nbatch, N, dim)
+            # print("r_cpy shape", r_cpy.shape)
+            # r_dist = self.la.norm(r_cpy[None, ...] - r_cpy[:, None], axis=-1)
+            r_dist = self.la.norm(r_cpy[:, None, :, :] - r_cpy[:, :, None, :], axis=-1)
 
+            # print("r_dist shape", r_dist.shape)
+            # print("r_dist", r_dist)
             # Apply tanh regularization
             f_r = 1  # self.regularized_potential(r_dist)
             v_int = self.backend.sum(
-                self.backend.triu(f_r / r_dist, k=1)
-            )  # k=1 to remove diagonal, since we don't want self-interaction
+                self.backend.triu(f_r / r_dist, k=1), axis=(-2, -1)
+            )
+
+            # k=1 to remove diagonal, since we don't want self-interaction
+            # the axis=(-2, -1) is to sum over the last two axes, so that we get a (nbatch, ) array
 
         elif self._int_type == "Calogero":
             r_cpy = copy.deepcopy(r).reshape(self._N, self._dim)
@@ -116,18 +127,22 @@ class HarmonicOscillator(Hamiltonian):
 
     def _local_kinetic_energy(self, wf, r):
         """Evaluate the local kinetic energy of the system"""
-        _laplace = wf.laplacian(r).sum()  # summing over all particles
+
+        _laplace = wf.laplacian(r)
         _grad = wf.grad_wf(r)
-        _grad2 = self.backend.sum(_grad * _grad)  # summing over all particles
+
+        _grad2 = self.backend.sum(_grad * _grad, axis=1)  # summing over all particles
+
         return -0.5 * (_laplace + _grad2)
 
     def local_energy(self, wf, r):
-        """Local energy of the system"""
-        # print("r inside local energy", r)
-        # time.sleep(1)
-        # print("r0_reg", self.kwargs["r0_reg"])
-        ke = self._local_kinetic_energy(wf, r)
+        """Local energy of the system
+        r can be one set of positions or a batch of positions now
+        """
+
         pe = self.potential(r)
+
+        ke = self._local_kinetic_energy(wf, r)
 
         return pe + ke
 
@@ -141,5 +156,9 @@ class HarmonicOscillator(Hamiltonian):
 
     def drift_force(self, wf, r):
         """Drift force at each particle's location"""
+        # reashape r to be (1, rshape)
+        r = r.reshape(1, -1)
+
         F = 2 * wf.grad_wf(r)
+
         return F

@@ -26,15 +26,6 @@ class RmsProp(Optimizer):
     def step(self, params, grads, sr_matrices=None):
         """Update the parameters. Maybe performance bottleneck?"""
 
-        # grads_dict = {key: grad for key, grad in zip(self._param_keys, grads)}
-        if sr_matrices is not None:
-            for key in sr_matrices.keys():
-                sr_matrix = sr_matrices[key]
-                # for the love of god change this later
-                grads[key] = grads[key].reshape(sr_matrix.shape[0], -1)
-                grads[key] = np.linalg.pinv(sr_matrix) @ grads[key]
-                grads[key] = grads[key].reshape(params.get(key).shape)
-
         for key in self._param_keys:
             # Update m and v with the new gradients
 

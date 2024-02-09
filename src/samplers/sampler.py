@@ -95,25 +95,32 @@ class Sampler:
 
     def _sample(self, wf, nsamples, state, scale, seed, chain_id):
         """To be called by process"""
+        batch_size = 2**5
 
         if self._logger is not None:
             t_range = tqdm(
-                range(nsamples),
+                range(0, nsamples, batch_size),
                 desc=f"[Sampling progress] Chain {chain_id+1}",
                 position=chain_id,
                 leave=True,
                 colour="green",
             )
         else:
-            t_range = range(nsamples)
+            t_range = range(0, nsamples, batch_size)
 
         # Config
+
         state = State(state.positions, state.logp, 0, state.delta)
+        state = state.create_batch_of_states(batch_size=batch_size)
+
         energies = np.zeros(nsamples)
 
-        for i in t_range:
-            state = self._step(wf, state, seed)
-            energies[i] = self.hamiltonian.local_energy(wf, state.positions)
+        for i in t_range:  # 2**18
+            state = self._step(wf, state, seed, batch_size=batch_size)
+
+            energies[i : i + batch_size] = self.hamiltonian.local_energy(
+                wf, state.positions
+            )
 
         if self._logger is not None:
             t_range.clear()
@@ -121,7 +128,7 @@ class Sampler:
         energy = np.mean(energies)
         error = block(energies)
         variance = np.mean(energies**2) - energy**2
-        acc_rate = state.n_accepted / nsamples
+        acc_rate = state.n_accepted[-1] / nsamples
 
         sample_results = {
             "chain_id": chain_id + 1,

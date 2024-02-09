@@ -20,7 +20,6 @@ class Gd(Optimizer):
 
     def step(self, params, grads, sr_matrices=None):
         """Update the parameters. Maybe performance bottleneck?"""
-
         if sr_matrices is not None:
             for key, sr_matrix in sr_matrices.items():
                 # for the love of god change this later

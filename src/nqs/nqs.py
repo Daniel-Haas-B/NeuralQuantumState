@@ -9,8 +9,10 @@ from nqs.utils import errors
 from nqs.utils import generate_seed_sequence
 from nqs.utils import setup_logger
 from nqs.utils import State
+from nqs.utils import wf_factory
 import jax
 import time
+
 
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
@@ -19,7 +21,7 @@ jax.config.update("jax_platform_name", "cpu")
 import numpy as np
 import pandas as pd
 
-from nqs.models import RBM, FFNN, VMC, Dummy
+# from nqs.models import RBM, FFNN, VMC, Dummy
 
 from numpy.random import default_rng
 from tqdm.auto import tqdm
@@ -101,58 +103,21 @@ class NQS:
     def set_wf(self, wf_type, nparticles, dim, **kwargs):
         """
         Set the wave function to be used for sampling.
-        For now we only support the RBM.
         Successfully setting the wave function will also initialize it.
         """
         self._N = nparticles
         self._dim = dim
-        wf_type = wf_type.lower() if isinstance(wf_type, str) else wf_type
-        match wf_type:
-            case "rbm":
-                self.wf = RBM(
-                    nparticles,
-                    dim,
-                    kwargs["nhidden"],
-                    kwargs["sigma2"],
-                    log=self._log,
-                    logger=self.logger,
-                    rng=self.rng(self._seed),
-                    backend=self._backend,
-                )
-            case "ffnn":
-                self.wf = FFNN(
-                    nparticles,
-                    dim,
-                    kwargs["layer_sizes"],
-                    kwargs["activations"],
-                    log=self._log,
-                    logger=self.logger,
-                    rng=self.rng(self._seed),
-                    backend=self._backend,
-                )
-            case "vmc":
-                self.wf = VMC(
-                    nparticles,
-                    dim,
-                    log=self._log,
-                    logger=self.logger,
-                    rng=self.rng(self._seed),
-                    backend=self._backend,
-                )
-            case "dummy":
-                self.wf = Dummy(
-                    nparticles,
-                    dim,
-                    log=self._log,
-                    logger=self.logger,
-                    rng=self.rng(self._seed),
-                    backend=self._backend,
-                )
-            case _:  # noqa
-                raise NotImplementedError(
-                    "Only the RBM is supported for now. FFNN is WIP"
-                )
-
+        common_args = {
+            "nparticles": self._N,
+            "dim": self._dim,
+            "rng": self.rng(self._seed) if self.rng else np.random.default_rng(),
+            "log": self._log,
+            "logger": self.logger,
+            "logger_level": "INFO",
+            "backend": self._backend,
+        }
+        specific_args = kwargs
+        self.wf = wf_factory(wf_type, **common_args, **specific_args)
         self._is_initialized_ = True
 
     def set_hamiltonian(self, type_, int_type, **kwargs):

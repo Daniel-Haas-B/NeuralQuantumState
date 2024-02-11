@@ -253,6 +253,16 @@ class NQS:
         # steps_before_optimize = batch_size
 
         state = self.wf.state
+        # sanity check: see if wf is invariant under particle exchange
+        # position1 = state.positions # this is nparticle * dim
+        # position2 = np.reshape(position1, (self._N, self._dim))
+        # position2 = np.array([position2[1], position2[0]])
+        # position2 = np.reshape(position2, (self._N * self._dim))
+        # print("position1", position1)
+        # print("position2", position2)
+        # print("logprob1", self.wf.logprob(position1))
+        # print("logprob2", self.wf.logprob(position2))
+
         state = State(state.positions, state.logp, 0, state.delta)
 
         states = state.create_batch_of_states(batch_size=batch_size)
@@ -278,13 +288,13 @@ class NQS:
                 grads_dict[key].append(local_grads_dict.get(key))
 
                 grad_np = np.array(grads_dict[key][0])
-                if self._grad_clip:
-                    grad_norm = np.linalg.norm(grad_np)
+                # if self._grad_clip:
+                #     grad_norm = np.linalg.norm(grad_np)
 
-                    if grad_norm > self._grad_clip:
-                        grad_np = self._grad_clip * grad_np / grad_norm
+                #     if grad_norm > self._grad_clip:
+                #         grad_np = self._grad_clip * grad_np / grad_norm
 
-                    grads_dict[key] = grad_np
+                #     grads_dict[key] = grad_np
 
                 new_shape = (batch_size,) + (1,) * (
                     grad_np.ndim - 1
@@ -315,22 +325,22 @@ class NQS:
                 self._history["energy"].append(expval_energy)
                 self._history["grads"].append(grad_norms)
 
-                self._agent.log(
-                    {"abs(energy - 3)": np.abs(expval_energy - 3)},
-                    epoch,  # change this if not 2 particles 2 dimensions
-                ) if self._agent else None
-                self._agent.log({"grads": grad_norms}, epoch) if self._agent else None
-                # self._agent.log(
-                #     {"scale": self.scale}, epoch
-                # ) if self._agent else None
+            #     self._agent.log(
+            #         {"abs(energy - 3)": np.abs(expval_energy - 3)},
+            #         epoch,  # change this if not 2 particles 2 dimensions
+            #     ) if self._agent else None
+            #     self._agent.log({"grads": grad_norms}, epoch) if self._agent else None
+            # self._agent.log(
+            #     {"scale": self.scale}, epoch
+            # ) if self._agent else None
 
-                # if grad_norms < 10**-10:
-                #     if self.logger is not None:
-                #         self.logger.info("Gradient norm is zero, stopping training")
-                #     break
+            # if grad_norms < 10**-10:
+            #     if self.logger is not None:
+            #         self.logger.info("Gradient norm is zero, stopping training")
+            #     break
 
-            if self._tune:
-                self.tune()
+            # if self._tune:
+            #    self.tune()
 
             final_grads = {key: None for key in param_keys}
             grads_dict = {key: [] for key in param_keys}

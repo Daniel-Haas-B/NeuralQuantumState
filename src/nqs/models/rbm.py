@@ -25,6 +25,7 @@ class RBM(WaveFunction):
         logger=None,
         logger_level="INFO",
         backend="numpy",
+        symmetry=None,
     ):
         """
         Initializes the RBM Neural Network Quantum State.
@@ -42,6 +43,7 @@ class RBM(WaveFunction):
             logger=logger,
             logger_level=logger_level,
             backend=backend,
+            symmetry=symmetry,
         )
 
         self.configure_backend(backend)
@@ -128,6 +130,7 @@ class RBM(WaveFunction):
 
         return self._rbm_psi_repr * self._log_wf(r, v_bias, h_bias, kernel).sum()
 
+    @WaveFunction.symmetry
     def logprob(self, r):
         """Log probability amplitude"""
         v_bias, h_bias, kernel = (
@@ -160,6 +163,7 @@ class RBM(WaveFunction):
             r, v_bias, h_bias, kernel
         )
 
+    @WaveFunction.symmetry
     def grad_wf(self, r):
         """
         grad of the wave function w.r.t. the coordinates
@@ -207,6 +211,7 @@ class RBM(WaveFunction):
         laplacian = vmap(trace_fn)(hessian_wf(r))
         return laplacian
 
+    @WaveFunction.symmetry
     def laplacian(self, r):
         v_bias, h_bias, kernel = (
             self.params.get("v_bias"),
@@ -259,6 +264,7 @@ class RBM(WaveFunction):
 
         return grads
 
+    @WaveFunction.symmetry
     def grads(self, r):
         """Gradients of the wave function w.r.t. the parameters"""
         v_bias, h_bias, kernel = (

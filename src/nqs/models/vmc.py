@@ -16,6 +16,7 @@ class VMC(WaveFunction):
         logger=None,
         logger_level="INFO",
         backend="numpy",
+        symmetry=None,
     ):
         super().__init__(  # i know this looks weird
             nparticles,
@@ -25,6 +26,7 @@ class VMC(WaveFunction):
             logger=logger,
             logger_level=logger_level,
             backend=backend,
+            symmetry=symmetry,
         )
 
         self.configure_backend(backend)
@@ -57,6 +59,7 @@ class VMC(WaveFunction):
         """
         return 2 * self.wf(r, alpha).sum()
 
+    @WaveFunction.symmetry
     def logprob(self, r):
         """
         Compute the log of the wavefunction squared
@@ -87,6 +90,7 @@ class VMC(WaveFunction):
             r, alpha
         )  # 0, none will broadcast alpha to the batch size
 
+    @WaveFunction.symmetry
     def grad_wf(self, r):
         """
         Compute the gradient of the wavefunction
@@ -97,6 +101,7 @@ class VMC(WaveFunction):
 
         return grads_alpha
 
+    @WaveFunction.symmetry
     def grads(self, r):
         """
         Compute the gradient of the log of the wavefunction squared (why squared?)
@@ -134,6 +139,7 @@ class VMC(WaveFunction):
         self.params = Parameter()
         self.params.set("alpha", rng.uniform(size=(self.nparticles * self.dim)))
 
+    @WaveFunction.symmetry
     def laplacian(self, r):
         """
         Compute the laplacian of the wavefunction

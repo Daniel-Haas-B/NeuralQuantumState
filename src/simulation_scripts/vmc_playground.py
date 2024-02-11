@@ -18,15 +18,15 @@ jax.config.update("jax_platform_name", "cpu")
 output_filename = "../data/vmc_playground.csv"
 nparticles = 2
 dim = 2
-nsamples = int(2**18)  # 2**18 = 262144
+nsamples = int(2**16)  # 2**18 = 262144
 nchains = 1
-eta = 0.1
+eta = 0.01
 
-training_cycles = 5  # this is cycles for the ansatz
+training_cycles = 500  # this is cycles for the ansatz
 mcmc_alg = "m"
 backend = "jax"
 optimizer = "adam"
-batch_size = 200
+batch_size = 500
 detailed = True
 wf_type = "vmc"
 seed = 142
@@ -52,6 +52,7 @@ system.set_wf(
     wf_type,
     nparticles,
     dim,
+    symmetry="boson",
 )
 
 system.set_sampler(mcmc_alg=mcmc_alg, scale=1.0)

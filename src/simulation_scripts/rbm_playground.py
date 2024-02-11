@@ -23,10 +23,10 @@ nhidden = 4
 
 nsamples = int(2**18)  # 2**18 = 262144
 nchains = 2
-eta = 0.01
+eta = 0.1
 
-training_cycles = 50  # this is cycles for the NN
-mcmc_alg = "lmh"
+training_cycles = 5000  # this is cycles for the NN
+mcmc_alg = "m"
 backend = "jax"
 optimizer = "adam"
 batch_size = 50
@@ -58,6 +58,7 @@ system.set_wf(
     dim,
     nhidden=nhidden,  # all after this is kwargs. In this example it is RBM dependent
     sigma2=1.0,
+    symmetry="boson",
 )
 
 system.set_sampler(mcmc_alg=mcmc_alg, scale=1)

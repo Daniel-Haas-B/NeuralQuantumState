@@ -1,17 +1,18 @@
+from functools import partial
+
 import jax
 import jax.numpy as jnp
 import numpy as np
 from jax import vmap
+from nqs.models.base_wf import WaveFunction
 from nqs.utils import Parameter
 from nqs.utils import State
-from scipy.special import expit
-
 
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
 
 
-class RBM:
+class RBM(WaveFunction):
     def __init__(
         self,
         nparticles,
@@ -24,6 +25,7 @@ class RBM:
         logger=None,
         logger_level="INFO",
         backend="numpy",
+        symmetry=None,
     ):
         """
         Initializes the RBM Neural Network Quantum State.
@@ -33,24 +35,24 @@ class RBM:
         - dim (int): Dimensionality.
         ...
         """
-        self._configure_backend(backend)
+        super().__init__(
+            nparticles,
+            dim,
+            rng=rng,
+            log=log,
+            logger=logger,
+            logger_level=logger_level,
+            backend=backend,
+            symmetry=symmetry,
+        )
+
+        self.configure_backend(backend)
         self._initialize_vars(nparticles, dim, nhidden, factor, sigma2)
-
-        if logger:
-            self.logger = logger
-        else:
-            import logging
-
-            self.logger = logging.getLogger(__name__)
-
-        self.log = log
-        self.rng = rng if rng else np.random.default_rng()
-        r = rng.standard_normal(size=self._nvisible)
 
         self._initialize_bias_and_kernel(rng)
 
-        logp = self.logprob(r)
-        self.state = State(r, logp, 0, 0)
+        logp = self.logprob(self.r0)
+        self.state = State(self.r0, logp, 0, 0)
 
         if self.log:
             neuron_str = "neurons" if self._nhidden > 1 else "neuron"
@@ -77,39 +79,6 @@ class RBM:
         self._nvisible = self._N * self._dim
         self._nhidden = nhidden
         self._precompute()
-
-    def _configure_backend(self, backend):
-        if backend == "numpy":
-            self.backend = np
-            self.la = np.linalg
-            self.sigmoid = expit
-
-        elif backend == "jax":
-            self.backend = jnp
-            self.la = jnp.linalg
-            self.sigmoid = expit  # jax.nn.sigmoid
-            self.grad_wf_closure = self.grad_wf_closure_jax
-            self.grads_closure = self.grads_closure_jax
-            self.laplacian_closure = self.laplacian_closure_jax
-            self._jit_functions()
-        else:
-            raise ValueError(f"Invalid backend: {backend}")
-
-    def _jit_functions(self):
-        functions_to_jit = [
-            "_log_wf",
-            "wf",
-            "logprob_closure",
-            "grad_wf_closure",
-            "grads_closure",
-            "laplacian_closure",
-            "_precompute",
-            "_softplus",
-            "compute_sr_matrix",
-        ]
-        for func_name in functions_to_jit:
-            setattr(self, func_name, jax.jit(getattr(self, func_name)))
-        return self  # for chaining
 
     def _precompute(self):
         self._sigma4 = self._sigma2 * self._sigma2
@@ -161,6 +130,7 @@ class RBM:
 
         return self._rbm_psi_repr * self._log_wf(r, v_bias, h_bias, kernel).sum()
 
+    @WaveFunction.symmetry
     def logprob(self, r):
         """Log probability amplitude"""
         v_bias, h_bias, kernel = (
@@ -183,17 +153,17 @@ class RBM:
         gr *= self._sigma2 * self._factor
         return gr
 
-    # @partial(jax.jit, static_argnums=(0,))
+    @partial(jax.jit, static_argnums=(0,))
     def grad_wf_closure_jax(self, r, v_bias, h_bias, kernel):
         """
         This is the autograd version of the gradient of the logarithm of the wave function w.r.t. the coordinates
         """
-
         grad_wf_closure = jax.grad(self.wf, argnums=0)
         return vmap(grad_wf_closure, in_axes=(0, None, None, None))(
             r, v_bias, h_bias, kernel
         )
 
+    @WaveFunction.symmetry
     def grad_wf(self, r):
         """
         grad of the wave function w.r.t. the coordinates
@@ -224,7 +194,7 @@ class RBM:
         gr *= self._factor
         return gr.sum(axis=-1)  # sum over the coordinates
 
-    # @partial(jax.jit, static_argnums=(0,))
+    @partial(jax.jit, static_argnums=(0,))
     def laplacian_closure_jax(self, r, v_bias, h_bias, kernel):
         """
         nabla^2 of the wave function w.r.t. the coordinates
@@ -239,9 +209,9 @@ class RBM:
             return jnp.trace(x)
 
         laplacian = vmap(trace_fn)(hessian_wf(r))
-
         return laplacian
 
+    @WaveFunction.symmetry
     def laplacian(self, r):
         v_bias, h_bias, kernel = (
             self.params.get("v_bias"),
@@ -265,18 +235,11 @@ class RBM:
             self._sigma2 * (r[:, :, None] @ _expit[:, None, :])
         ) * self._factor
 
-        # old
-        # grad_kernel = (
-        #     self._sigma2
-        #     * r[:, self.backend.newaxis]
-        #     @ _expit[:, self.backend.newaxis].T
-        # ) * self._factor
-
         grad_v_bias = (r - v_bias) * self._sigma2 * self._factor
 
         return grad_v_bias, grad_h_bias, grad_kernel
 
-    # @partial(jax.jit, static_argnums=(0,))
+    @partial(jax.jit, static_argnums=(0,))
     def grads_closure_jax(self, r, v_bias, h_bias, kernel):
         """
         This is the autograd version of the gradient of the logarithm of the wave function w.r.t. the parameters
@@ -301,6 +264,7 @@ class RBM:
 
         return grads
 
+    @WaveFunction.symmetry
     def grads(self, r):
         """Gradients of the wave function w.r.t. the parameters"""
         v_bias, h_bias, kernel = (
@@ -344,9 +308,7 @@ class RBM:
         sr_matrices = {}
 
         for key, grad_value in grads.items():
-            grad_value = self.backend.array(
-                grad_value
-            )  # this should be done outside of the function
+            grad_value = self.backend.array(grad_value)
 
             # if self.backend.ndim(grad_value[0]) == 2:
             if key == "kernel":

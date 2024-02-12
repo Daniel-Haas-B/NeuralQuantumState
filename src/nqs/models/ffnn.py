@@ -1,10 +1,13 @@
+from functools import partial
+
 import jax
 import jax.numpy as jnp
 import numpy as np
 from jax import vmap
+from nqs.models.base_wf import WaveFunction
 from nqs.utils import Parameter
 from nqs.utils import State
-from scipy.special import expit
+
 
 # from jax import grad
 
@@ -12,7 +15,7 @@ jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
 
 
-class FFNN:
+class FFNN(WaveFunction):
     def __init__(
         self,
         nparticles,
@@ -25,7 +28,19 @@ class FFNN:
         logger=None,
         logger_level="INFO",
         backend="jax",
+        symmetry=None,
     ):
+        super().__init__(
+            nparticles,
+            dim,
+            rng=rng,
+            log=log,
+            logger=logger,
+            logger_level=logger_level,
+            backend=backend,
+            symmetry=symmetry,
+        )
+
         """
         Initializes the FFNN Neural Network Quantum State.
         We here assume Ψ(x) = exp(FFNN(x)) so logΨ(x) = FFNN(x).
@@ -37,22 +52,12 @@ class FFNN:
         ...
         """
         self._initialize_vars(nparticles, dim, layer_sizes, activations, factor)
-        self._configure_backend(backend)
-        if logger:
-            self.logger = logger
-        else:
-            import logging
-
-            self.logger = logging.getLogger(__name__)
-
-        self.log = log
-        self.rng = rng if rng else np.random.default_rng()
-        r = rng.standard_normal(size=self._nvisible)
+        self.configure_backend(backend)
 
         self._initialize_layers(rng)
 
-        logp = self.logprob(r)
-        self.state = State(r, logp, 0, 0)
+        logp = self.logprob(self.r0)
+        self.state = State(self.r0, logp, 0, 0)
 
         if self.log:
             msg = f"Neural Network Quantum State initialized as FFNN with {self.__str__()}"
@@ -66,11 +71,10 @@ class FFNN:
         output_size_0 = self._layer_sizes[0]
         # limit_0 = np.sqrt(2 / (input_size_0))
 
-        # do not change this order # TODO: why not?
         self.params.set(
             "W0",
             # np.array(rng.uniform(-limit_0, limit_0, (input_size_0, output_size_0))),
-            rng.standard_normal(size=(input_size_0, output_size_0)),
+            rng.standard_normal(size=(input_size_0, output_size_0)) * 0.01,
         )
 
         self.params.set("b0", np.zeros((output_size_0,)))
@@ -91,7 +95,7 @@ class FFNN:
                 f"W{i}",
                 # np.array(rng.uniform(0, limit, (input_size, output_size))),
                 # np.array(rng.uniform(-limit, limit, (input_size, output_size))),
-                rng.standard_normal(size=(input_size, output_size)),
+                rng.standard_normal(size=(input_size, output_size)) * 0.01,
             )
 
             self.params.set(
@@ -101,7 +105,7 @@ class FFNN:
             )
 
             # Initialize Batch Norm parameters
-            # self.params.set(f"gamma{i}", jnp.ones((output_size,)))
+            # self.params.set(f"gamma{i}", jnp.ones((output_size,))*0.01)
             # self.params.set(f"beta{i}", jnp.zeros((output_size,)))
 
     def _initialize_vars(self, nparticles, dim, layer_sizes, activations, factor):
@@ -138,17 +142,6 @@ class FFNN:
             case _:  # default
                 raise ValueError(f"Invalid activation function {activation_str}")
 
-    def _configure_backend(self, backend):
-        if backend != "jax":
-            raise ValueError(
-                f"Invalid backend ({backend}) for FFNN. Only JAX is supported."
-            )
-
-        self.backend = jnp
-        self.la = jnp.linalg
-        self.sigmoid = expit  # jax.nn.sigmoid
-        self._jit_functions()
-
     def __str__(self):
         """
         Construct a string representation of the neural network architecture.
@@ -172,21 +165,6 @@ class FFNN:
 
         return net_repr
 
-    def _jit_functions(self):
-        functions_to_jit = [
-            "grad_wf_closure",
-            "laplacian_closure",
-            "grads_closure",
-            "logprob_closure",
-            "wf",
-            "grad_wf_closure",
-            "grads_closure",
-            "laplacian_closure",
-        ]
-        for func_name in functions_to_jit:
-            setattr(self, func_name, jax.jit(getattr(self, func_name)))
-        return self
-
     def log_wf(self, x, params):
         """
         This is the forward pass of the FFNN
@@ -207,8 +185,8 @@ class FFNN:
             x = x @ params.get(f"W{i}") + params.get(f"b{i}")
 
             # Batch Normalization
-            # mean = x.mean(axis=0, keepdims=True)
-            # variance = x.var(axis=0, keepdims=True)
+            # mean = self.backend.mean(x, axis=0, keepdims=True) # TODO: need to check this. If x is not (batch_size, particles*dim) it will be incorrect!
+            # variance = self.backend.var(x, axis=0, keepdims=True)
             # x = params.get(f"gamma{i}") * (x - mean) / jnp.sqrt(variance + 1e-5) + params.get(f"beta{i}")
 
             x = self.activation(self._activations[i])(x)
@@ -226,24 +204,26 @@ class FFNN:
         """
         return self.log_wf(r, params)
 
-    # @partial(jax.jit, static_argnums=(0,))
-    def grad_wf_closure(self, r, params):
+    @partial(jax.jit, static_argnums=(0,))
+    def grad_wf_closure_jax(self, r, params):
         """
         This is the autograd version of the gradient of the logarithm of the wave function w.r.t. the coordinates
         """
         grad_wf = jax.grad(self.wf, argnums=0)
 
         return vmap(grad_wf, in_axes=(0, None))(r, params)
+
         # return grad_wf(r, params)
 
+    @WaveFunction.symmetry
     def grad_wf(self, r):
         """
         (∇_r) Ψ(r) = ∑_i (∇_r) Ψ(r_i)
         """
         return self.grad_wf_closure(r, self.params)
 
-    # @partial(jax.jit, static_argnums=(0,))
-    def laplacian_closure(self, r, params):
+    @partial(jax.jit, static_argnums=(0,))
+    def laplacian_closure_jax(self, r, params):
         """
         (∇_r)^2 Ψ(r) = ∑_i (∇_r)^2 Ψ(r_i)
         This can be optimized by using the fact that Ψ = exp(FFNN)
@@ -262,6 +242,7 @@ class FFNN:
 
         return laplacian
 
+    @WaveFunction.symmetry
     def laplacian(self, r):
         """
         examine who is which particle and who is which dimension
@@ -269,11 +250,13 @@ class FFNN:
         """
         return self.laplacian_closure(r, self.params)
 
-    def grads_closure(self, r, params):
+    @partial(jax.jit, static_argnums=(0,))
+    def grads_closure_jax(self, r, params):
         grad_fn = vmap(jax.grad(self.wf, argnums=1), in_axes=(0, None))
         grad_eval = grad_fn(r, params)  # still a parameter type
         return grad_eval
 
+    @WaveFunction.symmetry
     def grads(self, r):
         """
         Gradients of the wave function with respect to the neural network parameters.
@@ -299,6 +282,7 @@ class FFNN:
 
         return 2.0 * self.log_wf(r, params)
 
+    @WaveFunction.symmetry
     def logprob(self, r):
         """Log probability amplitude"""
 
@@ -329,9 +313,7 @@ class FFNN:
         sr_matrices = {}
 
         for key, grad_value in grads.items():
-            grad_value = self.backend.array(
-                grad_value
-            )  # this should be done outside of the function
+            grad_value = self.backend.array(grad_value)
 
             if "W" in key:  # means it is a matrix
                 grads_outer = self.backend.einsum(

@@ -9,8 +9,10 @@ from nqs.utils import errors
 from nqs.utils import generate_seed_sequence
 from nqs.utils import setup_logger
 from nqs.utils import State
+from nqs.utils import wf_factory
 import jax
 import time
+
 
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
@@ -19,7 +21,7 @@ jax.config.update("jax_platform_name", "cpu")
 import numpy as np
 import pandas as pd
 
-from nqs.models import RBM, FFNN, VMC, Dummy
+# from nqs.models import RBM, FFNN, VMC, Dummy
 
 from numpy.random import default_rng
 from tqdm.auto import tqdm
@@ -101,58 +103,21 @@ class NQS:
     def set_wf(self, wf_type, nparticles, dim, **kwargs):
         """
         Set the wave function to be used for sampling.
-        For now we only support the RBM.
         Successfully setting the wave function will also initialize it.
         """
         self._N = nparticles
         self._dim = dim
-        wf_type = wf_type.lower() if isinstance(wf_type, str) else wf_type
-        match wf_type:
-            case "rbm":
-                self.wf = RBM(
-                    nparticles,
-                    dim,
-                    kwargs["nhidden"],
-                    kwargs["sigma2"],
-                    log=self._log,
-                    logger=self.logger,
-                    rng=self.rng(self._seed),
-                    backend=self._backend,
-                )
-            case "ffnn":
-                self.wf = FFNN(
-                    nparticles,
-                    dim,
-                    kwargs["layer_sizes"],
-                    kwargs["activations"],
-                    log=self._log,
-                    logger=self.logger,
-                    rng=self.rng(self._seed),
-                    backend=self._backend,
-                )
-            case "vmc":
-                self.wf = VMC(
-                    nparticles,
-                    dim,
-                    log=self._log,
-                    logger=self.logger,
-                    rng=self.rng(self._seed),
-                    backend=self._backend,
-                )
-            case "dummy":
-                self.wf = Dummy(
-                    nparticles,
-                    dim,
-                    log=self._log,
-                    logger=self.logger,
-                    rng=self.rng(self._seed),
-                    backend=self._backend,
-                )
-            case _:  # noqa
-                raise NotImplementedError(
-                    "Only the RBM is supported for now. FFNN is WIP"
-                )
-
+        common_args = {
+            "nparticles": self._N,
+            "dim": self._dim,
+            "rng": self.rng(self._seed) if self.rng else np.random.default_rng(),
+            "log": self._log,
+            "logger": self.logger,
+            "logger_level": "INFO",
+            "backend": self._backend,
+        }
+        specific_args = kwargs
+        self.wf = wf_factory(wf_type, **common_args, **specific_args)
         self._is_initialized_ = True
 
     def set_hamiltonian(self, type_, int_type, **kwargs):
@@ -260,6 +225,7 @@ class NQS:
         self._history = (
             {"energy": [], "grads": []} if kwargs.get("history", False) else None
         )
+
         self._early_stop = kwargs.get("early_stop", False)
         self._tune = kwargs.get("tune", False)
         self._grad_clip = kwargs.get("grad_clip", False)
@@ -278,6 +244,7 @@ class NQS:
 
         params = self.wf.params
         param_keys = params.keys()
+        self._history.update({key: [] for key in param_keys})
         seed_seq = generate_seed_sequence(self._seed, 1)[0]
 
         energies = []
@@ -289,8 +256,8 @@ class NQS:
 
         state = self.wf.state
         state = State(state.positions, state.logp, 0, state.delta)
-
         states = state.create_batch_of_states(batch_size=batch_size)
+
         # equilibrate, burn in lets see if makes a difference
         # for _ in range(1000):
         #    state = self._sampler.step(self.wf, state, seed_seq)
@@ -299,6 +266,11 @@ class NQS:
         epoch = 0
         for _ in t_range:
             # this object contains the states of all the sequence of steps
+            # cleans up the state after each batch
+            # state = self.wf.state
+            # state = State(state.positions, state.logp, 0, 0)
+
+            # states = state.create_batch_of_states(batch_size=batch_size)
             states = self._sampler.step(
                 self.wf, states, seed_seq, batch_size=batch_size
             )
@@ -310,17 +282,10 @@ class NQS:
             expval_energy = np.mean(energies)
 
             for key in param_keys:
-                grads_dict[key].append(local_grads_dict.get(key))
+                grad_np = np.array(local_grads_dict.get(key))
 
-                grad_np = np.array(grads_dict[key][0])
-                if self._grad_clip:
-                    grad_norm = np.linalg.norm(grad_np)
-
-                    if grad_norm > self._grad_clip:
-                        grad_np = self._grad_clip * grad_np / grad_norm
-
-                    grads_dict[key] = grad_np
-
+                grads_dict[key] = grad_np
+                self._history[key].append(np.linalg.norm(grad_np))
                 new_shape = (batch_size,) + (1,) * (
                     grad_np.ndim - 1
                 )  # Subtracting 1 because the first dimension is already provided by batch_size
@@ -332,40 +297,46 @@ class NQS:
                 final_grads[key] = 2 * (
                     expval_energies_dict[key] - expval_energy * expval_grad_dict[key]
                 )
+                if self._grad_clip:
+                    # print("grad_np before", grad_np.shape )
+                    grad_norm = np.linalg.norm(final_grads[key])
+                    # print("grad_norm", grad_norm)
+                    if grad_norm > self._grad_clip:
+                        final_grads[key] = (
+                            self._grad_clip * final_grads[key] / grad_norm
+                        )
 
             if self._optimizer.__class__.__name__ == "Sr":
                 self.sr_matrices = self.wf.compute_sr_matrix(
                     expval_grad_dict, grads_dict
                 )
+            if self._history:
+                grad_norms = [np.linalg.norm(final_grads[key]) for key in param_keys]
+                grad_norms = np.mean(grad_norms)
+                self._history["energy"].append(expval_energy)
+                self._history["grads"].append(grad_norms)
 
             # Descent
             self._optimizer.step(
                 self.wf.params, final_grads, self.sr_matrices
             )  # changes wf params inplace
 
-            if self._history:
-                grad_norms = [np.linalg.norm(final_grads[key]) for key in param_keys]
-                grad_norms = np.mean(grad_norms)
+            #     self._agent.log(
+            #         {"abs(energy - 3)": np.abs(expval_energy - 3)},
+            #         epoch,  # change this if not 2 particles 2 dimensions
+            #     ) if self._agent else None
+            #     self._agent.log({"grads": grad_norms}, epoch) if self._agent else None
+            # self._agent.log(
+            #     {"scale": self.scale}, epoch
+            # ) if self._agent else None
 
-                self._history["energy"].append(expval_energy)
-                self._history["grads"].append(grad_norms)
+            # if grad_norms < 10**-10:
+            #     if self.logger is not None:
+            #         self.logger.info("Gradient norm is zero, stopping training")
+            #     break
 
-                self._agent.log(
-                    {"abs(energy - 3)": np.abs(expval_energy - 3)},
-                    epoch,  # change this if not 2 particles 2 dimensions
-                ) if self._agent else None
-                self._agent.log({"grads": grad_norms}, epoch) if self._agent else None
-                # self._agent.log(
-                #     {"scale": self.scale}, epoch
-                # ) if self._agent else None
-
-                # if grad_norms < 10**-10:
-                #     if self.logger is not None:
-                #         self.logger.info("Gradient norm is zero, stopping training")
-                #     break
-
-            if self._tune:
-                self.tune()
+            # if self._tune:
+            #    self.tune()
 
             final_grads = {key: None for key in param_keys}
             grads_dict = {key: [] for key in param_keys}

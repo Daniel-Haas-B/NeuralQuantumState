@@ -30,8 +30,9 @@ class Hamiltonian:
         elif backend == "jax":
             self.backend = jnp
             self.la = jnp.linalg
-
+            # these dont really matter as the subfunctions are jitted already like gradient and laplacian
             # self.potential = jax.jit(self.potential)
+            # self._local_kinetic_energy = jax.jit(self._local_kinetic_energy)
         else:
             raise ValueError("Invalid backend:", backend)
 

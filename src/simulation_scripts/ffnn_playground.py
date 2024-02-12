@@ -25,17 +25,17 @@ jax.config.update("jax_platform_name", "cpu")
 # Config
 output_filename = "../data/playground.csv"
 nparticles = 2
-dim = 2
+dim = 1
 
 
 nsamples = int(2**15)  # 2**18 = 262144
 nchains = 2
 eta = 0.1
 
-training_cycles = 500  # this is cycles for the ansatz
-mcmc_alg = "m"
-optimizer = "adam"
-batch_size = 100
+training_cycles = 100  # this is cycles for the ansatz
+mcmc_alg = "lmh"
+optimizer = "sr"
+batch_size = 1000
 detailed = True
 wf_type = "ffnn"
 seed = 42
@@ -62,11 +62,12 @@ system.set_wf(
     nparticles,
     dim,  # all after this is kwargs.
     layer_sizes=[
-        5,
         3,
+        2,
         1,  # should always be one
     ],  # now includes input and output layers
     activations=["elu", "elu", "linear"],
+    symmetry="none",
 )
 
 system.set_sampler(mcmc_alg=mcmc_alg, scale=1)
@@ -94,12 +95,11 @@ history = system.train(
 )
 
 epochs = np.arange(len(history["energy"]))
-plt.plot(epochs, history["energy"], label="energy")
-plt.legend()
-plt.show()
-plt.plot(epochs, history["grads"], label="gradient_norm")
-plt.legend()
-plt.show()
+for key, value in history.items():
+    plt.plot(epochs, value, label=key)
+    plt.legend()
+    plt.show()
+
 
 df = system.sample(nsamples, nchains=nchains, seed=seed)
 df_all.append(df)

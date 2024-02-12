@@ -308,9 +308,7 @@ class RBM(WaveFunction):
         sr_matrices = {}
 
         for key, grad_value in grads.items():
-            grad_value = self.backend.array(
-                grad_value
-            )  # this should be done outside of the function
+            grad_value = self.backend.array(grad_value)
 
             # if self.backend.ndim(grad_value[0]) == 2:
             if key == "kernel":

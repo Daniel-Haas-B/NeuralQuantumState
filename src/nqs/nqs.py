@@ -225,6 +225,7 @@ class NQS:
         self._history = (
             {"energy": [], "grads": []} if kwargs.get("history", False) else None
         )
+
         self._early_stop = kwargs.get("early_stop", False)
         self._tune = kwargs.get("tune", False)
         self._grad_clip = kwargs.get("grad_clip", False)
@@ -243,6 +244,7 @@ class NQS:
 
         params = self.wf.params
         param_keys = params.keys()
+        self._history.update({key: [] for key in param_keys})
         seed_seq = generate_seed_sequence(self._seed, 1)[0]
 
         energies = []
@@ -253,19 +255,9 @@ class NQS:
         # steps_before_optimize = batch_size
 
         state = self.wf.state
-        # sanity check: see if wf is invariant under particle exchange
-        # position1 = state.positions # this is nparticle * dim
-        # position2 = np.reshape(position1, (self._N, self._dim))
-        # position2 = np.array([position2[1], position2[0]])
-        # position2 = np.reshape(position2, (self._N * self._dim))
-        # print("position1", position1)
-        # print("position2", position2)
-        # print("logprob1", self.wf.logprob(position1))
-        # print("logprob2", self.wf.logprob(position2))
-
         state = State(state.positions, state.logp, 0, state.delta)
-
         states = state.create_batch_of_states(batch_size=batch_size)
+
         # equilibrate, burn in lets see if makes a difference
         # for _ in range(1000):
         #    state = self._sampler.step(self.wf, state, seed_seq)
@@ -274,6 +266,11 @@ class NQS:
         epoch = 0
         for _ in t_range:
             # this object contains the states of all the sequence of steps
+            # cleans up the state after each batch
+            # state = self.wf.state
+            # state = State(state.positions, state.logp, 0, 0)
+
+            # states = state.create_batch_of_states(batch_size=batch_size)
             states = self._sampler.step(
                 self.wf, states, seed_seq, batch_size=batch_size
             )
@@ -285,17 +282,10 @@ class NQS:
             expval_energy = np.mean(energies)
 
             for key in param_keys:
-                grads_dict[key].append(local_grads_dict.get(key))
+                grad_np = np.array(local_grads_dict.get(key))
 
-                grad_np = np.array(grads_dict[key][0])
-                # if self._grad_clip:
-                #     grad_norm = np.linalg.norm(grad_np)
-
-                #     if grad_norm > self._grad_clip:
-                #         grad_np = self._grad_clip * grad_np / grad_norm
-
-                #     grads_dict[key] = grad_np
-
+                grads_dict[key] = grad_np
+                self._history[key].append(np.linalg.norm(grad_np))
                 new_shape = (batch_size,) + (1,) * (
                     grad_np.ndim - 1
                 )  # Subtracting 1 because the first dimension is already provided by batch_size
@@ -307,23 +297,29 @@ class NQS:
                 final_grads[key] = 2 * (
                     expval_energies_dict[key] - expval_energy * expval_grad_dict[key]
                 )
+                if self._grad_clip:
+                    # print("grad_np before", grad_np.shape )
+                    grad_norm = np.linalg.norm(final_grads[key])
+                    # print("grad_norm", grad_norm)
+                    if grad_norm > self._grad_clip:
+                        final_grads[key] = (
+                            self._grad_clip * final_grads[key] / grad_norm
+                        )
 
             if self._optimizer.__class__.__name__ == "Sr":
                 self.sr_matrices = self.wf.compute_sr_matrix(
                     expval_grad_dict, grads_dict
                 )
+            if self._history:
+                grad_norms = [np.linalg.norm(final_grads[key]) for key in param_keys]
+                grad_norms = np.mean(grad_norms)
+                self._history["energy"].append(expval_energy)
+                self._history["grads"].append(grad_norms)
 
             # Descent
             self._optimizer.step(
                 self.wf.params, final_grads, self.sr_matrices
             )  # changes wf params inplace
-
-            if self._history:
-                grad_norms = [np.linalg.norm(final_grads[key]) for key in param_keys]
-                grad_norms = np.mean(grad_norms)
-
-                self._history["energy"].append(expval_energy)
-                self._history["grads"].append(grad_norms)
 
             #     self._agent.log(
             #         {"abs(energy - 3)": np.abs(expval_energy - 3)},

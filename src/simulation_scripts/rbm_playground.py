@@ -22,14 +22,14 @@ dim = 2
 nhidden = 4
 
 nsamples = int(2**18)  # 2**18 = 262144
-nchains = 2
+nchains = 1
 eta = 0.1
 
-training_cycles = 5000  # this is cycles for the NN
-mcmc_alg = "m"
-backend = "jax"
-optimizer = "adam"
-batch_size = 50
+training_cycles = 70  # this is cycles for the NN
+mcmc_alg = "lmh"
+backend = "numpy"
+optimizer = "sr"
+batch_size = 100000
 detailed = True
 wf_type = "rbm"
 seed = 142
@@ -58,10 +58,10 @@ system.set_wf(
     dim,
     nhidden=nhidden,  # all after this is kwargs. In this example it is RBM dependent
     sigma2=1.0,
-    symmetry="boson",
+    symmetry="none",
 )
 
-system.set_sampler(mcmc_alg=mcmc_alg, scale=1)
+system.set_sampler(mcmc_alg=mcmc_alg, scale=0.75)
 system.set_hamiltonian(
     type_="ho",
     int_type=int_type,
@@ -84,18 +84,16 @@ history = system.train(
     early_stop=False,
     history=True,
     tune=False,
-    grad_clip=10,
+    grad_clip=0,
     seed=seed,
 )
 
 epochs = np.arange(len(history["energy"]))
 
-plt.plot(epochs, history["energy"], label="energy")
-plt.legend()
-plt.show()
-plt.plot(epochs, history["grads"], label="gradient_norm")
-plt.legend()
-plt.show()
+for key, value in history.items():
+    plt.plot(epochs, value, label=key)
+    plt.legend()
+    plt.show()
 
 df = system.sample(nsamples, nchains=nchains, seed=seed)
 df_all.append(df)
@@ -143,7 +141,7 @@ df_final.to_csv(output_filename, index=False)
 # energy withour sr
 df_all = pd.concat(df_all)
 print(df_all)
-# energy with sr
+
 if nchains > 1:
     sns.lineplot(data=df_all, x="chain_id", y="energy")
 else:
@@ -156,11 +154,11 @@ plt.ylabel("Energy")
 plt.show()
 
 
-positions, one_body_density = system.sample(
-    2**12, nchains=1, seed=seed, one_body_density=True
-)
-plt.plot(positions, one_body_density)
-plt.show()
+# positions, one_body_density = system.sample(
+#     2**12, nchains=1, seed=seed, one_body_density=True
+# )
+# plt.plot(positions, one_body_density)
+# plt.show()
 # # Plotting psi2 for both wave functions
 # plt.figure(figsize=(10, 6))
 # plot_psi2(system.wf, r_min=-4, r_max=4, num_points=300)

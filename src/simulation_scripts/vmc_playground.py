@@ -23,10 +23,10 @@ nchains = 1
 eta = 0.01
 
 training_cycles = 500  # this is cycles for the ansatz
-mcmc_alg = "m"
-backend = "jax"
-optimizer = "adam"
-batch_size = 500
+mcmc_alg = "lmh"
+backend = "numpy"
+optimizer = "sr"
+batch_size = 10000
 detailed = True
 wf_type = "vmc"
 seed = 142
@@ -52,10 +52,10 @@ system.set_wf(
     wf_type,
     nparticles,
     dim,
-    symmetry="boson",
+    symmetry=None,
 )
 
-system.set_sampler(mcmc_alg=mcmc_alg, scale=1.0)
+system.set_sampler(mcmc_alg=mcmc_alg, scale=1.0 / np.sqrt(nparticles * dim))
 system.set_hamiltonian(
     type_="ho", int_type="Coulomb", omega=1.0, r0_reg=3, training_cycles=training_cycles
 )
@@ -110,12 +110,10 @@ end = time.time()
 print((end - start))
 epochs = np.arange(training_cycles)
 
-plt.plot(epochs, history["energy"], label="energy")
-plt.legend()
-plt.show()
-plt.plot(epochs, history["grads"], label="gradient_norm")
-plt.legend()
-plt.show()
+for key, value in history.items():
+    plt.plot(epochs, value, label=key)
+    plt.legend()
+    plt.show()
 
 
 df_final = pd.concat(dfs_mean)

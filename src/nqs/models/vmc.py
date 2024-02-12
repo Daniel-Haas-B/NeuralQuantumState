@@ -202,9 +202,7 @@ class VMC(WaveFunction):
         sr_matrices = {}
 
         for key, grad_value in grads.items():
-            grad_value = self.backend.array(grad_value)[
-                0
-            ]  # this is annoying, but first we need to convert the grads to a numpy or jax array. This zero index is also annoying, but it is because the grads are returned as a list of arrays due to the .items() method.
+            grad_value = self.backend.array(grad_value)
 
             grads_outer = self.backend.einsum(
                 "ni,nj->nij", grad_value, grad_value

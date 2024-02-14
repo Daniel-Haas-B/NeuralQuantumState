@@ -44,7 +44,7 @@ class WaveFunction:
     def _jit_functions(self):
         functions_to_jit = [
             "_log_wf",
-            "logprob_closure",
+            "log_wf" "logprob_closure",
             "wf",
             "compute_sr_matrix",
             "_precompute",
@@ -66,7 +66,7 @@ class WaveFunction:
             self.grad_wf_closure = self.grad_wf_closure_jax
             self.grads_closure = self.grads_closure_jax
             self.laplacian_closure = self.laplacian_closure_jax
-            self._jit_functions()
+            self._jit_functions()  # maybe should be inside the child class
         else:
             raise ValueError("Invalid backend:", backend)
 

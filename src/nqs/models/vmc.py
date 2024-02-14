@@ -41,6 +41,9 @@ class VMC(WaveFunction):
                     } parameters"""
             self.logger.info(msg)
 
+    def __call__(self, r):
+        return self.wf(r, self.params.get("alpha"))
+
     def wf(self, r, alpha):
         """
         Ψ(r)=exp(- ∑_{i=1}^{N*DIM} alpha_i r_i * r_i) but in log domain

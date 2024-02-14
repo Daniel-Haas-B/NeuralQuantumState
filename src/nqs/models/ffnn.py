@@ -63,6 +63,9 @@ class FFNN(WaveFunction):
             msg = f"Neural Network Quantum State initialized as FFNN with {self.__str__()}"
             self.logger.info(msg)
 
+    def __call__(self, r):
+        return self.log_wf(r, self.params)
+
     def _initialize_layers(self, rng):
         """Always initialize all as rectangle for now"""
         self.params = Parameter()  # Initialize empty Parameter object
@@ -165,7 +168,7 @@ class FFNN(WaveFunction):
 
         return net_repr
 
-    def log_wf(self, x, params):
+    def ffnn(self, x, params):
         """
         This is the forward pass of the FFNN
 
@@ -191,25 +194,22 @@ class FFNN(WaveFunction):
 
             x = self.activation(self._activations[i])(x)
 
-        # print("shape before squeeze", x.shape)
-        # print("shape after squeeze", x.squeeze(-1).shape)
+        return x.squeeze(-1)  # note the minus sign here
 
-        return x.squeeze(-1)
-
-    def wf(self, r, params):
+    def log_wf(self, r, params):
         """Compute the wave function from the neural network output.
         this is actually
 
         This looks stupid but it is just to make things the same structure as the RBM and outside classes
         """
-        return self.log_wf(r, params)
+        return -1 * self.ffnn(r, params)
 
     @partial(jax.jit, static_argnums=(0,))
     def grad_wf_closure_jax(self, r, params):
         """
         This is the autograd version of the gradient of the logarithm of the wave function w.r.t. the coordinates
         """
-        grad_wf = jax.grad(self.wf, argnums=0)
+        grad_wf = jax.grad(self.log_wf, argnums=0)
 
         return vmap(grad_wf, in_axes=(0, None))(r, params)
 
@@ -231,7 +231,7 @@ class FFNN(WaveFunction):
         """
 
         def wrapped_wf(r_):
-            return self.wf(r_, params)
+            return self.log_wf(r_, params)
 
         hessian_wf = vmap(jax.hessian(wrapped_wf))
 
@@ -252,7 +252,7 @@ class FFNN(WaveFunction):
 
     @partial(jax.jit, static_argnums=(0,))
     def grads_closure_jax(self, r, params):
-        grad_fn = vmap(jax.grad(self.wf, argnums=1), in_axes=(0, None))
+        grad_fn = vmap(jax.grad(self.log_wf, argnums=1), in_axes=(0, None))
         grad_eval = grad_fn(r, params)  # still a parameter type
         return grad_eval
 

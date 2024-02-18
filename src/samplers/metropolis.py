@@ -142,7 +142,8 @@ class Metropolis(Sampler):
                         <0.001        x 0.1
                         <0.05         x 0.5
                         <0.2          x 0.9
-                        >0.5          x 1.1
+                        <0.5          x 0.95
+                        >0.8          x 1.4
                         >0.75         x 2
                         >0.95         x 10
 
@@ -173,15 +174,79 @@ class Metropolis(Sampler):
         elif acc_rate < 0.2:
             # reduce by ten percent
             scale *= 0.9
-        elif acc_rate > 0.5:
-            # increase by ten percent
-            scale *= 1.1
-        elif acc_rate > 0.75:
-            # increase by double
-            scale *= 2.0
+        elif acc_rate < 0.5:
+            # reduce by five percent
+            scale *= 0.95
         elif acc_rate > 0.95:
             # increase by factor of ten
             scale *= 10.0
+        elif acc_rate > 0.8:
+            # increase by ten percent
+            scale *= 2
+        elif acc_rate > 0.75:
+            # increase by double
+            scale *= 1.1
+
         # print("scale after: ", scale)
+
         self.scale = scale
         return scale
+
+    # def tune_scale(self, scale, acc_rate):
+    #     """Proposal scale lookup table. (Original)
+
+    #     Aims to obtain an acceptance rate between 20-50%.
+
+    #     Retrieved from the source code of PyMC [1].
+
+    #     Tunes the scaling parameter for the proposal distribution
+    #     according to the acceptance rate over the last tune_interval:
+
+    #                     Rate    Variance adaptation
+    #                     ----    -------------------
+    #                     <0.001        x 0.1
+    #                     <0.05         x 0.5
+    #                     <0.2          x 0.9
+    #                     >0.5          x 1.1
+    #                     >0.75         x 2
+    #                     >0.95         x 10
+
+    #     References
+    #     ----------
+    #     [1] https://github.com/pymc-devs/pymc/blob/main/pymc/step_methods/metropolis.py#L263
+
+    #     Arguments
+    #     ---------
+    #     scale : float
+    #         Scale of the proposal distribution
+    #     acc_rate : float
+    #         Acceptance rate of the last tuning interval
+
+    #     Returns
+    #     -------
+    #     scale : float
+    #         Updated scale parameter
+    #     """
+    #     # print("acc_rate: ", acc_rate)
+    #     # print("scale before: ", scale)
+    #     if acc_rate < 0.001:
+    #         # reduce by 90 percent
+    #         return scale * 0.1
+    #     elif acc_rate < 0.05:
+    #         # reduce by 50 percent
+    #         scale *= 0.5
+    #     elif acc_rate < 0.2:
+    #         # reduce by ten percent
+    #         scale *= 0.9
+    #     elif acc_rate > 0.5:
+    #         # increase by ten percent
+    #         scale *= 1.1
+    #     elif acc_rate > 0.75:
+    #         # increase by double
+    #         scale *= 2.0
+    #     elif acc_rate > 0.95:
+    #         # increase by factor of ten
+    #         scale *= 10.0
+    #     # print("scale after: ", scale)
+    #     self.scale = scale
+    #     return scale

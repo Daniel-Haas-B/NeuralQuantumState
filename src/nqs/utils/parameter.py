@@ -19,6 +19,10 @@ class Parameter:
     def __init__(self, data: Dict[str, ParameterDataType] = None) -> None:
         self.data = data if data is not None else {}
 
+    @property
+    def type(self) -> str:
+        return "Custom Parameter Class"
+
     def set(
         self,
         names_or_parameter: Union[
@@ -67,6 +71,24 @@ class Parameter:
 
     def __repr__(self) -> str:
         return f"Parameter(data={self.data})"
+
+    def rescale(self, scale: float) -> None:
+        for key in self.data:
+            self.data[key] *= scale
+
+    def __getitem__(self, key):
+        return self.data[key]
+
+    # make it such that a constant number can be multiplied by a parameter type for example 2*Parameter
+    def __mul__(self, other):
+        new_data = {}
+        for key in self.data:
+            new_data[key] = self.data[key] * other
+        return Parameter(new_data)
+
+    # now allow the other way around
+    def __rmul__(self, other):
+        return self.__mul__(other)
 
 
 # Registering the Parameter class with JAX

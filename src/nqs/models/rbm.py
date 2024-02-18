@@ -18,7 +18,7 @@ class RBM(WaveFunction):
         nparticles,
         dim,
         nhidden=1,
-        factor=1.0,  # TODO: verify this
+        factor=1.0,
         sigma2=1.0,
         rng=None,
         log=False,
@@ -47,6 +47,7 @@ class RBM(WaveFunction):
         )
 
         self.configure_backend(backend)
+
         self._initialize_vars(nparticles, dim, nhidden, factor, sigma2)
 
         self._initialize_bias_and_kernel(rng)
@@ -61,6 +62,14 @@ class RBM(WaveFunction):
                 f"{self._nhidden} hidden {neuron_str}"
             )
             self.logger.info(msg)
+
+    def __call__(self, r):
+        return self.wf(
+            r,
+            self.params.get("v_bias"),
+            self.params.get("h_bias"),
+            self.params.get("kernel"),
+        )
 
     def _initialize_bias_and_kernel(self, rng):
         v_bias = rng.standard_normal(size=self._nvisible) * 0.01
@@ -93,31 +102,31 @@ class RBM(WaveFunction):
         """
         return self.backend.logaddexp(x, 0)
 
-    def _log_wf(self, r, v_bias, h_bias, kernel):
+    def _log_wf(self, r, params):
         """Logarithmic gaussian-binary RBM"""
         # visible layer
         x_v = self.la.norm(
-            r - v_bias, axis=-1
+            r - params.get("v_bias"), axis=-1
         )  # axis = -1 means the last axis which is correct no matter the dimension of r
 
         x_v *= -x_v * self._sigma2_factor2  # this will also be broadcasted correctly
 
         # hidden layer
-
         x_h = self._softplus(
-            h_bias + (r @ kernel) * self._sigma2_factor
+            params.get("h_bias") + (r @ params.get("kernel")) * self._sigma2_factor
         )  # potential failure point
         x_h = self.backend.sum(x_h, axis=-1)
+        # print("x_h + x_v", x_h + x_v)
 
         return x_v + x_h
 
-    def wf(self, r, v_bias, h_bias, kernel):
+    def wf(self, r, params):
         """Evaluate the wave function
         This factor is 2 because we are evaluating the wave function squared.
         So p_rbm = |Ψ(r)|^2 = exp(-2 * log(Ψ(r))) which in log domain is -2 * log(Ψ(r))
         """
 
-        return self._factor * self._log_wf(r, v_bias, h_bias, kernel)
+        return self._factor * self._log_wf(r, params)
 
     def pdf(self, r):
         """
@@ -125,65 +134,60 @@ class RBM(WaveFunction):
         """
         return self.backend.exp(self.logprob(r))
 
-    def logprob_closure(self, r, v_bias, h_bias, kernel):
+    def logprob_closure(self, r, params):
         """Log probability amplitude"""
-
-        return self._rbm_psi_repr * self._log_wf(r, v_bias, h_bias, kernel).sum()
+        return self._rbm_psi_repr * self._log_wf(r, params).sum()
 
     @WaveFunction.symmetry
     def logprob(self, r):
         """Log probability amplitude"""
-        v_bias, h_bias, kernel = (
-            self.params.get("v_bias"),
-            self.params.get("h_bias"),
-            self.params.get("kernel"),
-        )
+        params = self.params
 
-        return self.logprob_closure(r, v_bias, h_bias, kernel)
+        return self.logprob_closure(r, params)
 
-    def grad_wf_closure(self, r, v_bias, h_bias, kernel):
+    def grad_wf_closure(self, r, params):
         """
         This is the gradient of the logarithm of the wave function w.r.t. the coordinates
         """
 
-        _expit = self.sigmoid(h_bias + (r @ kernel) * self._sigma2_factor)
+        _expit = self.sigmoid(
+            params.get("h_bias") + (r @ params.get("kernel")) * self._sigma2_factor
+        )
 
         einsum_str = "ij,bj->bi"  # if r.ndim == 2 else "ij,j->i"  # TODO: CHANGE THIS
-        gr = -(r - v_bias) + self.backend.einsum(einsum_str, kernel, _expit)
+        gr = -(r - params.get("v_bias")) + self.backend.einsum(
+            einsum_str, params.get("kernel"), _expit
+        )
         gr *= self._sigma2 * self._factor
         return gr
 
     @partial(jax.jit, static_argnums=(0,))
-    def grad_wf_closure_jax(self, r, v_bias, h_bias, kernel):
+    def grad_wf_closure_jax(self, r, params):
         """
         This is the autograd version of the gradient of the logarithm of the wave function w.r.t. the coordinates
         """
         grad_wf_closure = jax.grad(self.wf, argnums=0)
-        return vmap(grad_wf_closure, in_axes=(0, None, None, None))(
-            r, v_bias, h_bias, kernel
-        )
+        return vmap(grad_wf_closure, in_axes=(0, None))(r, params)
 
     @WaveFunction.symmetry
     def grad_wf(self, r):
         """
         grad of the wave function w.r.t. the coordinates
         """
-        v_bias, h_bias, kernel = (
-            self.params.get("v_bias"),
-            self.params.get("h_bias"),
-            self.params.get("kernel"),
-        )
-        grads = self.grad_wf_closure(r, v_bias, h_bias, kernel)
+        params = self.params
+        grads = self.grad_wf_closure(r, params)
 
         return grads
 
-    def laplacian_closure(self, r, v_bias, h_bias, kernel):
+    def laplacian_closure(self, r, params):
         _expit = self.sigmoid(
-            h_bias + (r @ kernel) * self._sigma2_factor
+            params.get("h_bias") + (r @ params.get("kernel")) * self._sigma2_factor
         )  # r @ kernel is the r1 * W1 + r2 * W2 + ...
-        _expos = self.sigmoid(-h_bias - (r @ kernel) * self._sigma2_factor)
+        _expos = self.sigmoid(
+            -params.get("h_bias") - (r @ params.get("kernel")) * self._sigma2_factor
+        )
 
-        kernel2 = self.backend.square(kernel)  # shape: (4, 4) if 2d
+        kernel2 = self.backend.square(params.get("kernel"))  # shape: (4, 4) if 2d
 
         # Element-wise multiplication, results in shape: (batch_size, 4)
         exp_prod = _expos * _expit
@@ -195,13 +199,13 @@ class RBM(WaveFunction):
         return gr.sum(axis=-1)  # sum over the coordinates
 
     @partial(jax.jit, static_argnums=(0,))
-    def laplacian_closure_jax(self, r, v_bias, h_bias, kernel):
+    def laplacian_closure_jax(self, r, params):
         """
         nabla^2 of the wave function w.r.t. the coordinates
         """
 
         def wrapped_wf(r_):
-            return self.wf(r_, v_bias, h_bias, kernel)
+            return self.wf(r_, params)
 
         hessian_wf = vmap(jax.hessian(wrapped_wf))
 
@@ -213,17 +217,15 @@ class RBM(WaveFunction):
 
     @WaveFunction.symmetry
     def laplacian(self, r):
-        v_bias, h_bias, kernel = (
-            self.params.get("v_bias"),
-            self.params.get("h_bias"),
-            self.params.get("kernel"),
-        )
-        laplacian = self.laplacian_closure(r, v_bias, h_bias, kernel)
+        params = self.params
+        laplacian = self.laplacian_closure(r, params)
 
         return laplacian
 
-    def grads_closure(self, r, v_bias, h_bias, kernel):
-        _expit = self.sigmoid(h_bias + (r @ kernel) * self._sigma2_factor)
+    def grads_closure(self, r, params):
+        _expit = self.sigmoid(
+            params.get("h_bias") + (r @ params.get("kernel")) * self._sigma2_factor
+        )
 
         grad_h_bias = self._factor * _expit
 
@@ -235,54 +237,34 @@ class RBM(WaveFunction):
             self._sigma2 * (r[:, :, None] @ _expit[:, None, :])
         ) * self._factor
 
-        grad_v_bias = (r - v_bias) * self._sigma2 * self._factor
+        grad_v_bias = (r - params.get("v_bias")) * self._sigma2 * self._factor
 
-        return grad_v_bias, grad_h_bias, grad_kernel
+        grads_dict = {
+            "v_bias": grad_v_bias,
+            "h_bias": grad_h_bias,
+            "kernel": grad_kernel,
+        }
+
+        return grads_dict
 
     @partial(jax.jit, static_argnums=(0,))
-    def grads_closure_jax(self, r, v_bias, h_bias, kernel):
+    def grads_closure_jax(self, r, params):
         """
         This is the autograd version of the gradient of the logarithm of the wave function w.r.t. the parameters
         """
-        grad_v_bias = vmap(jax.grad(self.wf, argnums=1), in_axes=(0, None, None, None))(
-            r, v_bias, h_bias, kernel
-        )
-
-        grad_h_bias = vmap(jax.grad(self.wf, argnums=2), in_axes=(0, None, None, None))(
-            r, v_bias, h_bias, kernel
-        )
-
-        grad_kernel = vmap(jax.grad(self.wf, argnums=3), in_axes=(0, None, None, None))(
-            r, v_bias, h_bias, kernel
-        )
-
-        grads = (
-            grad_v_bias,
-            grad_h_bias,
-            grad_kernel,
-        )
+        grads = vmap(jax.grad(self.wf, argnums=1), in_axes=(0, None))(r, params)
 
         return grads
 
     @WaveFunction.symmetry
     def grads(self, r):
         """Gradients of the wave function w.r.t. the parameters"""
-        v_bias, h_bias, kernel = (
-            self.params.get("v_bias"),
-            self.params.get("h_bias"),
-            self.params.get("kernel"),
-        )
+        params = self.params
 
-        grad_v_bias, grad_h_bias, grad_kernel = self.grads_closure(
-            r, v_bias, h_bias, kernel
-        )
-        grads_dict = {
-            "v_bias": grad_v_bias,
-            "h_bias": grad_h_bias,
-            "kernel": grad_kernel,
-        }
+        grads_dict = self.grads_closure(r, params)
         return grads_dict  # grad_v_bias, grad_h_bias, grad_kernel
 
+    # @partial(jax.jit, static_argnums=(0,)) only if backend is jax
     def compute_sr_matrix(self, expval_grads, grads, shift=1e-4):
         """
         expval_grads and grads should be dictionaries with keys "v_bias", "h_bias", "kernel" in the case of RBM

@@ -34,7 +34,7 @@ class Sampler:
     ):
         if nchains != 1:
             raise NotImplementedError("OBD is not implemented for parallel sampling")
-        scale = self._scale
+        scale = self.scale
         nchains = check_and_set_nchains(nchains, self._logger)
         seeds = generate_seed_sequence(seed, nchains)
         chain_id = 0
@@ -62,7 +62,7 @@ class Sampler:
 
     def sample(self, wf, state, nsamples, nchains=1, seed=None):
         """ """
-        scale = self._scale
+        scale = self.scale
         nchains = check_and_set_nchains(nchains, self._logger)
         seeds = generate_seed_sequence(seed, nchains)
         if nchains == 1:
@@ -94,7 +94,7 @@ class Sampler:
         return self._results
 
     def _sample(self, wf, nsamples, state, scale, seed, chain_id):
-        """To be called by process"""
+        """To be called by process in the big sampler function."""
         batch_size = 2**5
 
         if self._logger is not None:
@@ -117,7 +117,6 @@ class Sampler:
 
         for i in t_range:  # 2**18
             state = self._step(wf, state, seed, batch_size=batch_size)
-
             energies[i : i + batch_size] = self.hamiltonian.local_energy(
                 wf, state.positions
             )

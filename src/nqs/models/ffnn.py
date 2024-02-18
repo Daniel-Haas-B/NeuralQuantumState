@@ -8,6 +8,8 @@ from nqs.models.base_wf import WaveFunction
 from nqs.utils import Parameter
 from nqs.utils import State
 
+# import os
+#
 
 # from jax import grad
 
@@ -63,42 +65,32 @@ class FFNN(WaveFunction):
             msg = f"Neural Network Quantum State initialized as FFNN with {self.__str__()}"
             self.logger.info(msg)
 
-    def __call__(self, r):
-        return self.log_wf(r, self.params)
+    def reinit_positions(self):
+        self._reinit_positions()
+        self.state = State(self.r0, self.logprob(self.r0), 0, self.state.delta)
 
     def _initialize_layers(self, rng):
         """Always initialize all as rectangle for now"""
         self.params = Parameter()  # Initialize empty Parameter object
 
-        input_size_0 = self._nvisible
-        output_size_0 = self._layer_sizes[0]
-        # limit_0 = np.sqrt(2 / (input_size_0))
-
-        self.params.set(
-            "W0",
-            # np.array(rng.uniform(-limit_0, limit_0, (input_size_0, output_size_0))),
-            rng.standard_normal(size=(input_size_0, output_size_0)) * 0.01,
-        )
-
-        self.params.set("b0", np.zeros((output_size_0,)))
         # Initialize Batch Norm parameters
         # self.params.set(f"gamma0", jnp.ones((output_size_0,)))
         # self.params.set(f"beta0", jnp.zeros((output_size_0,)))
 
-        for i in range(1, len(self._layer_sizes)):
+        for i in range(0, len(self._layer_sizes) - 1):
             # The number of units in the layers
-            input_size = self._layer_sizes[i - 1]
-            output_size = self._layer_sizes[i]
+            input_size = self._layer_sizes[i]
+            output_size = self._layer_sizes[i + 1]
 
             # He initialization, considering the size of layers
-            # limit = np.sqrt(2 / (input_size))
+            limit = np.sqrt(2 / (input_size))
 
             # Initialize weights and biases
             self.params.set(
                 f"W{i}",
                 # np.array(rng.uniform(0, limit, (input_size, output_size))),
-                # np.array(rng.uniform(-limit, limit, (input_size, output_size))),
-                rng.standard_normal(size=(input_size, output_size)) * 0.01,
+                np.array(rng.uniform(-limit, limit, (input_size, output_size))),
+                # rng.standard_normal(size=(input_size, output_size)) * 0.01,
             )
 
             self.params.set(
@@ -110,63 +102,6 @@ class FFNN(WaveFunction):
             # Initialize Batch Norm parameters
             # self.params.set(f"gamma{i}", jnp.ones((output_size,))*0.01)
             # self.params.set(f"beta{i}", jnp.zeros((output_size,)))
-
-    def _initialize_vars(self, nparticles, dim, layer_sizes, activations, factor):
-        self._factor = factor
-        self._layer_sizes = layer_sizes
-        self._activations = activations
-        self._ffnn_psi_repr = 2 * self._factor
-        self._N = nparticles
-        self._dim = dim
-        self._nvisible = self._N * self._dim
-        if len(layer_sizes) != len(activations):
-            raise ValueError(
-                f"num layers ({len(layer_sizes)}) != num activations ({len(activations)})"
-            )
-
-    def activation(self, activation_str):
-        match activation_str:
-            case "tanh":
-                return jnp.tanh
-            case "sigmoid":
-                return jax.nn.sigmoid
-            case "relu":
-                return jax.nn.relu
-            case "softplus":
-                return jax.nn.softplus
-            case "gelu":
-                return jax.nn.gelu
-            case "linear":
-                return lambda x: x
-            case "exp":
-                return jnp.exp
-            case "elu":
-                return jax.nn.elu
-            case _:  # default
-                raise ValueError(f"Invalid activation function {activation_str}")
-
-    def __str__(self):
-        """
-        Construct a string representation of the neural network architecture.
-        """
-        # Start the network representation with the 'input layer'
-        net_repr = "Neural Network Architecture\n"
-        net_repr += "-" * 30 + "\n"  # Divider for clarity
-
-        for i, num_neurons in enumerate(self._layer_sizes):
-            layer_type = (
-                "Input"
-                if i == 0
-                else ("Output" if i == len(self._layer_sizes) - 1 else "Hidden")
-            )
-            layer_info = f"{layer_type} Layer (Layer {i}): {num_neurons} neurons\n"
-
-            # Compile layer information and visual representation
-            net_repr += layer_info
-
-        net_repr += "-" * 30  # Ending divider
-
-        return net_repr
 
     def ffnn(self, x, params):
         """
@@ -184,7 +119,7 @@ class FFNN(WaveFunction):
         W_n is (neurons_layer_n-1, 1)
         returns: (batch_size,) array
         """
-        for i in range(0, len(self._layer_sizes)):
+        for i in range(0, len(self._layer_sizes) - 1):
             x = x @ params.get(f"W{i}") + params.get(f"b{i}")
 
             # Batch Normalization
@@ -194,7 +129,7 @@ class FFNN(WaveFunction):
 
             x = self.activation(self._activations[i])(x)
 
-        return x.squeeze(-1)  # note the minus sign here
+        return x.squeeze(-1)
 
     def log_wf(self, r, params):
         """Compute the wave function from the neural network output.
@@ -202,18 +137,21 @@ class FFNN(WaveFunction):
 
         This looks stupid but it is just to make things the same structure as the RBM and outside classes
         """
-        return -1 * self.ffnn(r, params)
+        return self.ffnn(r, params)
 
-    @partial(jax.jit, static_argnums=(0,))
+    # @partial(jax.jit, static_argnums=(0,))
     def grad_wf_closure_jax(self, r, params):
         """
         This is the autograd version of the gradient of the logarithm of the wave function w.r.t. the coordinates
         """
         grad_wf = jax.grad(self.log_wf, argnums=0)
-
         return vmap(grad_wf, in_axes=(0, None))(r, params)
 
-        # return grad_wf(r, params)
+    def rescale_parameters(self, factor):
+        """
+        Rescale the parameters of the wave function.
+        """
+        self.params.rescale(factor)
 
     @WaveFunction.symmetry
     def grad_wf(self, r):
@@ -274,6 +212,14 @@ class FFNN(WaveFunction):
 
         return self.backend.exp(self.logprob(r))
 
+    def grads_logprob(self, r):
+        """
+        Gradients of the log probability amplitude
+        Note that grads is the gradient of the log of the wave function
+        """
+
+        return 2 * self.grads(r)
+
     def logprob_closure(self, r, params):
         """Log probability amplitude
         that is log(|psi|^2).
@@ -288,7 +234,7 @@ class FFNN(WaveFunction):
 
         return self.logprob_closure(r, self.params)
 
-    def compute_sr_matrix(self, expval_grads, grads, shift=1e-3):
+    def compute_sr_matrix(self, expval_grads, grads, shift=1e-4):
         """
         expval_grads and grads should be dictionaries with keys "v_bias", "h_bias", "kernel" in the case of RBM
         in the case of FFNN we have "weights" and "biases" and "kernel" is not present
@@ -332,3 +278,60 @@ class FFNN(WaveFunction):
             sr_matrices[key] = sr_mat + shift * self.backend.eye(sr_mat.shape[0])
 
         return sr_matrices
+
+    def _initialize_vars(self, nparticles, dim, layer_sizes, activations, factor):
+        self._factor = factor
+        self._layer_sizes = layer_sizes
+        self._activations = activations
+        self._ffnn_psi_repr = 2 * self._factor
+        self._N = nparticles
+        self._dim = dim
+        self._nvisible = self._N * self._dim
+        if len(layer_sizes) != len(activations) + 1:
+            raise ValueError(
+                f"num layers ({len(layer_sizes)}) != num activations +1 ({len(activations)})"
+            )
+
+    def activation(self, activation_str):
+        match activation_str:
+            case "tanh":
+                return jnp.tanh
+            case "sigmoid":
+                return jax.nn.sigmoid
+            case "relu":
+                return jax.nn.relu
+            case "softplus":
+                return jax.nn.softplus
+            case "gelu":
+                return jax.nn.gelu
+            case "linear":
+                return lambda x: x
+            case "exp":
+                return jnp.exp
+            case "elu":
+                return jax.nn.elu
+            case _:  # default
+                raise ValueError(f"Invalid activation function {activation_str}")
+
+    def __str__(self):
+        """
+        Construct a string representation of the neural network architecture.
+        """
+        # Start the network representation with the 'input layer'
+        net_repr = "Neural Network Architecture\n"
+        net_repr += "-" * 30 + "\n"  # Divider for clarity
+
+        for i, num_neurons in enumerate(self._layer_sizes):
+            layer_type = (
+                "Input"
+                if i == 0
+                else ("Output" if i == len(self._layer_sizes) - 1 else "Hidden")
+            )
+            layer_info = f"{layer_type} Layer (Layer {i}): {num_neurons} neurons\n"
+
+            # Compile layer information and visual representation
+            net_repr += layer_info
+
+        net_repr += "-" * 30  # Ending divider
+
+        return net_repr

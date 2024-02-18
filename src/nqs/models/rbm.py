@@ -264,7 +264,7 @@ class RBM(WaveFunction):
         grads_dict = self.grads_closure(r, params)
         return grads_dict  # grad_v_bias, grad_h_bias, grad_kernel
 
-    @partial(jax.jit, static_argnums=(0,))
+    # @partial(jax.jit, static_argnums=(0,)) only if backend is jax
     def compute_sr_matrix(self, expval_grads, grads, shift=1e-4):
         """
         expval_grads and grads should be dictionaries with keys "v_bias", "h_bias", "kernel" in the case of RBM

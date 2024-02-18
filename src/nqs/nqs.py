@@ -10,8 +10,11 @@ from nqs.utils import generate_seed_sequence
 from nqs.utils import setup_logger
 from nqs.utils import State
 from nqs.utils import wf_factory
+from nqs.utils import tune_sampler
 import jax
 import time
+
+from nqs import pretrain
 
 
 jax.config.update("jax_enable_x64", True)
@@ -107,6 +110,7 @@ class NQS:
         """
         self._N = nparticles
         self._dim = dim
+        self._symmetry = kwargs.get("symmetry", "none")
         common_args = {
             "nparticles": self._N,
             "dim": self._dim,
@@ -165,7 +169,7 @@ class NQS:
         if not isinstance(optimizer, str):
             raise TypeError("'optimizer' must be passed as str")
 
-        match optimizer:
+        match optimizer.lower():
             case "gd":
                 gamma = kwargs["gamma"] if "gamma" in kwargs else 0
                 self._optimizer = opt.Gd(self.wf.params, eta, gamma)  # dumb for now
@@ -254,9 +258,9 @@ class NQS:
         expval_grad_dict = {key: None for key in param_keys}
         # steps_before_optimize = batch_size
 
-        state = self.wf.state
-        state = State(state.positions, state.logp, 0, state.delta)
-        states = state.create_batch_of_states(batch_size=batch_size)
+        # state = self.wf.state
+        # state = State(state.positions, state.logp, 0, state.delta)
+        # states = state.create_batch_of_states(batch_size=batch_size)
 
         # equilibrate, burn in lets see if makes a difference
         # for _ in range(1000):
@@ -267,10 +271,10 @@ class NQS:
         for _ in t_range:
             # this object contains the states of all the sequence of steps
             # cleans up the state after each batch
-            # state = self.wf.state
-            # state = State(state.positions, state.logp, 0, 0)
+            state = self.wf.state
+            state = State(state.positions, state.logp, 0, state.delta)
 
-            # states = state.create_batch_of_states(batch_size=batch_size)
+            states = state.create_batch_of_states(batch_size=batch_size)
             states = self._sampler.step(
                 self.wf, states, seed_seq, batch_size=batch_size
             )
@@ -280,10 +284,10 @@ class NQS:
             epoch += 1
             energies = np.array(energies)
             expval_energy = np.mean(energies)
+            t_range.set_postfix(avg_E_l=f"{expval_energy:.2f}", refresh=True)
 
             for key in param_keys:
                 grad_np = np.array(local_grads_dict.get(key))
-
                 grads_dict[key] = grad_np
                 self._history[key].append(np.linalg.norm(grad_np))
                 new_shape = (batch_size,) + (1,) * (
@@ -297,6 +301,7 @@ class NQS:
                 final_grads[key] = 2 * (
                     expval_energies_dict[key] - expval_energy * expval_grad_dict[key]
                 )
+
                 if self._grad_clip:
                     # print("grad_np before", grad_np.shape )
                     grad_norm = np.linalg.norm(final_grads[key])
@@ -330,18 +335,35 @@ class NQS:
             #     {"scale": self.scale}, epoch
             # ) if self._agent else None
 
-            # if grad_norms < 10**-10:
-            #     if self.logger is not None:
-            #         self.logger.info("Gradient norm is zero, stopping training")
-            #     break
+            if grad_norms < 10**-15:
+                if self.logger is not None:
+                    self.logger.warning("Gradient norm is zero, stopping training")
+                break
 
-            # if self._tune:
-            #    self.tune()
+            if self._tune and epoch % int(max_iter * 0.1) == 0:
+                tune_batch = batch_size  # int(batch_size*0.1) # needs to be big else does not stabilize the acceptance rate
+                tune_iter = int(max_iter * 0.2)  # max_iter # int(max_iter*0.5)
+
+                # this will be very inneficient now
+                tune_sampler(
+                    wf=self.wf,
+                    sampler=self._sampler,
+                    seed=self._seed,
+                    log=self._log,
+                    tune_batch=tune_batch,
+                    tune_iter=tune_iter,
+                    mode="standard",
+                    logger=self.logger,
+                )
+                self._is_tuned_ = True
+
+            # update wf state after each epoch?
+            # self.wf.state = states[-1] ## check this!
 
             final_grads = {key: None for key in param_keys}
             grads_dict = {key: [] for key in param_keys}
 
-        self.state = states[-1]  # last state
+        self.state = State(states[-1].positions, states[-1].logp, 0, states[-1].delta)
 
         self._is_trained_ = True
 
@@ -400,63 +422,43 @@ class NQS:
 
         return sample_results
 
-    def tune(
-        self,
-        tune_iter=500,
-        tune_interval=500,
-        rtol=1e-05,
-        atol=1e-08,
-        seed=None,
-        mcmc_alg=None,
-        log=False,
-    ):
+    def pretrain(self, model, max_iter, batch_size, **kwargs):
         """
-        Tune proposal scale so that the acceptance rate is around 0.5.
+        # TODO: make this less repetitive
         """
-
-        self._is_initialized()
-        state = self.wf.state
-
-        self._log = log
-
-        seed_seq = generate_seed_sequence(seed, 1)[0]
-
-        # Reset n_accepted
-        # state = State(state.positions, state.logp, 0, state.delta)
-
-        if self._log:
-            t_range = tqdm(
-                range(tune_iter),
-                desc="[Tuning progress]",
-                position=0,
-                leave=True,
-                colour="green",
+        if model.lower() == "gaussian":
+            pre_system = pretrain.Gaussian(
+                log=True,
+                logger_level="INFO",
+                seed=self._seed * 2,
             )
-        else:
-            t_range = range(tune_iter)
 
-        steps_before_tune = tune_interval
+            pre_system.set_wf(  # TODO: MAKE LESS REPETITIVE
+                self.wf.__class__.__name__,
+                self._N,
+                self._dim,
+                layer_sizes=self.wf._layer_sizes,
+                activations=self.wf._activations,
+                symmetry=self._symmetry,
+            )
 
-        for i in t_range:
-            state = self._sampler.step(self.wf, state, seed_seq)
-            steps_before_tune -= 1
+            # FOR NOW DOES NOT MAKE SENSE
+            # pre_system.set_sampler(mcmc_alg=mcmc_alg, scale=1)
 
-            if steps_before_tune == 0:
-                # Tune proposal scale
-                old_scale = self._sampler.scale
-                accept_rate = state.n_accepted / tune_interval
-                print("accept_rate: ", accept_rate)
-                if 0.3 < accept_rate < 0.7:  # maybe change this
-                    self._is_tuned_ = True
-                    return
+            pre_system.set_optimizer(
+                optimizer="adam",
+                eta=0.1,
+                gamma=0,
+                beta1=0.9,
+                beta2=0.999,
+                epsilon=1e-8,
+            )
 
-                self._sampler.tune_scale(old_scale, accept_rate)
-                print("new scale: ", self._sampler.scale)
-
-                # Reset
-                steps_before_tune = tune_interval
-                state = State(state.positions, state.logp, 0, 0)
-
-        # Update shared values
-        # self.state = state
-        self._is_tuned_ = True
+            params = pre_system.pretrain(
+                max_iter=max_iter,
+                batch_size=batch_size,
+                seed=self._seed * 2,
+                history=False,
+                pretrain_sampler=False,
+            )
+            self.wf.params = params

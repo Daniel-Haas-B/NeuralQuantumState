@@ -19,7 +19,6 @@ class WaveFunction:
         seed=None,
         symmetry=None,
     ):
-        print("rng", rng)
         self.params = None
         self.nparticles = nparticles
         self.dim = dim
@@ -40,6 +39,10 @@ class WaveFunction:
         self.log = log
         self.rng = rng
         self.r0 = self.rng.standard_normal(size=self.nparticles * self.dim)
+
+    def _reinit_positions(self):
+        self.r0 = self.rng.standard_normal(size=self.nparticles * self.dim)
+        print("====== reinitiated positions to", self.r0)
 
     def _jit_functions(self):
         functions_to_jit = [

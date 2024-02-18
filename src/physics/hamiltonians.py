@@ -72,9 +72,11 @@ class HarmonicOscillator(Hamiltonian):
 
         self.kwargs = kwargs
 
-        self.reg_decay = (1e-10 / self.kwargs.get("r0_reg", 1.0)) ** (
-            1 / self.kwargs.get("training_cycles", 1.0)
-        )
+        self.reg_decay = 0.9
+
+        # (1**-10 / self.kwargs.get("r0_reg", 1.0)) ** (
+        #    1 / self.kwargs.get("training_cycles", 1.0)
+        # )
 
     def regularized_potential(self, r):
         """Regularize the potential"""
@@ -89,7 +91,8 @@ class HarmonicOscillator(Hamiltonian):
 
         v_trap = 0.5 * self.backend.sum(r * r, axis=-1) * self.kwargs["omega"]
 
-        self.kwargs["r0_reg"] = self.kwargs["r0_reg"] * self.reg_decay
+        # self.kwargs["r0_reg"] = self.kwargs["r0_reg"] * self.reg_decay
+        # print("r0_reg", self.kwargs["r0_reg"])
         # with open("decay.csv", "a") as f:
         #    f.write(str(self.kwargs["r0_reg"]) + "\n")
         # f.close()
@@ -152,6 +155,8 @@ class HarmonicOscillator(Hamiltonian):
         def regularized_potential(r):
             """Regularize the potential"""
             return 1
+
+        self.reg_decay = 1
 
         self.regularized_potential = regularized_potential
 

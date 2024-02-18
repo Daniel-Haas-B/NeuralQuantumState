@@ -16,17 +16,17 @@ jax.config.update("jax_platform_name", "cpu")
 
 # Config
 output_filename = "../data/vmc_playground.csv"
-nparticles = 2
-dim = 2
-nsamples = int(2**16)  # 2**18 = 262144
+nparticles = 1
+dim = 1
+nsamples = int(2**18)  # 2**18 = 262144
 nchains = 1
 eta = 0.01
 
 training_cycles = 500  # this is cycles for the ansatz
 mcmc_alg = "lmh"
 backend = "numpy"
-optimizer = "sr"
-batch_size = 10000
+optimizer = "adam"
+batch_size = 1000
 detailed = True
 wf_type = "vmc"
 seed = 142

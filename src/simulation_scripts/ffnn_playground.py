@@ -25,15 +25,15 @@ jax.config.update("jax_platform_name", "cpu")
 # Config
 output_filename = "../data/playground.csv"
 nparticles = 2
-dim = 1
+dim = 2
 
 
-nsamples = int(2**15)  # 2**18 = 262144
-nchains = 2
-eta = 0.1
+nsamples = int(2**16)  # 2**18 = 262144
+nchains = 1
+eta = 0.01
 
 training_cycles = 100  # this is cycles for the ansatz
-mcmc_alg = "lmh"
+mcmc_alg = "m"  # lmh is shit for ffnn
 optimizer = "sr"
 batch_size = 1000
 detailed = True
@@ -62,17 +62,18 @@ system.set_wf(
     nparticles,
     dim,  # all after this is kwargs.
     layer_sizes=[
+        nparticles * dim,  # should always be this
+        5,
         3,
-        2,
-        1,  # should always be one
-    ],  # now includes input and output layers
-    activations=["elu", "elu", "linear"],
+        1,  # should always be this
+    ],
+    activations=["gelu", "elu", "linear"],
     symmetry="none",
 )
 
 system.set_sampler(mcmc_alg=mcmc_alg, scale=1)
 system.set_hamiltonian(
-    type_="ho", int_type=None, omega=1.0, r0_reg=2, training_cycles=training_cycles
+    type_="ho", int_type="Coulomb", omega=1.0, r0_reg=1, training_cycles=training_cycles
 )
 
 system.set_optimizer(
@@ -84,6 +85,7 @@ system.set_optimizer(
     epsilon=1e-8,
 )
 
+system.pretrain(model="Gaussian", max_iter=1000, batch_size=1000)
 history = system.train(
     max_iter=training_cycles,
     batch_size=batch_size,

@@ -50,6 +50,7 @@ class Gaussian:
         logger_level="INFO",
         rng=None,
         seed=None,
+        symmetry=None,
     ):
         """Neural Network Quantum State
         It is conceptually important to understand that this is the system.
@@ -59,11 +60,11 @@ class Gaussian:
 
         self._check_logger(log, logger_level)
         self._log = log
-
+        self.symmetry = symmetry
         self.nqs_type = None
         self.hamiltonian = None
-        self.backend = np  # jnp
-        self.la = np.linalg  # jnp.linalg
+        self.backend = jnp
+        self.la = jnp.linalg
         self.mcmc_alg = None
         self._optimizer = None
         self.sr_matrices = None
@@ -209,6 +210,7 @@ class Gaussian:
         loss_func = lambda x, param: self.jaxmse(  # noqa
             self.wf.logprob_closure(x, param), self.multivar_gaussian_pdf(x)
         )
+
         for _ in t_range:
             state = self.wf.state
             state = State(state.positions, state.logp, 0, state.delta)
@@ -231,12 +233,16 @@ class Gaussian:
                 # Advance RNG
                 next_gen = advance_PRNG_state(self._seed, epoch)
                 rng = self.rng(next_gen)
-                mean = self.backend.zeros(self._dim * self._N)
-                twopi = 2 * self.backend.pi
-                states.positions = rng.normal(
-                    loc=0, scale=1, size=(batch_size, self._dim * self._N)
-                )
-                twopi ** len(mean)
+                # mean = self.backend.zeros(self._N * self._dim)
+                # twopi = 2 * self.backend.pi
+                states.positions = rng.uniform(
+                    -5, 5, (batch_size, self._dim * self._N)
+                )  # TODO: FIX RANGE
+
+                # rng.normal(
+                #    loc=0, scale=1, size=(batch_size, self._N* self._dim)
+                # )
+                # twopi ** len(mean)
                 # rng.uniform(-5, 5, (batch_size, self._dim * self._N))
 
                 # print(mse(self.wf.logprob_closure(states.positions, self.wf.params), self.multivar_gaussian_pdf(states.positions, mean)))
@@ -282,15 +288,26 @@ class Gaussian:
     def multivar_gaussian_pdf(self, x):
         """
         Given an input, it outputs the probability density function of a multivariate Gaussian.
-
+        DISCLAIMER: we are in log domain, so we return the log of the pdf.
         input x: np.array
         input mean: np.array
 
         output: float
         """
-        mean = self.backend.zeros(self._dim * self._N)
-        covariance = self.backend.eye(len(mean))
-        x_minus_mean = x - mean
+        if self.symmetry == "boson":
+            means = self.backend.zeros(self._N * self._dim)
+
+        elif self.symmetry == "fermion":
+            grid_pts_per_dim = self._N
+            means = np.zeros((self._N, self._dim))
+            for i in range(self._dim):
+                means[:, i] = np.linspace(-5, 5, grid_pts_per_dim)  # TODO: FIX RANGE
+            means = means.flatten()
+            means = jnp.array(means)
+            # raise NotImplementedError("Fermion symmetry not implemented yet")
+
+        covariance = self.backend.eye(self._dim * self._N)
+        x_minus_mean = x - means
         inv_cov = self.la.inv(covariance)
 
         det_cov = self.la.det(covariance)
@@ -301,7 +318,9 @@ class Gaussian:
             "jn,nj->n", x_minus_mean.T, incov_at_xmm
         )
 
-        return multivar_array - jnp.log(jnp.sqrt(twopi ** len(mean) * det_cov))
+        norm_fact = jnp.sqrt(twopi ** (self._N * self._dim) * det_cov)
+
+        return multivar_array - jnp.log(norm_fact)
 
     def jaxmse(self, x, y):
         return self.backend.mean((x - y) ** 2)

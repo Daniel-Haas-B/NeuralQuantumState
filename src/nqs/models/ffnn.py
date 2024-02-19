@@ -62,8 +62,11 @@ class FFNN(WaveFunction):
         self.state = State(self.r0, logp, 0, 0)
 
         if self.log:
-            msg = f"Neural Network Quantum State initialized as FFNN with {self.__str__()}"
+            msg = f"Neural Network Quantum State initialized with symmetry {self.symmetry} as FFNN with {self.__str__()}."  # noqa
             self.logger.info(msg)
+
+    def __call__(self, r):
+        return self.log_wf(r, self.params)
 
     def reinit_positions(self):
         self._reinit_positions()
@@ -103,22 +106,15 @@ class FFNN(WaveFunction):
             # self.params.set(f"gamma{i}", jnp.ones((output_size,))*0.01)
             # self.params.set(f"beta{i}", jnp.zeros((output_size,)))
 
+    @WaveFunction.symmetry
     def ffnn(self, x, params):
         """
         This is the forward pass of the FFNN
 
         x: (batch_size, part * dim) array
 
-        example:
-
-        W_0 is (part * dim, neurons_layer_0)
-        x @ W_0 is (batch_size, neurons_layer_0)
-        then b_0 is broadcasted to (batch_size, neurons_layer_0)
-        layer_0 output= activation(x @ W_0 + b_0) which is size (batch_size, neurons_layer_0)
-        ...
-        W_n is (neurons_layer_n-1, 1)
-        returns: (batch_size,) array
         """
+        # print("r inside ffnn", x)
         for i in range(0, len(self._layer_sizes) - 1):
             x = x @ params.get(f"W{i}") + params.get(f"b{i}")
 
@@ -128,7 +124,7 @@ class FFNN(WaveFunction):
             # x = params.get(f"gamma{i}") * (x - mean) / jnp.sqrt(variance + 1e-5) + params.get(f"beta{i}")
 
             x = self.activation(self._activations[i])(x)
-
+        # print("output of ffnn", x.squeeze(-1))
         return x.squeeze(-1)
 
     def log_wf(self, r, params):
@@ -153,7 +149,7 @@ class FFNN(WaveFunction):
         """
         self.params.rescale(factor)
 
-    @WaveFunction.symmetry
+    # @WaveFunction.symmetry
     def grad_wf(self, r):
         """
         (∇_r) Ψ(r) = ∑_i (∇_r) Ψ(r_i)
@@ -180,7 +176,7 @@ class FFNN(WaveFunction):
 
         return laplacian
 
-    @WaveFunction.symmetry
+    # @WaveFunction.symmetry
     def laplacian(self, r):
         """
         examine who is which particle and who is which dimension
@@ -194,7 +190,7 @@ class FFNN(WaveFunction):
         grad_eval = grad_fn(r, params)  # still a parameter type
         return grad_eval
 
-    @WaveFunction.symmetry
+    # @WaveFunction.symmetry
     def grads(self, r):
         """
         Gradients of the wave function with respect to the neural network parameters.
@@ -228,7 +224,7 @@ class FFNN(WaveFunction):
 
         return 2.0 * self.log_wf(r, params)
 
-    @WaveFunction.symmetry
+    # @WaveFunction.symmetry
     def logprob(self, r):
         """Log probability amplitude"""
 

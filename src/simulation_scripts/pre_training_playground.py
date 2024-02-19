@@ -23,13 +23,13 @@ jax.config.update("jax_platform_name", "cpu")
 
 # Config
 output_filename = "../data/playground.csv"
-nparticles = 1
+nparticles = 2
 dim = 1
 
 nchains = 1
 eta = 0.1
 
-training_cycles = 500  # this is cycles for the ansatz
+training_cycles = 1000  # this is cycles for the ansatz
 mcmc_alg = "m"  # lmh is shit for ffnn
 optimizer = "adam"
 batch_size = 10000
@@ -37,12 +37,7 @@ detailed = True
 wf_type = "ffnn"
 seed = 42
 
-system = pretrain.Gaussian(
-    nqs_repr="psi",
-    log=True,
-    logger_level="INFO",
-    seed=seed,
-)
+system = pretrain.Gaussian(log=True, logger_level="INFO", seed=seed, symmetry="fermion")
 
 system.set_wf(
     "ffnn",
@@ -76,10 +71,29 @@ params, history = system.pretrain(
     tune=False,
     grad_clip=0,
     pretrain_sampler=False,
+    history=True,
 )
 
-epochs = np.arange(len(history["loss"]))
-for key, value in history.items():
-    plt.plot(epochs, value, label=key)
-    plt.legend()
-    plt.show()
+# epochs = np.arange(len(history["loss"]))
+# for key, value in history.items():
+#     plt.plot(epochs, value, label=key)
+#     plt.legend()
+#     plt.show()
+
+
+# sample from the ffnn
+
+inputs = np.random.uniform(-10, 10, size=(1000, nparticles * dim))
+
+outputs = system.wf(inputs)
+truth = np.exp(system.multivar_gaussian_pdf(inputs))
+plt.plot(inputs, np.exp(outputs), "o")
+# lineplot truth
+# sort inputs
+
+plt.plot(inputs, truth, "*")
+# from -2 to 2
+plt.xlim(-10, 10)
+
+
+plt.show()

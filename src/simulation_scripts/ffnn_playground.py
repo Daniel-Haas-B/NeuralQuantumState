@@ -25,7 +25,7 @@ jax.config.update("jax_platform_name", "cpu")
 # Config
 output_filename = "../data/playground.csv"
 nparticles = 2
-dim = 2
+dim = 1
 
 
 nsamples = int(2**16)  # 2**18 = 262144
@@ -67,8 +67,8 @@ system.set_wf(
         3,
         1,  # should always be this
     ],
-    activations=["gelu", "elu", "linear"],
-    symmetry="none",
+    activations=["gelu", "gelu", "linear"],
+    symmetry="fermion",
 )
 
 system.set_sampler(mcmc_alg=mcmc_alg, scale=1)
@@ -85,7 +85,7 @@ system.set_optimizer(
     epsilon=1e-8,
 )
 
-system.pretrain(model="Gaussian", max_iter=1000, batch_size=1000)
+system.pretrain(model="Gaussian", max_iter=1000, batch_size=10000)
 history = system.train(
     max_iter=training_cycles,
     batch_size=batch_size,

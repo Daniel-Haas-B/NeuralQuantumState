@@ -1,4 +1,6 @@
+import math
 from abc import abstractmethod
+from itertools import permutations
 
 import jax
 import jax.numpy as jnp
@@ -75,27 +77,58 @@ class WaveFunction:
 
     @staticmethod
     def symmetry(func):
-        def wrapper(self, r, *args, **kwargs):
-            # Assuming `symmetry` is an attribute that determines if sorting should occur
-            if self.symmetry == "boson":
-                r_reshaped = r.reshape(-1, self.nparticles, self.dim)
-                sort_indices = np.argsort(
-                    r_reshaped.sum(axis=2), axis=1
-                )  # sorts axis 1 over sum of axis 2
-                r_sorted = np.array(
-                    [
-                        sample[indices]
-                        for sample, indices in zip(r_reshaped, sort_indices)
-                    ]
-                )
-                r_sorted_reshaped = r_sorted.reshape(-1, self.nparticles * self.dim)
-                r_sorted_reshaped
-            elif self.symmetry == "fermion":
-                raise NotImplementedError  # TODO
-            else:
-                r_sorted_reshaped = r
+        """
+        #TODO: ensure that receiving args are size (bacth, nparticles, dim)
+        """
 
-            return func(self, r_sorted_reshaped, *args, **kwargs)
+        def wrapper(self, r, *args, **kwargs):
+            n = self.nparticles
+
+            # first permutation is always the identity
+
+            r_reshaped = r.reshape(-1, n, self.dim)
+
+            def symmetrize_r(r):
+                # print("r.shape[0]", r.shape[0])
+                # first permutation is always the identity
+                total = self.backend.zeros_like(
+                    func(self, r, *args, **kwargs)
+                )  # inneficient
+
+                for sigma in permutations(range(n)):
+                    permuted_r = r_reshaped[:, sigma, :]
+                    # print("permuted r", permuted_r)
+                    permuted_r = permuted_r.reshape(r.shape)
+                    total += func(self, permuted_r, *args, **kwargs)
+
+                return total / math.factorial(n)
+
+            def antisymmetrize(func, *args):
+                total = self.backend.zeros_like(
+                    func(self, r, *args, **kwargs)
+                )  # inneficient
+                for sigma in permutations(range(n)):
+                    permuted_r = r_reshaped[:, sigma, :]
+
+                    inversions = 0
+                    for i in range(len(sigma)):
+                        for j in range(i + 1, len(sigma)):
+                            if sigma[i] > sigma[j]:
+                                inversions += 1
+                    sign = (-1) ** inversions
+
+                    permuted_r = permuted_r.reshape(r.shape)
+
+                    total += sign * func(self, permuted_r, *args, **kwargs)
+                return total / math.factorial(n)
+
+            if self.symmetry == "boson":
+                return symmetrize_r(r)
+
+            elif self.symmetry == "fermion":
+                return antisymmetrize(func, *args)
+            else:
+                return func(self, r, *args, **kwargs)
 
         return wrapper
 
@@ -128,7 +161,7 @@ class WaveFunction:
         pass
 
     @abstractmethod
-    def compute_sr_matrix(self, expval_grads, grads, shift=1e-3):
+    def compute_sr_matrix(self, expval_grads, grads, shift=1e-6):
         """
         to be overwritten by the inheriting class
         """

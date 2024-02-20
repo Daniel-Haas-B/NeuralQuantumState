@@ -39,19 +39,19 @@ class Metropolis(Sampler):
             rng = self._rng(next_gen)
 
             # Sample proposal positions, i.e., move walkers
-            proposals = rng.normal(loc=state.positions, scale=self.scale)
+            proposals_pos = rng.normal(loc=state.positions, scale=self.scale)
 
             # Sample log uniform rvs
             log_unif = np.log(rng.random())
 
             # Compute proposal log density
-            logp_proposal = wf.logprob(proposals)
+            logp_proposal = wf.logprob(proposals_pos)
 
             # Metroplis acceptance criterion
             accept = log_unif < logp_proposal - state.logp
 
             # If accept is True, yield proposal, otherwise keep old state
-            new_positions = proposals if accept else state.positions
+            new_positions = proposals_pos if accept else state.positions
 
             # Create new state
             new_logp = wf.logprob(new_positions) if accept else state.logp

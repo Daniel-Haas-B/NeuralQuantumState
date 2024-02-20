@@ -122,6 +122,7 @@ class NQS:
         }
         specific_args = kwargs
         self.wf = wf_factory(wf_type, **common_args, **specific_args)
+        self.nqs_type = wf_type
         self._is_initialized_ = True
 
     def set_hamiltonian(self, type_, int_type, **kwargs):
@@ -278,6 +279,7 @@ class NQS:
             states = self._sampler.step(
                 self.wf, states, seed_seq, batch_size=batch_size
             )
+
             energies = self.hamiltonian.local_energy(self.wf, states.positions)
             local_grads_dict = self.wf.grads(states.positions)
 
@@ -391,6 +393,7 @@ class NQS:
             "training_cycles": self._training_cycles,
             "training_batch": self._training_batch,
             "Opti": self._optimizer.__class__.__name__,
+            "symmetry": self._symmetry,
         }
 
         system_info = pd.DataFrame(system_info, index=[0])
@@ -430,7 +433,8 @@ class NQS:
             pre_system = pretrain.Gaussian(
                 log=True,
                 logger_level="INFO",
-                seed=self._seed * 2,
+                seed=43,  # self._seed * 2,
+                symmetry=self._symmetry,
             )
 
             pre_system.set_wf(  # TODO: MAKE LESS REPETITIVE
@@ -439,26 +443,28 @@ class NQS:
                 self._dim,
                 layer_sizes=self.wf._layer_sizes,
                 activations=self.wf._activations,
-                symmetry=self._symmetry,
+                symmetry="none",
             )
+        else:
+            raise NotImplementedError("Only Gaussian pretraining is supported for now")
 
-            # FOR NOW DOES NOT MAKE SENSE
-            # pre_system.set_sampler(mcmc_alg=mcmc_alg, scale=1)
+        # FOR NOW DOES NOT MAKE SENSE
+        # pre_system.set_sampler(mcmc_alg=mcmc_alg, scale=1)
 
-            pre_system.set_optimizer(
-                optimizer="adam",
-                eta=0.1,
-                gamma=0,
-                beta1=0.9,
-                beta2=0.999,
-                epsilon=1e-8,
-            )
+        pre_system.set_optimizer(
+            optimizer="adam",
+            eta=0.1,
+            gamma=0,
+            beta1=0.9,
+            beta2=0.999,
+            epsilon=1e-8,
+        )
 
-            params = pre_system.pretrain(
-                max_iter=max_iter,
-                batch_size=batch_size,
-                seed=self._seed * 2,
-                history=False,
-                pretrain_sampler=False,
-            )
-            self.wf.params = params
+        params = pre_system.pretrain(
+            max_iter=max_iter,
+            batch_size=batch_size,
+            seed=42,  # self._seed * 2,
+            history=False,
+            pretrain_sampler=False,
+        )
+        self.wf.params = params

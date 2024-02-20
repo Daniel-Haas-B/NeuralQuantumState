@@ -132,32 +132,6 @@ class WaveFunction:
 
         return wrapper
 
-    # @staticmethod
-    # def symmetry(func):
-    #     def wrapper(self, r, *args, **kwargs):
-    #         # Assuming `symmetry` is an attribute that determines if sorting should occur
-    #         if self.symmetry == "boson":
-    #             r_reshaped = r.reshape(-1, self.nparticles, self.dim)
-    #             sort_indices = np.argsort(
-    #                 r_reshaped.sum(axis=2), axis=1
-    #             )  # sorts axis 1 over sum of axis 2
-    #             r_sorted = np.array(
-    #                 [
-    #                     sample[indices]
-    #                     for sample, indices in zip(r_reshaped, sort_indices)
-    #                 ]
-    #             )
-    #             r_sorted_reshaped = r_sorted.reshape(-1, self.nparticles * self.dim)
-    #             r_sorted_reshaped
-    #         elif self.symmetry == "fermion":
-    #             raise NotImplementedError  # TODO
-    #         else:
-    #             r_sorted_reshaped = r
-
-    #         return func(self, r_sorted_reshaped, *args, **kwargs)
-
-    #     return wrapper
-
     @abstractmethod
     def laplacian(self, r):
         """

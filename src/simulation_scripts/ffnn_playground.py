@@ -25,7 +25,7 @@ jax.config.update("jax_platform_name", "cpu")
 # Config
 output_filename = "../data/playground.csv"
 nparticles = 2
-dim = 1
+dim = 2
 
 
 nsamples = int(2**16)  # 2**18 = 262144
@@ -63,11 +63,12 @@ system.set_wf(
     dim,  # all after this is kwargs.
     layer_sizes=[
         nparticles * dim,  # should always be this
+        7,
         5,
         3,
         1,  # should always be this
     ],
-    activations=["gelu", "gelu", "linear"],
+    activations=["gelu", "gelu", "gelu", "linear"],
     symmetry="fermion",
 )
 
@@ -85,7 +86,7 @@ system.set_optimizer(
     epsilon=1e-8,
 )
 
-system.pretrain(model="Gaussian", max_iter=1000, batch_size=10000)
+system.pretrain(model="Gaussian", max_iter=1000, batch_size=1000)
 history = system.train(
     max_iter=training_cycles,
     batch_size=batch_size,
@@ -95,6 +96,8 @@ history = system.train(
     tune=False,
     grad_clip=0,
 )
+system.sample(nsamples, nchains=1, seed=seed)
+
 
 epochs = np.arange(len(history["energy"]))
 for key, value in history.items():

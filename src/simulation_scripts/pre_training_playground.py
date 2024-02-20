@@ -24,13 +24,13 @@ jax.config.update("jax_platform_name", "cpu")
 # Config
 output_filename = "../data/playground.csv"
 nparticles = 2
-dim = 1
+dim = 2
 
 nchains = 1
 eta = 0.1
 
-training_cycles = 1000  # this is cycles for the ansatz
-mcmc_alg = "m"  # lmh is shit for ffnn
+training_cycles = 5000  # this is cycles for the ansatz
+mcmc_alg = "m"
 optimizer = "adam"
 batch_size = 10000
 detailed = True
@@ -45,11 +45,12 @@ system.set_wf(
     dim,  # all after this is kwargs.
     layer_sizes=[
         nparticles * dim,  # should always be this
+        7,
         5,
         3,
         1,  # should always be this
     ],
-    activations=["gelu", "gelu", "linear"],
+    activations=["gelu", "gelu", "gelu", "linear"],
     symmetry="none",
 )
 
@@ -82,18 +83,40 @@ params, history = system.pretrain(
 
 
 # sample from the ffnn
-
-inputs = np.random.uniform(-10, 10, size=(1000, nparticles * dim))
-
-outputs = system.wf(inputs)
-truth = np.exp(system.multivar_gaussian_pdf(inputs))
-plt.plot(inputs, np.exp(outputs), "o")
-# lineplot truth
-# sort inputs
-
-plt.plot(inputs, truth, "*")
-# from -2 to 2
-plt.xlim(-10, 10)
+sigma = 2
+inputs = np.random.standard_normal(
+    size=(10000, nparticles * dim)
+)  # np.random.uniform(-3*sigma, 3*sigma, size=(10000, nparticles * dim))
 
 
-plt.show()
+# if particles times dims is 2:
+if nparticles * dim == 2:
+    outputs = system.wf.pdf(inputs)
+    truth = np.exp(system.multivar_gaussian_pdf(inputs))
+    plt.plot(inputs, outputs, "o")
+    # lineplot truth
+    # sort inputs
+
+    plt.plot(inputs, truth, "*")
+    # from -2 to 2
+    plt.xlim(-5, 5)
+
+    plt.show()
+
+# if particles times dims is 4 (need to plot 3d)
+if nparticles * dim == 4:
+    outputs = system.wf.pdf(inputs)
+    truth = np.exp(system.multivar_gaussian_pdf(inputs))
+    plt.plot(inputs, outputs, "o")
+
+    # 3d plot
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection="3d")
+    ax.scatter(inputs[:, 0], inputs[:, 1], outputs, c="r", marker="o")
+    ax.scatter(inputs[:, 0], inputs[:, 1], truth, c="b", marker="o")
+
+    # add legend
+    ax.legend(["ffnn", "truth"])
+    plt.xlim(-5, 5)
+    plt.ylim(-5, 5)
+    plt.show()

@@ -187,7 +187,7 @@ class WaveFunction:
         pass
 
     @abstractmethod
-    def compute_sr_matrix(self, expval_grads, grads, shift=1e-3):
+    def compute_sr_matrix(self, expval_grads, grads, shift=1e-6):
         """
         to be overwritten by the inheriting class
         """

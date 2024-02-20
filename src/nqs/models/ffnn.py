@@ -65,9 +65,6 @@ class FFNN(WaveFunction):
             msg = f"Neural Network Quantum State initialized with symmetry {self.symmetry} as FFNN with {self.__str__()}."  # noqa
             self.logger.info(msg)
 
-    def __call__(self, r):
-        return self.log_wf(r, self.params)
-
     def reinit_positions(self):
         self._reinit_positions()
         self.state = State(self.r0, self.logprob(self.r0), 0, self.state.delta)
@@ -230,7 +227,7 @@ class FFNN(WaveFunction):
 
         return self.logprob_closure(r, self.params)
 
-    def compute_sr_matrix(self, expval_grads, grads, shift=1e-4):
+    def compute_sr_matrix(self, expval_grads, grads, shift=1e-6):
         """
         expval_grads and grads should be dictionaries with keys "v_bias", "h_bias", "kernel" in the case of RBM
         in the case of FFNN we have "weights" and "biases" and "kernel" is not present

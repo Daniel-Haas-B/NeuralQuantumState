@@ -235,15 +235,16 @@ class Gaussian:
                 rng = self.rng(next_gen)
                 # mean = self.backend.zeros(self._N * self._dim)
                 # twopi = 2 * self.backend.pi
-                states.positions = rng.uniform(
-                    -5, 5, (batch_size, self._dim * self._N)
-                )  # TODO: FIX RANGE
+                # states.positions = rng.uniform(
+                #      -5, 5, (batch_size, self._dim * self._N)
+                # )  # TODO: FIX RANGE
 
-                # rng.normal(
-                #    loc=0, scale=1, size=(batch_size, self._N* self._dim)
-                # )
+                states.positions = rng.normal(
+                    loc=0, scale=1, size=(batch_size, self._dim * self._N)
+                )
+                # states.positions = rng.standard_normal(size=(batch_size, self._dim * self._N))
                 # twopi ** len(mean)
-                # rng.uniform(-5, 5, (batch_size, self._dim * self._N))
+                # states.positions = rng.uniform(-3, 3, (batch_size, self._dim * self._N))
 
                 # print(mse(self.wf.logprob_closure(states.positions, self.wf.params), self.multivar_gaussian_pdf(states.positions, mean)))
                 loss = loss_func(states.positions, self.wf.params)
@@ -252,7 +253,7 @@ class Gaussian:
             grad_loss_dict = grad_loss_fn(states.positions, params)
 
             epoch += 1
-            t_range.set_postfix(loss=f"{loss:.2f}", refresh=True)
+            t_range.set_postfix(loss=f"{loss:.2E}", refresh=True)
 
             if self._history:
                 grad_norms = [

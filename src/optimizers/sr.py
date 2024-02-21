@@ -17,7 +17,8 @@ class Sr(Optimizer):
         self._param_keys = params.keys()
         self.t = 0
         self.delta0 = 1e-2  # trust region upper bound. This is the
-        self.delta_1 = 1e-5  # trust region lower bound
+        self.delta_1 = 1e-3  # trust region lower bound
+
         self.trust_regions = {key: None for key in self._param_keys}
 
     def step(self, params, grads, sr_matrices=None):

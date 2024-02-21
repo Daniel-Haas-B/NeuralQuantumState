@@ -303,7 +303,9 @@ class Gaussian:
             grid_pts_per_dim = self._N
             means = np.zeros((self._N, self._dim))
             for i in range(self._dim):
-                means[:, i] = np.linspace(-5, 5, grid_pts_per_dim)  # TODO: FIX RANGE
+                means[:, i] = np.linspace(
+                    -5, 5, grid_pts_per_dim
+                )  # TODO: FIX RANGE to be dinamic
             means = means.flatten()
             means = jnp.array(means)
             # raise NotImplementedError("Fermion symmetry not implemented yet")

@@ -35,7 +35,8 @@ eta = 0.01
 training_cycles = 200  # this is cycles for the ansatz
 mcmc_alg = "m"  # lmh is shit for ffnn
 optimizer = "sr"
-batch_size = 500
+batch_size = 2000
+
 detailed = True
 wf_type = "ffnn"
 seed = 42
@@ -63,12 +64,11 @@ system.set_wf(
     dim,  # all after this is kwargs.
     layer_sizes=[
         nparticles * dim,  # should always be this
-        7,
         5,
         3,
         1,  # should always be this
     ],
-    activations=["gelu", "gelu", "gelu", "linear"],
+    activations=["gelu", "elu", "linear"],
     symmetry="none",
 )
 

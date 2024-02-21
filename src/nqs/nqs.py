@@ -433,7 +433,7 @@ class NQS:
             pre_system = pretrain.Gaussian(
                 log=True,
                 logger_level="INFO",
-                seed=43,  # self._seed * 2,
+                seed=self._seed * 2,
                 symmetry=self._symmetry,
             )
 
@@ -463,7 +463,7 @@ class NQS:
         params = pre_system.pretrain(
             max_iter=max_iter,
             batch_size=batch_size,
-            seed=42,  # self._seed * 2,
+            seed=self._seed * 2,
             history=False,
             pretrain_sampler=False,
         )

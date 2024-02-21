@@ -295,6 +295,7 @@ class Gaussian:
 
         output: float
         """
+        means = self.backend.zeros(self._N * self._dim)
         if self.symmetry == "boson":
             means = self.backend.zeros(self._N * self._dim)
 

@@ -63,13 +63,12 @@ system.set_wf(
     dim,  # all after this is kwargs.
     layer_sizes=[
         nparticles * dim,  # should always be this
-        7,
         5,
         3,
         1,  # should always be this
     ],
-    activations=["gelu", "gelu", "gelu", "linear"],
-    symmetry="fermion",
+    activations=["gelu", "elu", "linear"],
+    symmetry="none",
 )
 
 system.set_sampler(mcmc_alg=mcmc_alg, scale=1)
@@ -96,7 +95,6 @@ history = system.train(
     tune=False,
     grad_clip=0,
 )
-system.sample(nsamples, nchains=1, seed=seed)
 
 
 epochs = np.arange(len(history["energy"]))

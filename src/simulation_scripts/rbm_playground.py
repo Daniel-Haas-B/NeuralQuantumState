@@ -17,8 +17,8 @@ jax.config.update("jax_platform_name", "cpu")
 
 # Config
 output_filename = "../data/playground.csv"
-nparticles = 1
-dim = 1
+nparticles = 2
+dim = 2
 nhidden = 4
 
 nsamples = int(2**18)  # 2**18 = 262144
@@ -27,7 +27,7 @@ eta = 0.1
 
 training_cycles = 70  # this is cycles for the NN
 mcmc_alg = "m"
-backend = "numpy"
+backend = "jax"
 optimizer = "sr"
 batch_size = 1000
 detailed = True

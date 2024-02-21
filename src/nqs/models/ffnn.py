@@ -103,6 +103,9 @@ class FFNN(WaveFunction):
             # self.params.set(f"gamma{i}", jnp.ones((output_size,))*0.01)
             # self.params.set(f"beta{i}", jnp.zeros((output_size,)))
 
+    def __call__(self, r, params):
+        return self.ffnn(r, params)
+
     @WaveFunction.symmetry
     def ffnn(self, x, params):
         """

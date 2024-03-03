@@ -9,7 +9,10 @@ import numpy as np
 
 # from typing import Callable
 
+
 Array = Union[np.ndarray, jnp.ndarray]  # either numpy or jax numpy array
+
+
 PyTree = Union[
     Array, Iterable[Array], Mapping[Any, Array]
 ]  # either array, iterable of arrays or mapping of arrays

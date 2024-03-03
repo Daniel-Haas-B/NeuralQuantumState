@@ -27,32 +27,34 @@ class Sr(Optimizer):
         """
 
         self.t += 1  # increment time step
+        if sr_matrices:
+            for key, sr_matrix in sr_matrices.items():
+                inv_sr_matrix = np.linalg.pinv(sr_matrix)
 
-        for key, sr_matrix in sr_matrices.items():
-            inv_sr_matrix = np.linalg.pinv(sr_matrix)
+                # if grads[key].ndim == 1: we want np.einsum("ij,j->i", inv_sr_matrix, grads[key])
+                # if grads[key].ndim == 2: we want np.einsum("ij,jk->ik", inv_sr_matrix, grads[key])
+                # ein_string = "ij,j" +"k"*(grads[key].ndim-1) + "->i" + "k"*(grads[key].ndim-1)
+                # print(f"ein_string: {ein_string}")
+                # condit_grad = np.einsum(ein_string, inv_sr_matrix, grads[key]) # will be shape
+                # (n, m) where n is the number of parameters and m is the number of elements in the parameter
 
-            # if grads[key].ndim == 1: we want np.einsum("ij,j->i", inv_sr_matrix, grads[key])
-            # if grads[key].ndim == 2: we want np.einsum("ij,jk->ik", inv_sr_matrix, grads[key])
-            # ein_string = "ij,j" +"k"*(grads[key].ndim-1) + "->i" + "k"*(grads[key].ndim-1)
-            # print(f"ein_string: {ein_string}")
-            # condit_grad = np.einsum(ein_string, inv_sr_matrix, grads[key]) # will be shape
-            # (n, m) where n is the number of parameters and m is the number of elements in the parameter
+                # or
+                grads[key] = grads[key].reshape(sr_matrix.shape[0], -1)
+                condit_grad = inv_sr_matrix @ grads[key]
 
-            # or
-            grads[key] = grads[key].reshape(sr_matrix.shape[0], -1)
-            condit_grad = inv_sr_matrix @ grads[key]
+                dgd = np.linalg.norm(
+                    condit_grad.T @ grads[key]
+                )  # this is dtheta^T * g dtheta # TODO: check this dim
 
-            dgd = np.linalg.norm(
-                condit_grad.T @ grads[key]
-            )  # this is dtheta^T * g dtheta # TODO: check this dim
+                self.trust_regions[key] = np.min(
+                    [self.delta0, np.sqrt(self.delta_1 / dgd)]
+                )
+                grads[key] = condit_grad.reshape(
+                    params.get(key).shape
+                )  # sheng cals this Gj
 
-            self.trust_regions[key] = np.min([self.delta0, np.sqrt(self.delta_1 / dgd)])
-            grads[key] = condit_grad.reshape(
-                params.get(key).shape
-            )  # sheng cals this Gj
-
-        # Fj is what sheng calls the original grad without the sr matrix
-        for key, grad in grads.items():
-            params.set([key], [params.get(key) - (self.trust_regions[key]) * grad])
-            # params.set([key], [params.get(key) - (self.eta/np.sqrt(self.t)) * grad])
-            # params.set([key], [params.get(key) - (self.eta) * grad])
+            # Fj is what sheng calls the original grad without the sr matrix
+            for key, grad in grads.items():
+                params.set([key], [params.get(key) - (self.trust_regions[key]) * grad])
+                # params.set([key], [params.get(key) - (self.eta/np.sqrt(self.t)) * grad])
+                # params.set([key], [params.get(key) - (self.eta) * grad])

@@ -35,7 +35,7 @@ eta = 0.01
 training_cycles = 200  # this is cycles for the ansatz
 mcmc_alg = "m"  # lmh is shit for ffnn
 optimizer = "sr"
-batch_size = 2000
+batch_size = 500
 
 detailed = True
 wf_type = "ffnn"
@@ -86,7 +86,7 @@ system.set_optimizer(
     epsilon=1e-8,
 )
 
-system.pretrain(model="Gaussian", max_iter=1000, batch_size=1000)
+# system.pretrain(model="Gaussian", max_iter=1000, batch_size=1000)
 history = system.train(
     max_iter=training_cycles,
     batch_size=batch_size,

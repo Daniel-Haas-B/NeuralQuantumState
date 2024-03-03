@@ -45,7 +45,9 @@ class Metropolis(Sampler):
             log_unif = np.log(rng.random())
 
             # Compute proposal log density
-            logp_proposal = wf.logprob(proposals_pos)
+            logp_proposal = wf.logprob(
+                proposals_pos
+            )  # TODO: remember to change back to logprob
 
             # Metroplis acceptance criterion
             accept = log_unif < logp_proposal - state.logp
@@ -54,7 +56,9 @@ class Metropolis(Sampler):
             new_positions = proposals_pos if accept else state.positions
 
             # Create new state
-            new_logp = wf.logprob(new_positions) if accept else state.logp
+            new_logp = (
+                wf.logprob(new_positions) if accept else state.logp
+            )  # TODO: remember to change back to logprob
             new_n_accepted = state.n_accepted + accept
             new_delta = state.delta + 1
 
@@ -92,8 +96,6 @@ class Metropolis(Sampler):
         return new_state
 
     def step(self, wf, state, seed, batch_size=1):
-        # state = state.create_batch_of_states(batch_size)
-
         return self._step(wf, state, seed, batch_size)
 
     # def batch_step(self, wf, state, seed):

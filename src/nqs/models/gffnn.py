@@ -17,7 +17,7 @@ jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
 
 
-class FFNN(WaveFunction):
+class GFFNN(WaveFunction):
     def __init__(
         self,
         nparticles,
@@ -128,8 +128,7 @@ class FFNN(WaveFunction):
             # x = params.get(f"gamma{i}") * (x - mean) / jnp.sqrt(variance + 1e-5) + params.get(f"beta{i}")
 
             x = self.activation(self._activations[i])(x)
-
-        return x.squeeze(-1)
+        return x
 
     def log_wf(self, r, params):
         """Compute the wave function from the neural network output.
@@ -137,7 +136,7 @@ class FFNN(WaveFunction):
 
         This looks stupid but it is just to make things the same structure as the RBM and outside classes
         """
-        return self.ffnn(r, params)
+        return self.ffnn(r, params).sum(axis=-1)
 
     @partial(jax.jit, static_argnums=(0,))
     def grad_wf_closure_jax(self, r, params):

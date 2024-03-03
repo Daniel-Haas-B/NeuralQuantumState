@@ -88,7 +88,6 @@ class HarmonicOscillator(Hamiltonian):
         Potential energy function
         """
         # HO trap
-
         v_trap = 0.5 * self.backend.sum(r * r, axis=-1) * self.kwargs["omega"]
 
         # self.kwargs["r0_reg"] = self.kwargs["r0_reg"] * self.reg_decay
@@ -96,7 +95,7 @@ class HarmonicOscillator(Hamiltonian):
         # with open("decay.csv", "a") as f:
         #    f.write(str(self.kwargs["r0_reg"]) + "\n")
         # f.close()
-
+        # print("v_trap avg", v_trap.mean())
         # Interaction
         v_int = 0.0
         if self._int_type == "Coulomb":
@@ -132,8 +131,9 @@ class HarmonicOscillator(Hamiltonian):
     def _local_kinetic_energy(self, wf, r):
         """Evaluate the local kinetic energy of the system"""
 
-        _laplace = wf.laplacian(r)
         _grad = wf.grad_wf(r)
+
+        _laplace = wf.laplacian(r)
 
         _grad2 = self.backend.sum(_grad * _grad, axis=1)  # summing over all particles
 

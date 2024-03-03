@@ -93,9 +93,33 @@ class Sampler:
 
         return self._results
 
+    def sample_pos(self, wf, state, nsamples, seed=None):
+        """ """
+
+        nchains = check_and_set_nchains(1, self._logger)
+        seeds = generate_seed_sequence(seed, nchains)
+        seed = seeds[0]
+        state = State(state.positions, state.logp, 0, state.delta)
+        state = state.create_batch_of_states(batch_size=nsamples)
+        state = self._step(wf, state, seed, batch_size=nsamples)
+        positions = state.positions
+
+        return positions
+
+    def _sample_pos(self, wf, nsamples, state, scale, seed, chain_id):
+        """To be called by process in the big sampler function."""
+
+        # Config
+        state = State(state.positions, state.logp, 0, state.delta)
+        state = state.create_batch_of_states(batch_size=nsamples)
+        state = self._step(wf, state, seed, batch_size=nsamples)
+        positions = state.positions
+
+        return positions
+
     def _sample(self, wf, nsamples, state, scale, seed, chain_id):
         """To be called by process in the big sampler function."""
-        batch_size = 2**5
+        batch_size = 1  # 2**5
 
         if self._logger is not None:
             t_range = tqdm(
@@ -109,7 +133,6 @@ class Sampler:
             t_range = range(0, nsamples, batch_size)
 
         # Config
-
         state = State(state.positions, state.logp, 0, state.delta)
         state = state.create_batch_of_states(batch_size=batch_size)
 
@@ -172,7 +195,7 @@ class Sampler:
 
         return one_body_density
 
-    def step(self, wf, state, seed):
+    def step(self, wf, state, seed, params):
         """
         To be implemented by subclasses
         """

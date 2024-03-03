@@ -90,6 +90,10 @@ class Parameter:
     def __rmul__(self, other):
         return self.__mul__(other)
 
+    # add unary minus
+    def __neg__(self):
+        return self * -1
+
 
 # Registering the Parameter class with JAX
 register_pytree_node(Parameter, Parameter.tree_flatten, Parameter.tree_unflatten)

@@ -375,6 +375,13 @@ class NQS:
         if self._history:
             return self._history
 
+    def sample_pos(self, nsamples, seed=None):
+        """
+        to be called just to sample positions after training
+        """
+        sample_pos = self._sampler.sample_pos(self.wf, self.state, nsamples, seed)
+        return sample_pos
+
     def sample(self, nsamples, nchains=1, seed=None, one_body_density=False):
         """helper for the sample method from the Sampler class"""
         t0 = time.time()

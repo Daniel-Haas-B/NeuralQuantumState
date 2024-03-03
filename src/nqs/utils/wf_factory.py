@@ -1,5 +1,6 @@
 from nqs.models import Dummy
 from nqs.models import FFNN
+from nqs.models import GFFNN
 from nqs.models import RBM
 from nqs.models import VMC
 
@@ -12,6 +13,8 @@ def wf_factory(wf_type, **kwargs):
             return RBM(**kwargs)
         case "ffnn":
             return FFNN(**kwargs)
+        case "gffnn":
+            return GFFNN(**kwargs)
         case "vmc":
             return VMC(**kwargs)
         case "dummy":

@@ -49,7 +49,8 @@ class WaveFunction:
     def _jit_functions(self):
         functions_to_jit = [
             "_log_wf",
-            "log_wf" "logprob_closure",
+            "log_wf",
+            "logprob_closure",
             "wf",
             "compute_sr_matrix",
             "_precompute",

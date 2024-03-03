@@ -44,6 +44,7 @@ class VMC(WaveFunction):
     def __call__(self, r):
         return self.wf(r, self.params.get("alpha"))
 
+    @WaveFunction.symmetry
     def wf(self, r, alpha):
         """
         Ψ(r)=exp(- ∑_{i=1}^{N*DIM} alpha_i r_i * r_i) but in log domain
@@ -62,7 +63,6 @@ class VMC(WaveFunction):
         """
         return 2 * self.wf(r, alpha).sum()
 
-    @WaveFunction.symmetry
     def logprob(self, r):
         """
         Compute the log of the wavefunction squared
@@ -93,7 +93,6 @@ class VMC(WaveFunction):
             r, alpha
         )  # 0, none will broadcast alpha to the batch size
 
-    @WaveFunction.symmetry
     def grad_wf(self, r):
         """
         Compute the gradient of the wavefunction
@@ -104,7 +103,6 @@ class VMC(WaveFunction):
 
         return grads_alpha
 
-    @WaveFunction.symmetry
     def grads(self, r):
         """
         Compute the gradient of the log of the wavefunction squared (why squared?)
@@ -142,7 +140,6 @@ class VMC(WaveFunction):
         self.params = Parameter()
         self.params.set("alpha", rng.uniform(size=(self.nparticles * self.dim)))
 
-    @WaveFunction.symmetry
     def laplacian(self, r):
         """
         Compute the laplacian of the wavefunction

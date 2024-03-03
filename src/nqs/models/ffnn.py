@@ -132,7 +132,7 @@ class FFNN(WaveFunction):
         """
         return self.ffnn(r, params)
 
-    # @partial(jax.jit, static_argnums=(0,))
+    @partial(jax.jit, static_argnums=(0,))
     def grad_wf_closure_jax(self, r, params):
         """
         This is the autograd version of the gradient of the logarithm of the wave function w.r.t. the coordinates
@@ -146,7 +146,6 @@ class FFNN(WaveFunction):
         """
         self.params.rescale(factor)
 
-    # @WaveFunction.symmetry
     def grad_wf(self, r):
         """
         (∇_r) Ψ(r) = ∑_i (∇_r) Ψ(r_i)
@@ -173,7 +172,6 @@ class FFNN(WaveFunction):
 
         return laplacian
 
-    # @WaveFunction.symmetry
     def laplacian(self, r):
         """
         examine who is which particle and who is which dimension
@@ -187,7 +185,6 @@ class FFNN(WaveFunction):
         grad_eval = grad_fn(r, params)  # still a parameter type
         return grad_eval
 
-    # @WaveFunction.symmetry
     def grads(self, r):
         """
         Gradients of the wave function with respect to the neural network parameters.

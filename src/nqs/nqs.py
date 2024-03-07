@@ -228,7 +228,9 @@ class NQS:
         self._training_cycles = max_iter
         self._training_batch = batch_size
         self._history = (
-            {"energy": [], "grads": []} if kwargs.get("history", False) else None
+            {"energy": [], "std": [], "grads": []}
+            if kwargs.get("history", False)
+            else None
         )
 
         self._early_stop = kwargs.get("early_stop", False)
@@ -259,8 +261,7 @@ class NQS:
         expval_grad_dict = {key: None for key in param_keys}
         # steps_before_optimize = batch_size
 
-        # state = self.wf.state
-        # state = State(state.positions, state.logp, 0, state.delta)
+        self.state = self.wf.state
         # states = state.create_batch_of_states(batch_size=batch_size)
 
         # equilibrate, burn in lets see if makes a difference
@@ -269,13 +270,14 @@ class NQS:
 
         grads_dict = {key: [] for key in param_keys}
         epoch = 0
+
         for _ in t_range:
             # this object contains the states of all the sequence of steps
             # cleans up the state after each batch
-            state = self.wf.state
-            state = State(state.positions, state.logp, 0, state.delta)
+            # state = self.state
+            # state = State(state.positions, state.logp, 0, state.delta)
 
-            states = state.create_batch_of_states(batch_size=batch_size)
+            states = self.state.create_batch_of_states(batch_size=batch_size)
             states = self._sampler.step(
                 self.wf, states, seed_seq, batch_size=batch_size
             )
@@ -286,6 +288,7 @@ class NQS:
             epoch += 1
             energies = np.array(energies)
             expval_energy = np.mean(energies)
+            std_energy = np.std(energies)
             t_range.set_postfix(avg_E_l=f"{expval_energy:.2f}", refresh=True)
 
             for key in param_keys:
@@ -321,6 +324,7 @@ class NQS:
                 grad_norms = [np.linalg.norm(final_grads[key]) for key in param_keys]
                 grad_norms = np.mean(grad_norms)
                 self._history["energy"].append(expval_energy)
+                self._history["std"].append(std_energy)
                 self._history["grads"].append(grad_norms)
 
             # Descent
@@ -344,11 +348,12 @@ class NQS:
 
             if self._tune and epoch % int(max_iter * 0.1) == 0:
                 tune_batch = batch_size  # int(batch_size*0.1) # needs to be big else does not stabilize the acceptance rate
-                tune_iter = int(max_iter * 0.2)  # max_iter # int(max_iter*0.5)
+                tune_iter = max_iter
 
                 # this will be very inneficient now
                 tune_sampler(
                     wf=self.wf,
+                    current_state=self.state,
                     sampler=self._sampler,
                     seed=self._seed,
                     log=self._log,
@@ -360,18 +365,15 @@ class NQS:
                 self._is_tuned_ = True
 
             # update wf state after each epoch?
-            # self.wf.state = states[-1] ## check this!
-
+            self.state = State(
+                states[-1].positions, states[-1].logp, 0, states[-1].delta
+            )
             final_grads = {key: None for key in param_keys}
             grads_dict = {key: [] for key in param_keys}
 
-        self.state = State(states[-1].positions, states[-1].logp, 0, states[-1].delta)
-
         self._is_trained_ = True
-
         if self.logger is not None:
             self.logger.info("Training done")
-
         if self._history:
             return self._history
 
@@ -425,7 +427,7 @@ class NQS:
 
         return sample_results
 
-    def pretrain(self, model, max_iter, batch_size, **kwargs):
+    def pretrain(self, model, max_iter, batch_size, args=None):
         """
         # TODO: make this less repetitive
         """
@@ -441,10 +443,11 @@ class NQS:
                 self.wf.__class__.__name__,
                 self._N,
                 self._dim,
-                layer_sizes=self.wf._layer_sizes,
-                activations=self.wf._activations,
-                symmetry="none",
+                **args,
             )
+            # if jastrow, save the JW params
+            if args["jastrow"]:
+                JW_params = self.wf.params.get("JW")
         else:
             raise NotImplementedError("Only Gaussian pretraining is supported for now")
 
@@ -466,5 +469,9 @@ class NQS:
             seed=self._seed * 2,
             history=False,
             pretrain_sampler=False,
+            pretrain_jastrow=False,
         )
         self.wf.params = params
+
+        if args["jastrow"]:  # reinitialize the JW params
+            self.wf.params.set("JW", JW_params)

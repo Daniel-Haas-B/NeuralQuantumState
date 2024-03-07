@@ -138,7 +138,6 @@ class RBM(WaveFunction):
         """Log probability amplitude"""
         return self._rbm_psi_repr * self._log_wf(r, params).sum()
 
-    @WaveFunction.symmetry
     def logprob(self, r):
         """Log probability amplitude"""
         params = self.params
@@ -161,7 +160,6 @@ class RBM(WaveFunction):
         gr *= self._sigma2 * self._factor
         return gr
 
-    @partial(jax.jit, static_argnums=(0,))
     def grad_wf_closure_jax(self, r, params):
         """
         This is the autograd version of the gradient of the logarithm of the wave function w.r.t. the coordinates
@@ -169,7 +167,6 @@ class RBM(WaveFunction):
         grad_wf_closure = jax.grad(self.wf, argnums=0)
         return vmap(grad_wf_closure, in_axes=(0, None))(r, params)
 
-    @WaveFunction.symmetry
     def grad_wf(self, r):
         """
         grad of the wave function w.r.t. the coordinates
@@ -215,7 +212,6 @@ class RBM(WaveFunction):
         laplacian = vmap(trace_fn)(hessian_wf(r))
         return laplacian
 
-    @WaveFunction.symmetry
     def laplacian(self, r):
         params = self.params
         laplacian = self.laplacian_closure(r, params)
@@ -256,7 +252,6 @@ class RBM(WaveFunction):
 
         return grads
 
-    @WaveFunction.symmetry
     def grads(self, r):
         """Gradients of the wave function w.r.t. the parameters"""
         params = self.params

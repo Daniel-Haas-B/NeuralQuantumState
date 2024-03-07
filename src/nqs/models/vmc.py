@@ -1,3 +1,5 @@
+from functools import partial
+
 import jax
 import numpy as np
 from jax import vmap
@@ -41,10 +43,11 @@ class VMC(WaveFunction):
                     } parameters"""
             self.logger.info(msg)
 
-    def __call__(self, r):
-        return self.wf(r, self.params.get("alpha"))
+    # def __call__(self, r):
+    #    return self.wf(r, self.params.get("alpha"))
 
-    def wf(self, r, alpha):
+    @WaveFunction.symmetry
+    def wf(self, r, params):
         """
         Ψ(r)=exp(- ∑_{i=1}^{N*DIM} alpha_i r_i * r_i) but in log domain
         r: (N * dim) array so that r_i is a dim-dimensional vector
@@ -52,8 +55,8 @@ class VMC(WaveFunction):
         """
 
         r_2 = r * r
+        alpha = params.get("alpha")
         alpha_r_2 = alpha * r_2
-
         return -self.backend.sum(alpha_r_2, axis=-1)
 
     def logprob_closure(self, r, alpha):
@@ -62,13 +65,11 @@ class VMC(WaveFunction):
         """
         return 2 * self.wf(r, alpha).sum()
 
-    @WaveFunction.symmetry
     def logprob(self, r):
         """
         Compute the log of the wavefunction squared
         """
-        alpha = self.params.get("alpha")
-        return self.logprob_closure(r, alpha)
+        return self.logprob_closure(r, self.params)
 
     def grad_wf_closure(self, r, alpha):
         """
@@ -78,6 +79,7 @@ class VMC(WaveFunction):
 
         return -2 * alpha * r  # again, element-wise multiplication
 
+    @partial(jax.jit, static_argnums=(0,))
     def grad_wf_closure_jax(self, r, alpha):
         """
         Returns a function that computes the gradient of the wavefunction with respect to r
@@ -93,26 +95,21 @@ class VMC(WaveFunction):
             r, alpha
         )  # 0, none will broadcast alpha to the batch size
 
-    @WaveFunction.symmetry
     def grad_wf(self, r):
         """
         Compute the gradient of the wavefunction
         """
-        alpha = self.params.get("alpha")
 
-        grads_alpha = self.grad_wf_closure(r, alpha)
+        return self.grad_wf_closure(r, self.params)
 
-        return grads_alpha
-
-    @WaveFunction.symmetry
     def grads(self, r):
         """
         Compute the gradient of the log of the wavefunction squared (why squared?)
         """
-        alpha = self.params.get("alpha")
-        grads_alpha = self.grads_closure(r, alpha)
 
-        return {"alpha": grads_alpha}
+        grads_dict = self.grads_closure(r, self.params)
+
+        return grads_dict
 
     def grads_closure(self, r, alpha):
         """
@@ -142,13 +139,12 @@ class VMC(WaveFunction):
         self.params = Parameter()
         self.params.set("alpha", rng.uniform(size=(self.nparticles * self.dim)))
 
-    @WaveFunction.symmetry
     def laplacian(self, r):
         """
         Compute the laplacian of the wavefunction
         """
-        alpha = self.params.get("alpha")  # noqa
-        laplacian = self.laplacian_closure(r, alpha)
+
+        laplacian = self.laplacian_closure(r, self.params)
 
         return laplacian
 
@@ -161,13 +157,13 @@ class VMC(WaveFunction):
         # check if this is correct!
         return -2 * alpha.sum(axis=-1)
 
-    def laplacian_closure_jax(self, r, alpha):
+    def laplacian_closure_jax(self, r, params):
         """
         Return a function that computes the laplacian of the wavefunction
         """
 
         def wrapped_wf(r_):
-            return self.wf(r_, alpha)
+            return self.wf(r_, params)
 
         hessian_wf = vmap(jax.hessian(wrapped_wf))
         # Compute the Hessian for each element in the batch

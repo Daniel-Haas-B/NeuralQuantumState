@@ -1,3 +1,4 @@
+from nqs.models import DS
 from nqs.models import Dummy
 from nqs.models import FFNN
 from nqs.models import RBM
@@ -14,6 +15,8 @@ def wf_factory(wf_type, **kwargs):
             return FFNN(**kwargs)
         case "vmc":
             return VMC(**kwargs)
+        case "deepset":
+            return DS(**kwargs)
         case "dummy":
             return Dummy(**kwargs)
         case _:  # noqa

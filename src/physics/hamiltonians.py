@@ -30,9 +30,6 @@ class Hamiltonian:
         elif backend == "jax":
             self.backend = jnp
             self.la = jnp.linalg
-            # these dont really matter as the subfunctions are jitted already like gradient and laplacian
-            # self.potential = jax.jit(self.potential)
-            # self._local_kinetic_energy = jax.jit(self._local_kinetic_energy)
         else:
             raise ValueError("Invalid backend:", backend)
 
@@ -90,7 +87,6 @@ class HarmonicOscillator(Hamiltonian):
         # HO trap
 
         v_trap = 0.5 * self.backend.sum(r * r, axis=-1) * self.kwargs["omega"]
-
         # self.kwargs["r0_reg"] = self.kwargs["r0_reg"] * self.reg_decay
         # print("r0_reg", self.kwargs["r0_reg"])
         # with open("decay.csv", "a") as f:
@@ -99,33 +95,46 @@ class HarmonicOscillator(Hamiltonian):
 
         # Interaction
         v_int = 0.0
-        if self._int_type == "Coulomb":
-            # print("r shape", r.shape)
-            r_cpy = copy.deepcopy(r).reshape(-1, self._N, self._dim)  # (nbatch, N, dim)
-            # print("r_cpy shape", r_cpy.shape)
-            # r_dist = self.la.norm(r_cpy[None, ...] - r_cpy[:, None], axis=-1)
-            r_dist = self.la.norm(r_cpy[:, None, :, :] - r_cpy[:, :, None, :], axis=-1)
+        match self._int_type.lower():
+            case "coulomb":
+                r_cpy = r.reshape(-1, self._N, self._dim)  # (nbatch, N, dim)
+                r_diff = r_cpy[:, None, :, :] - r_cpy[:, :, None, :]
+                noise = 1e-10
+                r_dist = self.la.norm(r_diff + noise, axis=-1)
 
-            # print("r_dist shape", r_dist.shape)
-            # print("r_dist", r_dist)
-            # Apply tanh regularization
-            f_r = 1  # self.regularized_potential(r_dist)
-            v_int = self.backend.sum(
-                self.backend.triu(f_r / r_dist, k=1), axis=(-2, -1)
-            )
+                # Apply tanh regularization
+                f_r = 1  # self.regularized_potential(r_dist)
+                v_int = self.backend.sum(
+                    self.backend.triu(f_r / r_dist, k=1), axis=(-2, -1)
+                )  # the axis=(-2, -1) is to sum over the last two axes, so that we get a (nbatch, ) array
 
-            # k=1 to remove diagonal, since we don't want self-interaction
-            # the axis=(-2, -1) is to sum over the last two axes, so that we get a (nbatch, ) array
-
-        elif self._int_type == "Calogero":
-            r_cpy = copy.deepcopy(r).reshape(self._N, self._dim)
-            r_dist = self.la.norm(r_cpy[None, ...] - r_cpy[:, None], axis=-1)
-            v_int = self.backend.sum(
-                self.backend.triu(1 / r_dist**2, k=1)
-            )  # k=1 to remove diagonal, since we don't want self-interaction
-            v_int *= self.kwargs["coupling"] * (self.kwargs["coupling"] - 1)
-        elif self._int_type is not None:
-            raise ValueError("Invalid interaction type:", self._int_type)
+            case "gaussian":
+                """
+                # WIP
+                Finite range Gaussian interaction
+                alpha = 1 / 2sigma_0^2
+                coupling = V_0/(sqrt(2pi) sigma_0)
+                """
+                v_int = (
+                    0.5
+                    * self.kwargs["coupling"]
+                    * self.backend.sum(
+                        self.backend.triu(
+                            self.backend.exp(-self.kwargs["alpha"] * r_dist**2), k=1
+                        )
+                    )
+                )
+            case "calogero":
+                r_cpy = copy.deepcopy(r).reshape(self._N, self._dim)
+                r_dist = self.la.norm(r_cpy[None, ...] - r_cpy[:, None], axis=-1)
+                v_int = self.backend.sum(
+                    self.backend.triu(1 / r_dist**2, k=1)
+                )  # k=1 to remove diagonal, since we don't want self-interaction
+                v_int *= self.kwargs["coupling"] * (self.kwargs["coupling"] - 1)
+            case None:
+                pass
+            case _:
+                raise ValueError("Invalid interaction type:", self._int_type)
 
         return v_trap + v_int
 
@@ -145,7 +154,6 @@ class HarmonicOscillator(Hamiltonian):
         """
 
         pe = self.potential(r)
-
         ke = self._local_kinetic_energy(wf, r)
 
         return pe + ke

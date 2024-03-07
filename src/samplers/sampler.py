@@ -7,7 +7,6 @@ from nqs.utils import block
 from nqs.utils import check_and_set_nchains
 from nqs.utils import generate_seed_sequence
 from nqs.utils import sampler_utils
-from nqs.utils import State
 from tqdm.auto import tqdm  # progress bar
 
 
@@ -95,35 +94,36 @@ class Sampler:
 
     def _sample(self, wf, nsamples, state, scale, seed, chain_id):
         """To be called by process in the big sampler function."""
-        batch_size = 2**5
+        batch_size = 2**10
 
         if self._logger is not None:
             t_range = tqdm(
-                range(0, nsamples, batch_size),
+                range(0, nsamples // batch_size),
                 desc=f"[Sampling progress] Chain {chain_id+1}",
                 position=chain_id,
                 leave=True,
                 colour="green",
             )
         else:
-            t_range = range(0, nsamples, batch_size)
+            t_range = range(0, nsamples // batch_size)
 
-        # Config
-
-        state = State(state.positions, state.logp, 0, state.delta)
         state = state.create_batch_of_states(batch_size=batch_size)
-
         energies = np.zeros(nsamples)
 
         for i in t_range:  # 2**18
+            # sampler_utils.tune_sampler(wf, self, tune_iter=500, tune_batch=500, seed=42, log=True, mode="standard", logger=self._logger)
             state = self._step(wf, state, seed, batch_size=batch_size)
-            energies[i : i + batch_size] = self.hamiltonian.local_energy(
-                wf, state.positions
-            )
+            # time.sleep(1)
+            energies[
+                i * batch_size : (i + 1) * batch_size
+            ] = self.hamiltonian.local_energy(wf, state.positions)
 
         if self._logger is not None:
             t_range.clear()
 
+        assert (
+            np.sum(energies == 0) == 0
+        ), "There are empty energies which would give wrong statistics"
         energy = np.mean(energies)
         error = block(energies)
         variance = np.mean(energies**2) - energy**2
@@ -135,7 +135,7 @@ class Sampler:
             "std_error": error,
             "variance": variance,
             "accept_rate": acc_rate,
-            "scale": scale,
+            "scale": self.scale,
             "nsamples": nsamples,
         }
 

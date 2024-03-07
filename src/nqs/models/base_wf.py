@@ -50,6 +50,8 @@ class WaveFunction:
         functions_to_jit = [
             "_log_wf",
             "log_wf",
+            # "log_wf0",
+            # "log_wfi",
             "logprob_closure",
             "wf",
             "compute_sr_matrix",

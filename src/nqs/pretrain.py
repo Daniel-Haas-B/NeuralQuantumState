@@ -208,12 +208,13 @@ class Gaussian:
 
         epoch = 0
         loss_func = lambda x, param: self.jaxmse(  # noqa
-            self.wf.logprob_closure(x, param), self.multivar_gaussian_pdf(x)
+            self.wf.logprob_closure_pretrain(x, param), self.multivar_gaussian_pdf(x)
         )
-
+        self.state = self.wf.state
         for _ in t_range:
             state = self.wf.state
             state = State(state.positions, state.logp, 0, state.delta)
+
             states = state.create_batch_of_states(batch_size=batch_size)
             if self.pretrain_sampler:
                 raise NotImplementedError("Pretrain sampler not implemented yet")
@@ -271,9 +272,6 @@ class Gaussian:
                 if self.logger is not None:
                     self.logger.warning("loss is zero, stopping training")
                 break
-
-            # update wf state after each epoch?
-            # self.wf.state = states[-1] ## check this!
 
         self.state = State(states[-1].positions, states[-1].logp, 0, states[-1].delta)
         self._is_trained_ = True

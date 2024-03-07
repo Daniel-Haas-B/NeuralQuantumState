@@ -1,4 +1,4 @@
-from functools import partial
+from functools import partial  # noqa
 
 import jax
 import jax.numpy as jnp
@@ -31,6 +31,7 @@ class FFNN(WaveFunction):
         logger_level="INFO",
         backend="jax",
         symmetry=None,
+        jastrow=False,
     ):
         super().__init__(
             nparticles,
@@ -53,6 +54,7 @@ class FFNN(WaveFunction):
         - dim (int): Dimensionality.
         ...
         """
+        self.jastrow = jastrow
         self._initialize_vars(nparticles, dim, layer_sizes, activations, factor)
         self.configure_backend(backend)
 
@@ -70,12 +72,7 @@ class FFNN(WaveFunction):
         self.state = State(self.r0, self.logprob(self.r0), 0, self.state.delta)
 
     def _initialize_layers(self, rng):
-        """Always initialize all as rectangle for now"""
         self.params = Parameter()  # Initialize empty Parameter object
-
-        # Initialize Batch Norm parameters
-        # self.params.set(f"gamma0", jnp.ones((output_size_0,)))
-        # self.params.set(f"beta0", jnp.zeros((output_size_0,)))
 
         for i in range(0, len(self._layer_sizes) - 1):
             # The number of units in the layers
@@ -88,9 +85,7 @@ class FFNN(WaveFunction):
             # Initialize weights and biases
             self.params.set(
                 f"W{i}",
-                # np.array(rng.uniform(0, limit, (input_size, output_size))),
                 np.array(rng.uniform(-limit, limit, (input_size, output_size))),
-                # rng.standard_normal(size=(input_size, output_size)) * 0.01,
             )
 
             self.params.set(
@@ -99,40 +94,59 @@ class FFNN(WaveFunction):
                 # jnp.array(rng.standard_normal(size=(output_size,)))
             )
 
-            # Initialize Batch Norm parameters
-            # self.params.set(f"gamma{i}", jnp.ones((output_size,))*0.01)
-            # self.params.set(f"beta{i}", jnp.zeros((output_size,)))
+        if self.jastrow:
+            input_j_size = self._N * (self._N - 1) // 2
+            limit = np.sqrt(2 / (input_j_size))
+            self.params.set(
+                "JW", np.array(rng.uniform(-limit, limit, (self._N, self._N)))
+            )
 
     @WaveFunction.symmetry
-    def ffnn(self, x, params):
+    def log_wf(self, x, params):
         """
         This is the forward pass of the FFNN
-
         x: (batch_size, part * dim) array
 
         """
-        # print("r inside ffnn", x)
+
+        output = self.log_wf0(x, params)  # + self.log_wfi(x, params)
+
+        return output
+
+    def log_wf_pretrain(self, x, params):
+        """
+        This is the forward pass of the FFNN
+        x: (batch_size, part * dim) array
+
+        """
+
+        output = self.log_wf0(x, params)
+
+        return output
+
+    def log_wf0(self, x, params):
+        """ """
+
         for i in range(0, len(self._layer_sizes) - 1):
             x = x @ params.get(f"W{i}") + params.get(f"b{i}")
-
-            # Batch Normalization
-            # mean = self.backend.mean(x, axis=0, keepdims=True) # TODO: need to check this. If x is not (batch_size, particles*dim) it will be incorrect!
-            # variance = self.backend.var(x, axis=0, keepdims=True)
-            # x = params.get(f"gamma{i}") * (x - mean) / jnp.sqrt(variance + 1e-5) + params.get(f"beta{i}")
-
             x = self.activation(self._activations[i])(x)
-        # print("output of ffnn", x.squeeze(-1))
+
         return x.squeeze(-1)
 
-    def log_wf(self, r, params):
-        """Compute the wave function from the neural network output.
-        this is actually
+    def log_wfi(self, r, params):
+        """ """
 
-        This looks stupid but it is just to make things the same structure as the RBM and outside classes
-        """
-        return self.ffnn(r, params)
+        epsilon = 1e-8  # Small epsilon value
+        r_cpy = r.reshape(-1, self._N, self._dim)
+        r_diff = r_cpy[:, None, :, :] - r_cpy[:, :, None, :]
+        r_dist = self.la.norm(r_diff + epsilon, axis=-1)  # Add epsilon to avoid nan
 
-    @partial(jax.jit, static_argnums=(0,))
+        rij = jnp.triu(r_dist, k=1)
+        x = jnp.einsum("nij,ij->n", rij, params["JW"])
+
+        return x.squeeze(-1)
+
+    # @partial(jax.jit, static_argnums=(0,))
     def grad_wf_closure_jax(self, r, params):
         """
         This is the autograd version of the gradient of the logarithm of the wave function w.r.t. the coordinates
@@ -152,7 +166,7 @@ class FFNN(WaveFunction):
         """
         return self.grad_wf_closure(r, self.params)
 
-    @partial(jax.jit, static_argnums=(0,))
+    # @partial(jax.jit, static_argnums=(0,))
     def laplacian_closure_jax(self, r, params):
         """
         (∇_r)^2 Ψ(r) = ∑_i (∇_r)^2 Ψ(r_i)
@@ -168,9 +182,7 @@ class FFNN(WaveFunction):
         def trace_fn(x):
             return jnp.trace(x)
 
-        laplacian = vmap(trace_fn)(hessian_wf(r))
-
-        return laplacian
+        return vmap(trace_fn)(hessian_wf(r))
 
     def laplacian(self, r):
         """
@@ -179,7 +191,7 @@ class FFNN(WaveFunction):
         """
         return self.laplacian_closure(r, self.params)
 
-    @partial(jax.jit, static_argnums=(0,))
+    # @partial(jax.jit, static_argnums=(0,))
     def grads_closure_jax(self, r, params):
         grad_fn = vmap(jax.grad(self.log_wf, argnums=1), in_axes=(0, None))
         grad_eval = grad_fn(r, params)  # still a parameter type
@@ -218,7 +230,14 @@ class FFNN(WaveFunction):
 
         return 2.0 * self.log_wf(r, params)
 
-    # @WaveFunction.symmetry
+    def logprob_closure_pretrain(self, r, params):
+        """Log probability amplitude
+        that is log(|psi|^2).
+        In our case, psi is real, so this is 2 log(|psi|) = 2 * forward(r, params) ?
+        """
+
+        return 2.0 * self.log_wf_pretrain(r, params)
+
     def logprob(self, r):
         """Log probability amplitude"""
 

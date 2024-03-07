@@ -84,8 +84,16 @@ system.set_optimizer(
     beta2=0.999,
     epsilon=1e-8,
 )
-
-system.pretrain(model="Gaussian", max_iter=1000, batch_size=1000)
+kwargs = {
+    "layer_sizes": [
+        nparticles * dim,  # should always be this
+        5,
+        3,
+        1,  # should always be this
+    ],
+    "activations": ["gelu", "elu", "linear"],
+}
+system.pretrain(model="Gaussian", max_iter=1000, batch_size=1000, args=kwargs)
 history = system.train(
     max_iter=training_cycles,
     batch_size=batch_size,

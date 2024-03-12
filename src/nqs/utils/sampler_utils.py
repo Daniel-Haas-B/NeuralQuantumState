@@ -87,6 +87,7 @@ def tune_sampler(
     state = State(
         state.positions, state.logp, 0, state.delta
     )  # get positions but Reset n_accepted
+    states = state.create_batch_of_states(batch_size=tune_batch)
 
     if log:
         t_range = tqdm(
@@ -101,51 +102,77 @@ def tune_sampler(
 
     if mode == "standard":
         for _ in t_range:
+            state = State(
+                state.positions, state.logp, 0, state.delta
+            )  # get positions but Reset n_accepted
             states = state.create_batch_of_states(batch_size=tune_batch)
+
             states = sampler.step(wf, states, seed_seq, batch_size=tune_batch)
+
             # Tune proposal scale
             old_scale = sampler.scale
             accept_rate = states[-1].n_accepted / tune_batch
-            print(f"Acceptance rate: {accept_rate:.10f}, scale {sampler.scale:.4f}")
-
-            t_range.set_postfix(acc_rate=f"{accept_rate:.2f}", refresh=True)
-            # t_range.set_postfix(scale=f"{sampler.scale:.2f}", refresh=True)
-            # print(f"Acceptance rate: {accept_rate:.10f}, scale {sampler.scale:.4f}")
+            state = states[-1]
+            t_range.set_postfix(
+                acc_rate=f"{accept_rate:.2f}",
+                scale=f"{sampler.scale:.2f}",
+                refresh=True,
+            )
 
             if 0.5 < accept_rate < 0.7:
                 return
 
+            if accept_rate < 0.001 or accept_rate > 0.999:
+                logger.warning(
+                    "Acceptance rate is too low or too high. Rescaling positions..."
+                )  # maybe reset the positions also
+                wf.reinit_positions()
+                state = wf.state
+
+                states = state.create_batch_of_states(batch_size=tune_batch)
+                states = sampler.step(wf, states, seed_seq, batch_size=tune_batch)
+
+                # wf.rescale_parameters(0.1) # this hopefully makes the predictions be more around 0 because the weights are smaller
+                # reset scale
+                sampler.reset_scale(1 / np.sqrt(wf.nparticles * wf.dim))
+                continue  # start over
+
             sampler.tune_scale(old_scale, accept_rate)
-
-        # even after tuning the scale, the acceptance rate is still too low, then
-        if accept_rate < 0.001:
-            # then the positions have stagnated in a region of super high probability and will not move
-            # here i propose a cold restart of the newtork parameters in which we rescale all the weights and biases to a smaller value
-            print("state positions", states[-1].positions)
-            logger.warning(
-                "Acceptance rate is too low. Rescaling positions..."
-            )  # maybe reset the positions also
-            wf.reinit_positions()
-
-            # print("Logp", states[-1].logp)
-            # print("wf.params before", wf.params)
-            # wf.rescale_parameters(0.1)
-            # print("wf.params after", wf.params)
 
     elif mode == "infinite":
         while True:
             states = state.create_batch_of_states(batch_size=tune_batch)
+            print("state positions pre step", states[-1].positions)
             states = sampler.step(wf, states, seed_seq, batch_size=tune_batch)
-
+            print("state positions post step", states[-1].positions)
+            print("acc rate", states[-1].n_accepted / tune_batch)
+            print("prob", np.exp(states[-1].logp))
             # Tune proposal scale
             old_scale = sampler.scale
             accept_rate = states[-1].n_accepted / tune_batch
 
-            if 0.5 <= accept_rate <= 0.8:
+            if accept_rate < 0.001 or accept_rate > 0.99:
+                logger.warning(
+                    "Acceptance rate is too low or too high. Rescaling positions..."
+                )  # maybe reset the positions also
+                wf.reinit_positions()
+                state = wf.state
+                # if accept_rate < 0.001:
+                #    wf.rescale_parameters(1.1) # this will make the logprob around 0
+
+                # else: # accept rate > 0.99
+                #    wf.rescale_parameters(0.9)
+                # reset scale to 1
+                # sampler.reset_scale(1)
+                continue  # start over
+
+            if 0.4 <= accept_rate <= 0.8:
                 print(
                     f"Acceptance rate: {accept_rate:.10f}, scale {sampler.scale:.4f},  going to next epoch..."
                 )
                 return
             else:
                 sampler.tune_scale(old_scale, accept_rate)
-                # print(f"Acceptance rate: {accept_rate:.10f}, scale {sampler.scale:.4f},  continue tuning sampler scale...")
+                print(
+                    f"Acceptance rate: {accept_rate:.10f}, scale {sampler.scale:.4f},  continue tuning sampler scale..."
+                )

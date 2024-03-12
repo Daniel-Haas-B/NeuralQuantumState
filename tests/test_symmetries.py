@@ -61,17 +61,41 @@ print("DISCLAIMER: FOR THIS TEST TO WORK, ADD @WaveFunction.symmetry TO ffnn MET
 
 def test_wf(symmetry, r, r_ex):
     print(f"\nReinitializing wave function with {symmetry} symmetry")
+    latent_dimension = 3
     system.set_wf(
-        "ffnn",
+        "deepset",
         nparticles,
-        dim,
-        layer_sizes=[nparticles * dim, 5, 3, 1],
-        activations=["gelu", "elu", "linear"],
-        symmetry=symmetry,
+        dim,  # all after this is kwargs.
+        layer_sizes={
+            "S0": [
+                dim,  # should always be this
+                3,
+                latent_dimension,  # should always be this
+            ],
+            "S1": [
+                latent_dimension,
+                2,
+                1,  # should always be this
+            ],
+        },
+        activations={
+            "S0": ["gelu", "elu"],
+            "S1": ["gelu", "linear"],
+        },
     )
+    print("Output without particle exchange: ", system.wf.ds(r))
+    print("Output with particle exchange: ", system.wf.ds(r_ex))
+    # system.set_wf(
+    #     "ffnn",
+    #     nparticles,
+    #     dim,
+    #     layer_sizes=[nparticles * dim, 5, 3, 1],
+    #     activations=["gelu", "elu", "linear"],
+    #     symmetry=symmetry,
+    # )
 
-    print("Output without particle exchange: ", system.wf.ffnn(r, system.wf.params))
-    print("Output with particle exchange: ", system.wf.ffnn(r_ex, system.wf.params))
+    # print("Output without particle exchange: ", system.wf.ffnn(r, system.wf.params))
+    # print("Output with particle exchange: ", system.wf.ffnn(r_ex, system.wf.params))
 
 
 # Test case for two particles
@@ -85,14 +109,15 @@ print("Fake input:", r)
 print("Exchanged r:", r_ex)
 
 # Test with no symmetry
-test_wf("none", r, r_ex)
+# test_wf("none", r, r_ex)
 
-# Test with boson symmetry
-test_wf("boson", r, r_ex)
+# # Test with boson symmetry
+# test_wf("boson", r, r_ex)
 
-# Test with fermion symmetry
-test_wf("fermion", r, r_ex)
+# # Test with fermion symmetry
+# test_wf("fermion", r, r_ex)
 
+test_wf("deepset", r, r_ex)
 
 print("=== Test Case: Two Particles ===")
 nparticles = 2
@@ -104,13 +129,15 @@ print("Fake input:", r)
 print("Exchanged r:", r_ex)
 
 # Test with no symmetry
-test_wf("none", r, r_ex)
+# test_wf("none", r, r_ex)
 
-# Test with boson symmetry
-test_wf("boson", r, r_ex)
+# # Test with boson symmetry
+# test_wf("boson", r, r_ex)
 
-# Test with fermion symmetry
-test_wf("fermion", r, r_ex)
+# # Test with fermion symmetry
+# test_wf("fermion", r, r_ex)
+
+test_wf("deepset", r, r_ex)
 
 print("\n=== Test Case: Three Particles ===")
 # Test case with three particles
@@ -125,13 +152,15 @@ print("Exchanged r:", r_ex)
 
 # Repeating tests for three particles
 # Test with no symmetry
-test_wf("none", r, r_ex)
+# test_wf("none", r, r_ex)
 
-# Test with boson symmetry
-test_wf("boson", r, r_ex)
+# # Test with boson symmetry
+# test_wf("boson", r, r_ex)
 
-# Test with fermion symmetry
-test_wf("fermion", r, r_ex)
+# # Test with fermion symmetry
+# test_wf("fermion", r, r_ex)
+
+test_wf("deepset", r, r_ex)
 
 
 print("\n=== Test Case: Three Particles, ONE DIM     ===")
@@ -147,13 +176,15 @@ print("Exchanged r:", r_ex)
 
 # Repeating tests for three particles
 # Test with no symmetry
-test_wf("none", r, r_ex)
+# test_wf("none", r, r_ex)
 
-# Test with boson symmetry
-test_wf("boson", r, r_ex)
+# # Test with boson symmetry
+# test_wf("boson", r, r_ex)
 
-# Test with fermion symmetry
-test_wf("fermion", r, r_ex)
+# # Test with fermion symmetry
+# test_wf("fermion", r, r_ex)
+
+test_wf("deepset", r, r_ex)
 
 
 print("\n=== Test Case: Three Particles batch size 1===")
@@ -169,10 +200,12 @@ print("Exchanged r:", r_ex)
 
 # Repeating tests for three particles
 # Test with no symmetry
-test_wf("none", r, r_ex)
+# test_wf("none", r, r_ex)
 
-# Test with boson symmetry
-test_wf("boson", r, r_ex)
+# # Test with boson symmetry
+# test_wf("boson", r, r_ex)
 
-# Test with fermion symmetry
-test_wf("fermion", r, r_ex)
+# # Test with fermion symmetry
+# test_wf("fermion", r, r_ex)
+
+test_wf("deepset", r, r_ex)

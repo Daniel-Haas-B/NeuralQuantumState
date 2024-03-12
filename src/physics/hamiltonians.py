@@ -131,7 +131,7 @@ class HarmonicOscillator(Hamiltonian):
                     self.backend.triu(1 / r_dist**2, k=1)
                 )  # k=1 to remove diagonal, since we don't want self-interaction
                 v_int *= self.kwargs["coupling"] * (self.kwargs["coupling"] - 1)
-            case None:
+            case "none":
                 pass
             case _:
                 raise ValueError("Invalid interaction type:", self._int_type)

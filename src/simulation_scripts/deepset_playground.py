@@ -1,39 +1,45 @@
 import sys
 
 sys.path.append("/Users/haas/Documents/Masters/GANQS/src/")
+# sys.path.append("/home/daniel/home/daniel/test/GANQS/src/")
+
 import jax
-import matplotlib.pyplot as plt
+
+# import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import seaborn as sns
 
-from nqs import nqs
+# import seaborn as sns
+import matplotlib.pyplot as plt
 
 # from nqs.utils import plot_psi2
 
+# Import nqs package
+
+
+from nqs import nqs
 
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
 
 # Config
 output_filename = "../data/playground.csv"
-nparticles = 20
-dim = 1
-nhidden = 4
+nparticles = 4
+dim = 2
 
-nsamples = int(2**18)  # 2**18 = 262144
+
+nsamples = int(2**16)  # 2**18 = 262144
 nchains = 1
-eta = 0.1
+eta = 0.1 / np.sqrt(nparticles * dim)
 
-training_cycles = 70  # this is cycles for the NN
-mcmc_alg = "m"
-backend = "numpy"
+training_cycles = 100  # this is cycles for the ansatz
+mcmc_alg = "m"  # lmh is shit for ffnn
 optimizer = "sr"
-batch_size = 1000
+batch_size = 10000  # initial batch size
 detailed = True
-wf_type = "rbm"
-seed = 142
-int_type = "None"  # "Coulomb"
+wf_type = "ds"
+seed = 42
+latent_dimension = 3
 
 dfs_mean = []
 df = []
@@ -46,54 +52,86 @@ start = time.time()
 
 system = nqs.NQS(
     nqs_repr="psi",
-    backend=backend,
+    backend="jax",
     log=True,
     logger_level="INFO",
     seed=seed,
 )
 
 system.set_wf(
-    wf_type,
+    "ds",
     nparticles,
-    dim,
-    nhidden=nhidden,  # all after this is kwargs. In this example it is RBM dependent
-    sigma2=1.0,
-    symmetry="none",
+    dim,  # all after this is kwargs.
+    layer_sizes={
+        "S0": [
+            dim,  # should always be this
+            3,
+            3,
+            latent_dimension,  # should always be this
+        ],
+        "S1": [
+            latent_dimension,
+            2,
+            1,  # should always be this
+        ],
+    },
+    activations={
+        "S0": ["gelu", "elu", "elu"],
+        "S1": ["gelu", "linear"],
+    },
 )
 
-system.set_sampler(mcmc_alg=mcmc_alg, scale=0.75)
+system.set_sampler(mcmc_alg=mcmc_alg, scale=1 / np.sqrt(nparticles * dim))
 system.set_hamiltonian(
-    type_="ho",
-    int_type=int_type,
-    omega=1.0,
-    r0_reg=5,
-    training_cycles=training_cycles,
+    type_="ho", int_type="none", omega=1.0, r0_reg=1, training_cycles=training_cycles
 )
+
 system.set_optimizer(
     optimizer=optimizer,
     eta=eta,
-    # gamma=0.7,
+    gamma=0,
     beta1=0.9,
     beta2=0.999,
     epsilon=1e-8,
 )
-
+kwargs = {
+    "layer_sizes": {
+        "S0": [
+            dim,  # should always be this
+            3,
+            3,
+            latent_dimension,  # should always be this
+        ],
+        "S1": [
+            latent_dimension,
+            2,
+            1,  # should always be this
+        ],
+    },
+    "activations": {
+        "S0": ["gelu", "elu", "elu"],
+        "S1": ["gelu", "linear"],
+    },
+    "jastrow": False,
+}
+system.pretrain(model="Gaussian", max_iter=4000, batch_size=2000, args=kwargs)
 history = system.train(
     max_iter=training_cycles,
     batch_size=batch_size,
     early_stop=False,
+    seed=seed,
     history=True,
     tune=False,
     grad_clip=0,
-    seed=seed,
 )
 
-epochs = np.arange(len(history["energy"]))
 
+epochs = np.arange(len(history["energy"]))
 for key, value in history.items():
     plt.plot(epochs, value, label=key)
     plt.legend()
     plt.show()
+
 
 df = system.sample(nsamples, nchains=nchains, seed=seed)
 df_all.append(df)
@@ -124,13 +162,11 @@ info_data = (
     .iloc[0]
     .to_dict()
 )
-
-data = {**mean_data, **info_data}  # ** unpacks the dictionary
+data = {**mean_data, **info_data}
 df_mean = pd.DataFrame([data])
 dfs_mean.append(df_mean)
 end = time.time()
-print((end - start))
-
+# print((end - start))
 
 df_final = pd.concat(dfs_mean)
 
@@ -142,29 +178,27 @@ df_final.to_csv(output_filename, index=False)
 df_all = pd.concat(df_all)
 print(df_all)
 
-if nchains > 1:
-    sns.lineplot(data=df_all, x="chain_id", y="energy")
-else:
-    sns.scatterplot(data=df_all, x="chain_id", y="energy")
+
+# energy with sr
+# if nchains > 1:
+#     sns.lineplot(data=df_all, x="chain_id", y="energy", hue="sr")
+# else:
+#     sns.scatterplot(data=df_all, x="chain_id", y="energy", hue="sr")
 # ylim
 # plt.ylim(2.9, 3.6)
 
-plt.xlabel("Chain")
-plt.ylabel("Energy")
-plt.show()
+# plt.xlabel("Chain")
+# plt.ylabel("Energy")
+# plt.show()
 
+# plot probability
 
 # positions, one_body_density = system.sample(
 #     2**12, nchains=1, seed=seed, one_body_density=True
 # )
+
 # plt.plot(positions, one_body_density)
 # plt.show()
-# # Plotting psi2 for both wave functions
-# plt.figure(figsize=(10, 6))
-# plot_psi2(system.wf, r_min=-4, r_max=4, num_points=300)
-# # plot_psi2(system_omega_2.wf, r_min=-4, r_max=4, num_points=300)
-# plt.legend()
-# plt.xlabel("Position")
-# plt.ylabel("Psi^2")
-# plt.title("Comparison of Psi^2 for Different Omega Values")
-# plt.show()
+
+
+# plot_psi2(system.wf, num_points=300, r_min=-5, r_max=5)

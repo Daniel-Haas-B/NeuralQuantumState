@@ -55,7 +55,6 @@ class DS(WaveFunction):
         ...
         """
         self.jastrow = jastrow
-        self.latent_dim = None
         self._initialize_vars(nparticles, dim, layer_sizes, activations, factor)
         self.configure_backend(backend)
 
@@ -65,8 +64,11 @@ class DS(WaveFunction):
         self.state = State(self.r0, logp, 0, 0)
 
         if self.log:
-            msg = f"Neural Network Quantum State initialized with symmetry {self.symmetry} as FFNN with {self.__str__()}."  # noqa
+            msg = f"Neural Network Quantum State initialized with symmetry {self.symmetry} as Deepset."  # noqa
             self.logger.info(msg)
+
+    def ds(self, r):
+        return self.log_wf(r, self.params)
 
     def reinit_positions(self):
         self._reinit_positions()
@@ -74,23 +76,41 @@ class DS(WaveFunction):
 
     def _initialize_layers(self, rng):
         self.params = Parameter()  # Initialize empty Parameter object
-
-        for i in range(0, len(self._layer_sizes) - 1):
+        factor = 1
+        for i in range(0, len(self._layer_sizes0) - 1):
             # The number of units in the layers
-            input_size = self._layer_sizes[i]
-            output_size = self._layer_sizes[i + 1]
+            input_size = self._layer_sizes0[i]
+            output_size = self._layer_sizes0[i + 1]
 
             # He initialization, considering the size of layers
-            limit = np.sqrt(2 / (input_size))
+            limit = np.sqrt(2 / (input_size)) * factor
 
             # Initialize weights and biases
             self.params.set(
-                f"N1W{i}",
+                f"S0W{i}",
                 np.array(rng.uniform(-limit, limit, (input_size, output_size))),
+                # np.array(rng.standard_normal(size=(input_size, output_size)))
+            )
+
+            self.params.set(f"S0b{i}", np.zeros((output_size,)))
+
+        for i in range(0, len(self._layer_sizes1) - 1):
+            # The number of units in the layers
+            input_size = self._layer_sizes1[i]
+            output_size = self._layer_sizes1[i + 1]
+
+            # He initialization, considering the size of layers
+            limit = np.sqrt(2 / (input_size)) * factor
+
+            # Initialize weights and biases
+            self.params.set(
+                f"S1W{i}",
+                np.array(rng.uniform(-limit, limit, (input_size, output_size))),
+                # np.array(rng.standard_normal(size=(input_size, output_size)))
             )
 
             self.params.set(
-                f"N1b{i}",
+                f"S1b{i}",
                 np.zeros((output_size,))
                 # jnp.array(rng.standard_normal(size=(output_size,)))
             )
@@ -101,11 +121,11 @@ class DS(WaveFunction):
         x: (batch_size, part * dim) array
 
         """
-        output_set1 = self.backend.mean(self.set_1(x, params))  # OVER WHICH AXIS??#   )
-        output_set2 = self.log_wf0(  # noqa
-            output_set1, params
+        output_set0 = self.set_0(x, params) / self._N
+        output_set1 = self.set_1(  # noqa
+            output_set0, params
         )  # this one needs to have linear activation as last
-        return None
+        return output_set1
 
     def log_wf_pretrain(self, x, params):
         """
@@ -114,42 +134,43 @@ class DS(WaveFunction):
 
         """
 
-        output = self.log_wf0(x, params)
+        output = self.log_wf(x, params)
 
         return output
 
     def set_0(self, x, params):
         """
         First level of the deepset.
-        Will receive the normal imput as before, meaning x of shape (batch_size, part * dim)
+        Will receive the normal input as before, meaning x of shape (batch_size, part * dim)
         Will have as many copies of the network as particles.
         Will then run over a set of particles and sum the output of the network for each particle.
         """
-        collector = jnp.zeroes(self.latent_dim)  # maybe this is not good in jax
+        collector = jnp.zeros(self.latent_dim)  # maybe this is not good in jax
         for n in range(0, self._N * self._dim, self.dim):
             # get the correct coordinates for each particle
-            x_n = x[:, n : n + self.dim]  # this is not good in jax
+            x_n = x[..., n : n + self.dim]  # this is not good in jax
 
-            for i in range(0, len(self._layer_sizes_set0) - 1):
+            for i in range(0, len(self._layer_sizes0) - 1):
                 x_n = x_n @ params.get(f"S0W{i}") + params.get(f"S0b{i}")
-                x_n = self.activation(self._activations[i])(
+                x_n = self.activation(self._activations0[i])(
                     x_n
                 )  # last one should be of latent_dim
 
             collector += x_n  # this will break
 
-        return collector / self._N
+        return collector
 
     def set_1(self, x, params):
         """
         Second level of the deepset. this is the standard FFNN forward pass we know and love
         """
 
-        for i in range(0, len(self._layer_sizes_set1) - 1):
+        for i in range(0, len(self._layer_sizes1) - 1):
             x = x @ params.get(f"S1W{i}") + params.get(f"S1b{i}")
-            x = self.activation(self._activations[i])(x)
+            x = self.activation(self._activations1[i])(x)
 
-        return x.squeeze(-1)
+        # assert x.shape == (1,), f"output shape is {x.shape}"
+        return x.squeeze(-1)  # TEMPORARY
 
     def log_wfi(self, r, params):
         """ """
@@ -308,16 +329,19 @@ class DS(WaveFunction):
 
     def _initialize_vars(self, nparticles, dim, layer_sizes, activations, factor):
         self._factor = factor
-        self._layer_sizes = layer_sizes
-        self._activations = activations
+        self._layer_sizes0 = layer_sizes["S0"]
+        self.latent_dim = self._layer_sizes0[-1]
+        self._layer_sizes1 = layer_sizes["S1"]
+        self._activations0 = activations["S0"]
+        self._activations1 = activations["S1"]
         self._ffnn_psi_repr = 2 * self._factor
         self._N = nparticles
         self._dim = dim
         self._nvisible = self._N * self._dim
-        if len(layer_sizes) != len(activations) + 1:
-            raise ValueError(
-                f"num layers ({len(layer_sizes)}) != num activations +1 ({len(activations)})"
-            )
+        if len(layer_sizes["S0"]) != len(activations["S0"]) + 1:
+            raise ValueError("num layers != num activations +1")
+        if len(layer_sizes["S1"]) != len(activations["S1"]) + 1:
+            raise ValueError("num layers != num activations +1")
 
     def activation(self, activation_str):
         match activation_str:
@@ -340,25 +364,25 @@ class DS(WaveFunction):
             case _:  # default
                 raise ValueError(f"Invalid activation function {activation_str}")
 
-    def __str__(self):
-        """
-        Construct a string representation of the neural network architecture.
-        """
-        # Start the network representation with the 'input layer'
-        net_repr = "Neural Network Architecture\n"
-        net_repr += "-" * 30 + "\n"  # Divider for clarity
+    # def __str__(self):
+    #     """
+    #     Construct a string representation of the neural network architecture.
+    #     """
+    #     # Start the network representation with the 'input layer'
+    #     net_repr = "Neural Network Architecture\n"
+    #     net_repr += "-" * 30 + "\n"  # Divider for clarity
 
-        for i, num_neurons in enumerate(self._layer_sizes):
-            layer_type = (
-                "Input"
-                if i == 0
-                else ("Output" if i == len(self._layer_sizes) - 1 else "Hidden")
-            )
-            layer_info = f"{layer_type} Layer (Layer {i}): {num_neurons} neurons\n"
+    #     for i, num_neurons in enumerate(self._layer_sizes0):
+    #         layer_type = (
+    #             "Input"
+    #             if i == 0
+    #             else ("Output" if i == len(self._layer_sizes0) - 1 else "Hidden")
+    #         )
+    #         layer_info = f"{layer_type} Layer (Layer {i}): {num_neurons} neurons\n"
 
-            # Compile layer information and visual representation
-            net_repr += layer_info
+    #         # Compile layer information and visual representation
+    #         net_repr += layer_info
 
-        net_repr += "-" * 30  # Ending divider
+    #     net_repr += "-" * 30  # Ending divider
 
-        return net_repr
+    #     return net_repr

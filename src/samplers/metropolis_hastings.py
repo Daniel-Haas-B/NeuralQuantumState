@@ -121,7 +121,7 @@ class MetroHastings(Sampler):
         # print("scale before: ", scale)
         if acc_rate < 0.001:
             # reduce by 90 percent
-            return scale * 0.1
+            scale *= 0.1
         elif acc_rate < 0.05:
             # reduce by 50 percent
             scale *= 0.5
@@ -133,7 +133,7 @@ class MetroHastings(Sampler):
             scale *= 0.95
         elif acc_rate > 0.95:
             # increase by factor of ten
-            scale *= 10.0
+            scale *= 4.0
         elif acc_rate > 0.8:
             # increase by ten percent
             scale *= 2
@@ -148,3 +148,7 @@ class MetroHastings(Sampler):
 
     def step(self, wf, state, seed, batch_size):
         return self._step(wf, state, seed, batch_size)
+
+    def reset_scale(self, scale):
+        self.scale = scale
+        return scale

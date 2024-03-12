@@ -53,6 +53,8 @@ class WaveFunction:
             # "log_wf0",
             # "log_wfi",
             "logprob_closure",
+            "set_0",
+            "set_1",
             "wf",
             "compute_sr_matrix",
             "_precompute",

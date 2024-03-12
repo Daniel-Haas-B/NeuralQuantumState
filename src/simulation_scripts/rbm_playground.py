@@ -17,7 +17,7 @@ jax.config.update("jax_platform_name", "cpu")
 
 # Config
 output_filename = "../data/playground.csv"
-nparticles = 1
+nparticles = 20
 dim = 1
 nhidden = 4
 
@@ -33,7 +33,7 @@ batch_size = 1000
 detailed = True
 wf_type = "rbm"
 seed = 142
-int_type = None  # "Coulomb"
+int_type = "None"  # "Coulomb"
 
 dfs_mean = []
 df = []

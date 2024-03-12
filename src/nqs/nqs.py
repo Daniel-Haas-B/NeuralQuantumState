@@ -272,6 +272,8 @@ class NQS:
         epoch = 0
 
         for _ in t_range:
+            epoch += 1
+            # print("batch_size", batch_size)
             # this object contains the states of all the sequence of steps
             # cleans up the state after each batch
             # state = self.state
@@ -281,15 +283,40 @@ class NQS:
             states = self._sampler.step(
                 self.wf, states, seed_seq, batch_size=batch_size
             )
+            current_acc = states[-1].n_accepted / batch_size
+
+            tune_batch = 1000  # int(batch_size*0.1) # needs to be big else does not stabilize the acceptance rate
+            tune_iter = 100
+            if not (current_acc > 0.3 and current_acc < 0.7) and self._tune:
+                # this will be very inneficient now
+                tune_sampler(
+                    wf=self.wf,
+                    current_state=self.state,
+                    sampler=self._sampler,
+                    seed=self._seed,
+                    log=self._log,
+                    tune_batch=tune_batch,
+                    tune_iter=tune_iter,
+                    mode="standard",
+                    logger=self.logger,
+                )
+
+                # then kinda do it again
+                states = self.state.create_batch_of_states(batch_size=batch_size)
+                states = self._sampler.step(
+                    self.wf, states, seed_seq, batch_size=batch_size
+                )
+                current_acc = states[-1].n_accepted / batch_size
 
             energies = self.hamiltonian.local_energy(self.wf, states.positions)
             local_grads_dict = self.wf.grads(states.positions)
 
-            epoch += 1
             energies = np.array(energies)
             expval_energy = np.mean(energies)
             std_energy = np.std(energies)
-            t_range.set_postfix(avg_E_l=f"{expval_energy:.2f}", refresh=True)
+            t_range.set_postfix(
+                avg_E_l=f"{expval_energy:.2f}", acc=f"{current_acc:.2f}", refresh=True
+            )
 
             for key in param_keys:
                 grad_np = np.array(local_grads_dict.get(key))
@@ -345,24 +372,6 @@ class NQS:
                 if self.logger is not None:
                     self.logger.warning("Gradient norm is zero, stopping training")
                 break
-
-            if self._tune and epoch % int(max_iter * 0.1) == 0:
-                tune_batch = batch_size  # int(batch_size*0.1) # needs to be big else does not stabilize the acceptance rate
-                tune_iter = max_iter
-
-                # this will be very inneficient now
-                tune_sampler(
-                    wf=self.wf,
-                    current_state=self.state,
-                    sampler=self._sampler,
-                    seed=self._seed,
-                    log=self._log,
-                    tune_batch=tune_batch,
-                    tune_iter=tune_iter,
-                    mode="standard",
-                    logger=self.logger,
-                )
-                self._is_tuned_ = True
 
             # update wf state after each epoch?
             self.state = State(
@@ -438,9 +447,8 @@ class NQS:
                 seed=self._seed * 2,
                 symmetry=self._symmetry,
             )
-
             pre_system.set_wf(  # TODO: MAKE LESS REPETITIVE
-                self.wf.__class__.__name__,
+                self.wf.__class__.__name__.lower(),
                 self._N,
                 self._dim,
                 **args,

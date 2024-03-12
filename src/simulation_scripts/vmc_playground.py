@@ -16,16 +16,16 @@ jax.config.update("jax_platform_name", "cpu")
 
 # Config
 output_filename = "../data/vmc_playground.csv"
-nparticles = 1
-dim = 1
+nparticles = 20
+dim = 2
 nsamples = int(2**18)  # 2**18 = 262144
 nchains = 1
-eta = 0.01
+eta = 0.1  # /np.sqrt(nparticles)
 
 training_cycles = 500  # this is cycles for the ansatz
-mcmc_alg = "lmh"
-backend = "numpy"
-optimizer = "adam"
+mcmc_alg = "m"
+backend = "jax"
+optimizer = "sr"
 batch_size = 1000
 detailed = True
 wf_type = "vmc"
@@ -57,7 +57,7 @@ system.set_wf(
 
 system.set_sampler(mcmc_alg=mcmc_alg, scale=1.0 / np.sqrt(nparticles * dim))
 system.set_hamiltonian(
-    type_="ho", int_type="Coulomb", omega=1.0, r0_reg=3, training_cycles=training_cycles
+    type_="ho", int_type="NONE", omega=1.0, r0_reg=3, training_cycles=training_cycles
 )
 system.set_optimizer(
     optimizer=optimizer,
@@ -73,6 +73,7 @@ history = system.train(
     early_stop=False,
     seed=seed,
     history=True,
+    tune=True,
 )
 
 df = system.sample(nsamples, nchains=nchains, seed=seed)

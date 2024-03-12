@@ -25,13 +25,13 @@ nsamples = int(2**10)  # 2**18 = 262144
 nchains = 1
 eta = 0.1
 
-training_cycles = 100  # this is cycles for the ansatz
+training_cycles = 10  # this is cycles for the ansatz
 mcmc_alg = "m"
 backend = "jax"
 optimizer = "sr"
 batch_size = 100
 detailed = True
-wf_types = ["vmc"]
+wf_types = ["rbm"]
 seed = 42
 
 dfs_mean = []
@@ -92,7 +92,7 @@ for wf_type in wf_types:
         early_stop=False,
         seed=seed,
         history=True,
-        tune=True,
+        tune=False,
     )
     epochs = np.arange(training_cycles)
     # for key, value in history.items():

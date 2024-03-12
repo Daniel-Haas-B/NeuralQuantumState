@@ -30,12 +30,12 @@ dim = 2
 
 nsamples = int(2**16)  # 2**18 = 262144
 nchains = 1
-eta = 0.01
+eta = 0.1
 
 training_cycles = 100  # this is cycles for the ansatz
 mcmc_alg = "m"  # lmh is shit for ffnn
 optimizer = "sr"
-batch_size = 2000
+batch_size = 1000
 detailed = True
 wf_type = "ffnn"
 seed = 42
@@ -69,11 +69,12 @@ system.set_wf(
     ],
     activations=["gelu", "elu", "linear"],
     symmetry="none",
+    jastrow=True,
 )
 
-system.set_sampler(mcmc_alg=mcmc_alg, scale=1)
+system.set_sampler(mcmc_alg=mcmc_alg, scale=0.4)
 system.set_hamiltonian(
-    type_="ho", int_type="Coulomb", omega=1.0, r0_reg=1, training_cycles=training_cycles
+    type_="ho", int_type="none", omega=1.0, r0_reg=1, training_cycles=training_cycles
 )
 
 system.set_optimizer(

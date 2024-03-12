@@ -241,11 +241,11 @@ class Gaussian:
                 # )  # TODO: FIX RANGE
 
                 states.positions = rng.normal(
-                    loc=0, scale=1, size=(batch_size, self._dim * self._N)
+                    loc=0, scale=2, size=(batch_size, self._dim * self._N)
                 )
                 # states.positions = rng.standard_normal(size=(batch_size, self._dim * self._N))
                 # twopi ** len(mean)
-                # states.positions = rng.uniform(-3, 3, (batch_size, self._dim * self._N))
+                # states.positions = rng.uniform(-2, 2, (batch_size, self._dim * self._N))
 
                 # print(mse(self.wf.logprob_closure(states.positions, self.wf.params), self.multivar_gaussian_pdf(states.positions, mean)))
                 loss = loss_func(states.positions, self.wf.params)
@@ -311,14 +311,16 @@ class Gaussian:
         inv_cov = self.la.inv(covariance)
 
         det_cov = self.la.det(covariance)
-        twopi = 2 * self.backend.pi
+        # twopi = 2 * self.backend.pi
 
         incov_at_xmm = self.backend.einsum("ij,nj->ni", inv_cov, x_minus_mean)
         multivar_array = -0.5 * self.backend.einsum(
             "jn,nj->n", x_minus_mean.T, incov_at_xmm
         )
 
-        norm_fact = jnp.sqrt(twopi ** (self._N * self._dim) * det_cov)
+        norm_fact = jnp.sqrt(
+            det_cov
+        )  # jnp.sqrt((twopi ** len(means)) * det_cov) # or remove the twopi ** len(means) and use the log of it
 
         return multivar_array - jnp.log(norm_fact)
 

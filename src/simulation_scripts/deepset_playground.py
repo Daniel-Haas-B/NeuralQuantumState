@@ -30,7 +30,7 @@ dim = 2
 
 nsamples = int(2**16)  # 2**18 = 262144
 nchains = 1
-eta = 0.1 / np.sqrt(nparticles * dim)
+eta = 0.001  # / np.sqrt(nparticles * dim)
 
 training_cycles = 100  # this is cycles for the ansatz
 mcmc_alg = "m"  # lmh is shit for ffnn
@@ -39,7 +39,7 @@ batch_size = 10000  # initial batch size
 detailed = True
 wf_type = "ds"
 seed = 42
-latent_dimension = 3
+latent_dimension = 4
 
 dfs_mean = []
 df = []
@@ -114,14 +114,14 @@ kwargs = {
     },
     "jastrow": False,
 }
-system.pretrain(model="Gaussian", max_iter=4000, batch_size=2000, args=kwargs)
+system.pretrain(model="Gaussian", max_iter=1000, batch_size=2000, args=kwargs)
 history = system.train(
     max_iter=training_cycles,
     batch_size=batch_size,
     early_stop=False,
     seed=seed,
     history=True,
-    tune=False,
+    tune=True,
     grad_clip=0,
 )
 

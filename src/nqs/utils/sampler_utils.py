@@ -132,10 +132,12 @@ def tune_sampler(
                 states = state.create_batch_of_states(batch_size=tune_batch)
                 states = sampler.step(wf, states, seed_seq, batch_size=tune_batch)
 
-                # wf.rescale_parameters(0.1) # this hopefully makes the predictions be more around 0 because the weights are smaller
+                wf.rescale_parameters(
+                    0.1
+                )  # this hopefully makes the predictions be more around 0 because the weights are smaller
                 # reset scale
                 sampler.reset_scale(1 / np.sqrt(wf.nparticles * wf.dim))
-                continue  # start over
+                return  # start over
 
             sampler.tune_scale(old_scale, accept_rate)
 

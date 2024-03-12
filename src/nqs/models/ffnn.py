@@ -95,6 +95,7 @@ class FFNN(WaveFunction):
             )
 
         if self.jastrow:
+            print("Initializing Jastrow parameters")
             input_j_size = self._N * (self._N - 1) // 2
             limit = np.sqrt(2 / (input_j_size))
             self.params.set(
@@ -109,7 +110,7 @@ class FFNN(WaveFunction):
 
         """
 
-        output = self.log_wf0(x, params)  # + self.log_wfi(x, params)
+        output = self.log_wf0(x, params) + self.log_wfi(x, params)
 
         return output
 

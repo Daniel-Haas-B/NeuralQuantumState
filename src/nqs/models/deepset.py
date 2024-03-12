@@ -148,7 +148,7 @@ class DS(WaveFunction):
         collector = jnp.zeros(self.latent_dim)  # maybe this is not good in jax
         for n in range(0, self._N * self._dim, self.dim):
             # get the correct coordinates for each particle
-            x_n = x[..., n : n + self.dim]  # this is not good in jax
+            x_n = x[..., n : n + self.dim]
 
             for i in range(0, len(self._layer_sizes0) - 1):
                 x_n = x_n @ params.get(f"S0W{i}") + params.get(f"S0b{i}")

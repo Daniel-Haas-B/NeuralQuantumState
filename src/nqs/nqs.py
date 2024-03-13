@@ -464,7 +464,7 @@ class NQS:
                 self._dim,
                 **args,
             )
-            # if jastrow, save the JW params
+            # if jastrow, save the JW params to be used later
             if args["jastrow"]:
                 JW_params = self.wf.params.get("JW")
         else:
@@ -487,8 +487,8 @@ class NQS:
             batch_size=batch_size,
             seed=self._seed * 2,
             history=False,
-            pretrain_sampler=False,
-            pretrain_jastrow=False,
+            pretrain_sampler=False,  # there is no true for now
+            pretrain_jastrow=False,  # there is no true for now
         )
         self.wf.params = params
 

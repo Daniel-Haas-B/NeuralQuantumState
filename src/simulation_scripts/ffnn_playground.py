@@ -24,16 +24,16 @@ jax.config.update("jax_platform_name", "cpu")
 
 # Config
 output_filename = "../data/playground.csv"
-nparticles = 5
+nparticles = 2
 dim = 2
 
 
 nsamples = int(2**16)  # 2**18 = 262144
 nchains = 1
-eta = 0.001
+eta = 0.001 / np.sqrt(nparticles * dim)  # 0.001  / np.sqrt(nparticles * dim)
 
 training_cycles = 100  # this is cycles for the ansatz
-mcmc_alg = "lmh"  # lmh is shit for ffnn
+mcmc_alg = "m"  # lmh is shit for ffnn
 optimizer = "sr"
 batch_size = 1000
 detailed = True
@@ -99,7 +99,7 @@ kwargs = {  # TODO: make this less repetitive
     "activations": ["gelu", "elu", "gelu", "elu", "linear"],
     "jastrow": True,
 }
-system.pretrain(model="Gaussian", max_iter=1000, batch_size=2000, args=kwargs)
+system.pretrain(model="Gaussian", max_iter=1000, batch_size=1000, args=kwargs)
 history = system.train(
     max_iter=training_cycles,
     batch_size=batch_size,

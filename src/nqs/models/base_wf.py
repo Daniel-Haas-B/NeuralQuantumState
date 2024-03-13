@@ -20,6 +20,7 @@ class WaveFunction:
         backend="numpy",
         seed=None,
         symmetry=None,
+        jastrow=False,
     ):
         self.params = None
         self.nparticles = nparticles
@@ -30,6 +31,7 @@ class WaveFunction:
         self.backend = backend
         self._seed = seed
         self.symmetry = symmetry
+        self.jastrow = jastrow
 
         if logger:
             self.logger = logger
@@ -79,6 +81,15 @@ class WaveFunction:
             self._jit_functions()  # maybe should be inside the child class
         else:
             raise ValueError("Invalid backend:", backend)
+
+    def configure_jastrow(self):
+        if self.jastrow:
+            self.log_wf = self.log_wf_jastrow
+        else:
+            self.log_wf = self.log_wf0
+
+    def log_wf_jastrow(self, r, params):
+        return self.log_wf0(r, params) + self.log_wfi(r, params)
 
     @staticmethod
     def symmetry(func):

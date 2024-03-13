@@ -223,6 +223,14 @@ class DS(WaveFunction):
 
         return vmap(trace_fn)(hessian_wf(r))
 
+    def grad_logprob(self, r):
+        """
+        Gradients of the log probability amplitude
+
+        """
+
+        return 2 * self.grad_wf(r)
+
     def laplacian(self, r):
         """
         examine who is which particle and who is which dimension
@@ -257,6 +265,7 @@ class DS(WaveFunction):
         """
         Gradients of the log probability amplitude
         Note that grads is the gradient of the log of the wave function
+        WIP
         """
 
         return 2 * self.grads(r)

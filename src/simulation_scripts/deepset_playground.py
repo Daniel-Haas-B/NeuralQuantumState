@@ -24,22 +24,22 @@ jax.config.update("jax_platform_name", "cpu")
 
 # Config
 output_filename = "../data/playground.csv"
-nparticles = 4
+nparticles = 10
 dim = 2
 
 
 nsamples = int(2**16)  # 2**18 = 262144
 nchains = 1
-eta = 0.001  # / np.sqrt(nparticles * dim)
+eta = 0.001 / np.sqrt(nparticles * dim)  # 0.001  / np.sqrt(nparticles * dim)
 
-training_cycles = 100  # this is cycles for the ansatz
+training_cycles = 200  # this is cycles for the ansatz
 mcmc_alg = "m"  # lmh is shit for ffnn
 optimizer = "sr"
-batch_size = 10000  # initial batch size
+batch_size = 1000  # initial batch size
 detailed = True
 wf_type = "ds"
 seed = 42
-latent_dimension = 4
+latent_dimension = 6
 
 dfs_mean = []
 df = []
@@ -65,19 +65,24 @@ system.set_wf(
     layer_sizes={
         "S0": [
             dim,  # should always be this
-            3,
+            9,
+            7,
+            5,
             3,
             latent_dimension,  # should always be this
         ],
         "S1": [
             latent_dimension,
-            2,
+            9,
+            7,
+            5,
+            3,
             1,  # should always be this
         ],
     },
     activations={
-        "S0": ["gelu", "elu", "elu"],
-        "S1": ["gelu", "linear"],
+        "S0": ["elu", "gelu", "elu", "gelu", "elu"],
+        "S1": ["gelu", "elu", "gelu", "elu", "linear"],
     },
 )
 
@@ -98,30 +103,35 @@ kwargs = {
     "layer_sizes": {
         "S0": [
             dim,  # should always be this
-            3,
+            9,
+            7,
+            5,
             3,
             latent_dimension,  # should always be this
         ],
         "S1": [
             latent_dimension,
-            2,
+            9,
+            7,
+            5,
+            3,
             1,  # should always be this
         ],
     },
     "activations": {
-        "S0": ["gelu", "elu", "elu"],
-        "S1": ["gelu", "linear"],
+        "S0": ["elu", "gelu", "elu", "gelu", "elu"],
+        "S1": ["gelu", "elu", "gelu", "elu", "linear"],
     },
     "jastrow": False,
 }
-system.pretrain(model="Gaussian", max_iter=1000, batch_size=2000, args=kwargs)
+system.pretrain(model="Gaussian", max_iter=1200, batch_size=1000, args=kwargs)
 history = system.train(
     max_iter=training_cycles,
     batch_size=batch_size,
     early_stop=False,
     seed=seed,
     history=True,
-    tune=True,
+    tune=False,
     grad_clip=0,
 )
 

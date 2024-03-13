@@ -24,16 +24,16 @@ jax.config.update("jax_platform_name", "cpu")
 
 # Config
 output_filename = "../data/playground.csv"
-nparticles = 2
+nparticles = 5
 dim = 2
 
 
 nsamples = int(2**16)  # 2**18 = 262144
 nchains = 1
-eta = 0.1
+eta = 0.001
 
 training_cycles = 100  # this is cycles for the ansatz
-mcmc_alg = "m"  # lmh is shit for ffnn
+mcmc_alg = "lmh"  # lmh is shit for ffnn
 optimizer = "sr"
 batch_size = 1000
 detailed = True
@@ -63,16 +63,18 @@ system.set_wf(
     dim,  # all after this is kwargs.
     layer_sizes=[
         nparticles * dim,  # should always be this
+        9,
+        7,
         5,
         3,
         1,  # should always be this
     ],
-    activations=["gelu", "elu", "linear"],
+    activations=["gelu", "elu", "gelu", "elu", "linear"],
     symmetry="none",
     jastrow=True,
 )
 
-system.set_sampler(mcmc_alg=mcmc_alg, scale=0.4)
+system.set_sampler(mcmc_alg=mcmc_alg, scale=1 / np.sqrt(nparticles * dim))
 system.set_hamiltonian(
     type_="ho", int_type="none", omega=1.0, r0_reg=1, training_cycles=training_cycles
 )
@@ -85,16 +87,19 @@ system.set_optimizer(
     beta2=0.999,
     epsilon=1e-8,
 )
-kwargs = {
+kwargs = {  # TODO: make this less repetitive
     "layer_sizes": [
         nparticles * dim,  # should always be this
+        9,
+        7,
         5,
         3,
         1,  # should always be this
     ],
-    "activations": ["gelu", "elu", "linear"],
+    "activations": ["gelu", "elu", "gelu", "elu", "linear"],
+    "jastrow": True,
 }
-system.pretrain(model="Gaussian", max_iter=1000, batch_size=1000, args=kwargs)
+system.pretrain(model="Gaussian", max_iter=1000, batch_size=2000, args=kwargs)
 history = system.train(
     max_iter=training_cycles,
     batch_size=batch_size,

@@ -313,6 +313,17 @@ class NQS:
 
             energies = np.array(energies)
             expval_energy = np.mean(energies)
+            sigma_l1 = np.mean(np.abs(energies - expval_energy))
+
+            # Define the acceptable window as ⟨EL⟩ ±5σℓ1
+            lower_bound = expval_energy - 5 * sigma_l1
+            upper_bound = expval_energy + 5 * sigma_l1
+
+            # clip
+            energies = np.clip(energies, lower_bound, upper_bound)
+            # comput expval_energy again
+            expval_energy = np.mean(energies)
+
             std_energy = np.std(energies)
             t_range.set_postfix(
                 avg_E_l=f"{expval_energy:.2f}", acc=f"{current_acc:.2f}", refresh=True

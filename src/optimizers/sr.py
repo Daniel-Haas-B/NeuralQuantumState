@@ -19,6 +19,8 @@ class Sr(Optimizer):
         self.delta0 = eta * 0.1  # trust region upper bound. This is the
         self.delta_1 = eta * 0.01  # trust region lower bound
         self.trust_regions = {key: None for key in self._param_keys}
+        self.v = {key: np.zeros_like(params.get(key)) for key in self._param_keys}
+        self.gamma = 0.9
 
     def step(self, params, grads, sr_matrices=None):
         """Update the parameters.
@@ -52,6 +54,9 @@ class Sr(Optimizer):
 
         # Fj is what sheng calls the original grad without the sr matrix
         for key, grad in grads.items():
-            params.set([key], [params.get(key) - (self.trust_regions[key]) * grad])
+            self.v[key] = self.gamma * self.v[key] + grad
+            params.set(
+                [key], [params.get(key) - (self.trust_regions[key]) * self.v[key]]
+            )
             # params.set([key], [params.get(key) - (self.eta/np.sqrt(self.t)) * grad])
             # params.set([key], [params.get(key) - (self.eta) * grad])

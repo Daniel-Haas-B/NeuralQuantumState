@@ -42,6 +42,7 @@ class FFNN(WaveFunction):
             logger_level=logger_level,
             backend=backend,
             symmetry=symmetry,
+            jastrow=jastrow,
         )
 
         """
@@ -54,8 +55,8 @@ class FFNN(WaveFunction):
         - dim (int): Dimensionality.
         ...
         """
-        self.jastrow = jastrow
         self._initialize_vars(nparticles, dim, layer_sizes, activations, factor)
+        self.configure_jastrow()  # NEED TO BE BEFORE CONFIGURE_BACKEND
         self.configure_backend(backend)
 
         self._initialize_layers(rng)
@@ -95,24 +96,11 @@ class FFNN(WaveFunction):
             )
 
         if self.jastrow:
-            print("Initializing Jastrow parameters")
             input_j_size = self._N * (self._N - 1) // 2
             limit = np.sqrt(2 / (input_j_size))
             self.params.set(
                 "JW", np.array(rng.uniform(-limit, limit, (self._N, self._N)))
             )
-
-    @WaveFunction.symmetry
-    def log_wf(self, x, params):
-        """
-        This is the forward pass of the FFNN
-        x: (batch_size, part * dim) array
-
-        """
-
-        output = self.log_wf0(x, params) + self.log_wfi(x, params)
-
-        return output
 
     def log_wf_pretrain(self, x, params):
         """
@@ -120,30 +108,16 @@ class FFNN(WaveFunction):
         x: (batch_size, part * dim) array
 
         """
-
         output = self.log_wf0(x, params)
-
         return output
 
+    # @WaveFunction.symmetry
     def log_wf0(self, x, params):
         """ """
 
         for i in range(0, len(self._layer_sizes) - 1):
             x = x @ params.get(f"W{i}") + params.get(f"b{i}")
             x = self.activation(self._activations[i])(x)
-
-        return x.squeeze(-1)
-
-    def log_wfi(self, r, params):
-        """ """
-
-        epsilon = 1e-8  # Small epsilon value
-        r_cpy = r.reshape(-1, self._N, self._dim)
-        r_diff = r_cpy[:, None, :, :] - r_cpy[:, :, None, :]
-        r_dist = self.la.norm(r_diff + epsilon, axis=-1)  # Add epsilon to avoid nan
-
-        rij = jnp.triu(r_dist, k=1)
-        x = jnp.einsum("nij,ij->n", rij, params["JW"])
 
         return x.squeeze(-1)
 
@@ -219,6 +193,7 @@ class FFNN(WaveFunction):
         """
         Gradients of the log probability amplitude
         Note that grads is the gradient of the log of the wave function
+        WIP
         """
 
         return 2 * self.grads(r)

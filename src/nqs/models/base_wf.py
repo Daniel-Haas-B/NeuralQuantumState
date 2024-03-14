@@ -20,6 +20,7 @@ class WaveFunction:
         backend="numpy",
         seed=None,
         symmetry=None,
+        jastrow=False,
     ):
         self.params = None
         self.nparticles = nparticles
@@ -30,6 +31,7 @@ class WaveFunction:
         self.backend = backend
         self._seed = seed
         self.symmetry = symmetry
+        self.jastrow = jastrow
 
         if logger:
             self.logger = logger
@@ -51,7 +53,7 @@ class WaveFunction:
             "_log_wf",
             "log_wf",
             # "log_wf0",
-            # "log_wfi",
+            "log_wfi",
             "logprob_closure",
             "set_0",
             "set_1",
@@ -79,6 +81,32 @@ class WaveFunction:
             self._jit_functions()  # maybe should be inside the child class
         else:
             raise ValueError("Invalid backend:", backend)
+
+    def configure_jastrow(self):
+        if self.jastrow:
+            self.log_wf = self.log_wf_jastrow
+        else:
+            self.log_wf = self.log_wf0
+
+    def log_wfi(self, r, params):
+        """
+        Only used when jastrow is True, and it is kinda irrespective of
+        the NN architecture.
+        TODO: One future idea is to make a NN for the "learning" of the Jastrow factor.
+        """
+
+        epsilon = 1e-10  # Small epsilon value was 10^-8 before
+        r_cpy = r.reshape(-1, self._N, self._dim)
+        r_diff = r_cpy[:, None, :, :] - r_cpy[:, :, None, :]
+        r_dist = self.la.norm(r_diff + epsilon, axis=-1)  # Add epsilon to avoid nan
+
+        rij = jnp.triu(r_dist, k=1)
+        x = jnp.einsum("nij,ij->n", rij, params["JW"])
+
+        return x.squeeze(-1)
+
+    def log_wf_jastrow(self, r, params):
+        return self.log_wf0(r, params) + self.log_wfi(r, params)
 
     @staticmethod
     def symmetry(func):

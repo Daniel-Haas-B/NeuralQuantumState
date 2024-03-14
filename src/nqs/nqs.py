@@ -313,6 +313,17 @@ class NQS:
 
             energies = np.array(energies)
             expval_energy = np.mean(energies)
+            sigma_l1 = np.mean(np.abs(energies - expval_energy))
+
+            # Define the acceptable window as ⟨EL⟩ ±5σℓ1
+            lower_bound = expval_energy - 5 * sigma_l1
+            upper_bound = expval_energy + 5 * sigma_l1
+
+            # clip
+            energies = np.clip(energies, lower_bound, upper_bound)
+            # comput expval_energy again
+            expval_energy = np.mean(energies)
+
             std_energy = np.std(energies)
             t_range.set_postfix(
                 avg_E_l=f"{expval_energy:.2f}", acc=f"{current_acc:.2f}", refresh=True
@@ -453,7 +464,7 @@ class NQS:
                 self._dim,
                 **args,
             )
-            # if jastrow, save the JW params
+            # if jastrow, save the JW params to be used later
             if args["jastrow"]:
                 JW_params = self.wf.params.get("JW")
         else:
@@ -476,8 +487,8 @@ class NQS:
             batch_size=batch_size,
             seed=self._seed * 2,
             history=False,
-            pretrain_sampler=False,
-            pretrain_jastrow=False,
+            pretrain_sampler=False,  # there is no true for now
+            pretrain_jastrow=False,  # there is no true for now
         )
         self.wf.params = params
 

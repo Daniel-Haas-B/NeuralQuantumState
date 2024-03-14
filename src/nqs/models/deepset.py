@@ -56,6 +56,7 @@ class DS(WaveFunction):
         """
         self.jastrow = jastrow
         self._initialize_vars(nparticles, dim, layer_sizes, activations, factor)
+        self.configure_jastrow()  # NEED TO BE BEFORE CONFIGURE_BACKEND
         self.configure_backend(backend)
 
         self._initialize_layers(rng)
@@ -115,7 +116,14 @@ class DS(WaveFunction):
                 # jnp.array(rng.standard_normal(size=(output_size,)))
             )
 
-    def log_wf(self, x, params):
+        if self.jastrow:
+            input_j_size = self._N * (self._N - 1) // 2
+            limit = np.sqrt(2 / (input_j_size))
+            self.params.set(
+                "JW", np.array(rng.uniform(-limit, limit, (self._N, self._N)))
+            )
+
+    def log_wf0(self, x, params):
         """
         This is the forward pass of the FFNN
         x: (batch_size, part * dim) array
@@ -134,7 +142,7 @@ class DS(WaveFunction):
 
         """
 
-        output = self.log_wf(x, params)
+        output = self.log_wf0(x, params)
 
         return output
 

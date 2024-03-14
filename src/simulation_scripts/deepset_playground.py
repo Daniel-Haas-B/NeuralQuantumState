@@ -24,18 +24,18 @@ jax.config.update("jax_platform_name", "cpu")
 
 # Config
 output_filename = "../data/playground.csv"
-nparticles = 10
+nparticles = 2
 dim = 2
 
 
-nsamples = int(2**16)  # 2**18 = 262144
+nsamples = int(2**19)  # 2**18 = 262144
 nchains = 1
 eta = 0.001 / np.sqrt(nparticles * dim)  # 0.001  / np.sqrt(nparticles * dim)
 
 training_cycles = 200  # this is cycles for the ansatz
 mcmc_alg = "m"  # lmh is shit for ffnn
 optimizer = "sr"
-batch_size = 1000  # initial batch size
+batch_size = 2000  # initial batch size
 detailed = True
 wf_type = "ds"
 seed = 42
@@ -84,11 +84,12 @@ system.set_wf(
         "S0": ["elu", "gelu", "elu", "gelu", "elu"],
         "S1": ["gelu", "elu", "gelu", "elu", "linear"],
     },
+    jastrow=True,
 )
 
 system.set_sampler(mcmc_alg=mcmc_alg, scale=1 / np.sqrt(nparticles * dim))
 system.set_hamiltonian(
-    type_="ho", int_type="none", omega=1.0, r0_reg=1, training_cycles=training_cycles
+    type_="ho", int_type="Coulomb", omega=1.0, r0_reg=1, training_cycles=training_cycles
 )
 
 system.set_optimizer(
@@ -122,7 +123,7 @@ kwargs = {
         "S0": ["elu", "gelu", "elu", "gelu", "elu"],
         "S1": ["gelu", "elu", "gelu", "elu", "linear"],
     },
-    "jastrow": False,
+    "jastrow": True,
 }
 system.pretrain(model="Gaussian", max_iter=1200, batch_size=1000, args=kwargs)
 history = system.train(

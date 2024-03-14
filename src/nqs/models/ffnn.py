@@ -121,21 +121,6 @@ class FFNN(WaveFunction):
 
         return x.squeeze(-1)
 
-    def log_wfi(self, r, params):
-        """
-        Only used when jastrow is True
-        """
-
-        epsilon = 1e-8  # Small epsilon value
-        r_cpy = r.reshape(-1, self._N, self._dim)
-        r_diff = r_cpy[:, None, :, :] - r_cpy[:, :, None, :]
-        r_dist = self.la.norm(r_diff + epsilon, axis=-1)  # Add epsilon to avoid nan
-
-        rij = jnp.triu(r_dist, k=1)
-        x = jnp.einsum("nij,ij->n", rij, params["JW"])
-
-        return x.squeeze(-1)
-
     # @partial(jax.jit, static_argnums=(0,))
     def grad_wf_closure_jax(self, r, params):
         """

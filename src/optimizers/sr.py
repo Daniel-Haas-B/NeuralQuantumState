@@ -20,7 +20,7 @@ class Sr(Optimizer):
         self.delta_1 = eta * 0.01  # trust region lower bound
         self.trust_regions = {key: None for key in self._param_keys}
         self.v = {key: np.zeros_like(params.get(key)) for key in self._param_keys}
-        self.gamma = 0
+        self.gamma = 0.9
 
     def step(self, params, grads, sr_matrices=None):
         """Update the parameters.

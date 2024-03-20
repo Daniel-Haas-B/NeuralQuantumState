@@ -55,7 +55,9 @@ class DS(WaveFunction):
         ...
         """
         self.jastrow = jastrow
+        self.pade_jastrow = False
         self._initialize_vars(nparticles, dim, layer_sizes, activations, factor)
+        self.configure_slater()  # NEED TO BE BEFORE CONFIGURE_BACKEND
         self.configure_jastrow()  # NEED TO BE BEFORE CONFIGURE_BACKEND
         self.configure_backend(backend)
 
@@ -120,8 +122,12 @@ class DS(WaveFunction):
             input_j_size = self._N * (self._N - 1) // 2
             limit = np.sqrt(2 / (input_j_size))
             self.params.set(
-                "JW", np.array(rng.uniform(-limit, limit, (self._N, self._N)))
+                "WJ", np.array(rng.uniform(-limit, limit, (self._N, self._N)))
             )
+
+        if self.pade_jastrow:
+            assert not self.jastrow, "Pade Jastrow requires Jastrow to be false"
+            self.params.set("WPJ", np.array(rng.uniform(-limit, limit, 1)))
 
     def log_wf0(self, x, params):
         """
@@ -179,19 +185,6 @@ class DS(WaveFunction):
 
         # assert x.shape == (1,), f"output shape is {x.shape}"
         return x.squeeze(-1)  # TEMPORARY
-
-    def log_wfi(self, r, params):
-        """ """
-
-        epsilon = 1e-8  # Small epsilon value
-        r_cpy = r.reshape(-1, self._N, self._dim)
-        r_diff = r_cpy[:, None, :, :] - r_cpy[:, :, None, :]
-        r_dist = self.la.norm(r_diff + epsilon, axis=-1)  # Add epsilon to avoid nan
-
-        rij = jnp.triu(r_dist, k=1)
-        x = jnp.einsum("nij,ij->n", rij, params["JW"])
-
-        return x.squeeze(-1)
 
     # @partial(jax.jit, static_argnums=(0,))
     def grad_wf_closure_jax(self, r, params):

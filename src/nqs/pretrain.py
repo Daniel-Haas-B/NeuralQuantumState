@@ -294,17 +294,17 @@ class Gaussian:
         output: float
         """
         means = self.backend.zeros(self._N * self._dim)
-        if self.symmetry == "boson" or self.symmetry is None or self.symmetry == "none":
-            means = self.backend.zeros(self._N * self._dim)
+        # if self.symmetry == "boson" or self.symmetry is None or self.symmetry == "none":
+        # means = self.backend.zeros(self._N * self._dim)
 
-        elif self.symmetry == "fermion":
-            grid_pts_per_dim = self._N
-            means = np.zeros((self._N, self._dim))
-            for i in range(self._dim):
-                means[:, i] = np.linspace(-5, 5, grid_pts_per_dim)  # TODO: FIX RANGE
-            means = means.flatten()
-            means = jnp.array(means)
-            # raise NotImplementedError("Fermion symmetry not implemented yet")
+        # elif self.symmetry == "fermion":
+        # grid_pts_per_dim = self._N
+        # means = np.zeros((self._N, self._dim))
+        # for i in range(self._dim):
+        #     means[:, i] = np.linspace(-5, 5, grid_pts_per_dim)  # TODO: FIX RANGE
+        # means = means.flatten()
+        # means = jnp.array(means)
+        # raise NotImplementedError("Fermion symmetry not implemented yet")
 
         covariance = self.backend.eye(self._dim * self._N)
         x_minus_mean = x - means

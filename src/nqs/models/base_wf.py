@@ -5,6 +5,8 @@ from itertools import permutations
 import jax
 import jax.numpy as jnp
 import numpy as np
+import scipy.special as ss
+from numpy import polynomial as P
 from scipy.special import expit
 
 
@@ -32,6 +34,11 @@ class WaveFunction:
         self._seed = seed
         self.symmetry = symmetry
         self.jastrow = jastrow
+        self.sqrt_omega = 1  # will be reset in the set_hamiltonian
+
+        self.slater_fact = np.log(
+            ss.factorial(self.nparticles)
+        )  # move this to be after backend is set later
 
         if logger:
             self.logger = logger
@@ -50,7 +57,6 @@ class WaveFunction:
 
     def _jit_functions(self):
         functions_to_jit = [
-            "_log_wf",
             "log_wf",
             # "log_wf0",
             "log_wfi",
@@ -83,10 +89,49 @@ class WaveFunction:
             raise ValueError("Invalid backend:", backend)
 
     def configure_jastrow(self):
-        if self.jastrow:
+        print("self.jastrow", self.jastrow)
+        print("self.symmetry", self.symmetry)
+        if self.jastrow and self.symmetry == "fermion":
+            self.log_wf = self.log_wf_slater_jastrow
+        elif self.jastrow and self.symmetry != "fermion":
             self.log_wf = self.log_wf_jastrow
         else:
             self.log_wf = self.log_wf0
+
+    def configure_pade(self):
+        self.pade_aij = self.jnp.zeros((self.nparticles, self.nparticles))
+        for i in range(self.nparticles):
+            for j in range(i + 1, self.nparticles):
+                # first N//2 particles are spin up, the rest are spin down
+                # there is a more efficient way to do this for sure
+                if i < self.nparticles // 2 and j < self.nparticles // 2:
+                    self.pade_aij = self.pade_aij.at[i, j].set(1 / (self.dim + 1))
+                elif i >= self.nparticles // 2 and j >= self.nparticles // 2:
+                    self.pade_aij = self.pade_aij.at[i, j].set(1 / (self.dim + 1))
+                else:
+                    self.pade_aij = self.pade_aij.at[i, j].set(1 / (self.dim - 1))
+
+    def log_wf_slater(self, r, params):
+        # print("self.log_slater(r)", self.log_slater(r))
+        # print("self.log_wf0(r)", self.log_wf0(r, params))
+        return self.log_slater(r) + self.log_wf0(r, params)
+
+    def log_wf_jastrow(self, r, params):
+        return self.log_wfi(r, params) + self.log_wf0(r, params)
+
+    def log_wf_slater_jastrow(self, r, params):
+        # print("self.log_slater(r)", self.log_slater(r))
+        # print("self.log_wf0(r)", self.log_wf0(r, params))
+        return self.log_slater(r) + self.log_wfi(r, params) + self.log_wf0(r, params)
+
+    def configure_slater(self):
+        if self.symmetry == "fermion":
+            print("Using Slater determinant for fermions")
+            self.log_wf = self.log_wf_slater
+        else:
+            self.log_wf = self.log_wf0
+
+    # TODO: configure slater-jastrow
 
     def log_wfi(self, r, params):
         """
@@ -101,12 +146,137 @@ class WaveFunction:
         r_dist = self.la.norm(r_diff + epsilon, axis=-1)  # Add epsilon to avoid nan
 
         rij = jnp.triu(r_dist, k=1)
-        x = jnp.einsum("nij,ij->n", rij, params["JW"])
+
+        x = jnp.einsum("nij,ij->n", rij, params["WJ"])  # TODO: TEST THIS CHANGE TO WJ
 
         return x.squeeze(-1)
 
-    def log_wf_jastrow(self, r, params):
+    # WIP
+    def log_wfi_pade(self, r, params):
+        """ """
+
+        epsilon = 1e-10  # Small epsilon value was 10^-8 before
+        r_cpy = r.reshape(-1, self._N, self._dim)
+        r_diff = r_cpy[:, None, :, :] - r_cpy[:, :, None, :]
+        r_dist = self.la.norm(r_diff + epsilon, axis=-1)  # Add epsilon to avoid nan
+
+        rij = jnp.triu(r_dist, k=1)
+
+        num = self.pade_aij * rij  # elemntwise multiplication
+        den = 1 + params["WPJ"] * rij  # elementwise addition
+
+        x = jnp.einsum("nij,nij->n", num, 1 / den)  # TODO: TEST THIS CHANGE TO WJ
+
+        return x.squeeze(-1)
+
+    def log_wf_jastrow(self, r, params):  # noqa
         return self.log_wf0(r, params) + self.log_wfi(r, params)
+
+    def generate_degrees(self):
+        max_comb = self.nparticles // 2
+        combinations = [[0] * self.dim]
+        seen = {tuple(combinations[0])}
+
+        while len(combinations) < max_comb:
+            new_combinations = []
+            for comb in combinations:
+                for i in range(self.dim):
+                    # Try incrementing each dimension by 1
+                    new_comb = comb.copy()
+                    new_comb[i] += 1
+                    new_comb_tuple = tuple(new_comb)
+                    if new_comb_tuple not in seen:
+                        seen.add(new_comb_tuple)
+                        new_combinations.append(new_comb)
+                        if len(seen) == max_comb:
+                            return np.array(combinations + new_combinations)
+            combinations += new_combinations
+
+        return np.array(combinations)
+
+    def log_slater(self, r):
+        """
+        Decomposed spin Slater determinant in log domain.
+        ln psi = ln det (D(up)) + ln det (D(down))
+        In our ground state, half of the particles are spin up and half are spin down.
+        We will also add the 1/sqrt(N!) normalization factor here.
+
+        D = |phi_1(r_1) phi_2(r_1) ... phi_n(r_1)|
+            |phi_1(r_2) phi_2(r_2) ... phi_n(r_2)|
+            |   ...         ...          ...     |
+            |phi_1(r_n) phi_2(r_n) ... phi_n(r_n)|
+
+        where phi_i is the i-th single particle wavefunction, in our case it is a hermite polynomial.
+        """
+        A = self.nparticles // 2
+        r = r.reshape(-1, self.nparticles, self.dim)
+
+        r_up = r[:, :A, :]
+        r_down = r[:, A:, :]
+
+        # Compute the Slater determinant for the spin up particles
+        D_up = self.backend.zeros((r.shape[0], A, A))
+        D_down = self.backend.zeros((r.shape[0], A, A))
+
+        degree_combs = self.generate_degrees()
+        # print("r in log_slater", r)
+        for part in range(A):
+            for j in range(A):
+                degrees = degree_combs[j]
+                # print("degrees", degrees)
+                # TODO: breaks here because hermite is giving an array
+                D_up = D_up.at[:, part, j].set(self.hermite(r_up[:, part, :], degrees))
+                D_down = D_down.at[:, part, j].set(
+                    self.hermite(r_down[:, part, :], degrees)
+                )
+
+        # print("D_up", D_up)
+        # print("D_down", D_down)
+
+        # Compute the Slater determinant for the spin down particles
+        log_slater_up = jnp.linalg.slogdet(D_up)[1].squeeze(-1)
+        print("log_slater_up", log_slater_up)
+        log_slater_down = jnp.linalg.slogdet(D_down)[1].squeeze(-1)
+
+        return (
+            log_slater_up + log_slater_down - 0.5 * self.slater_fact
+        )  # the factor does not matter for energy but maybe important for the gradient?
+
+    def hermite(self, r, degs):
+        """
+        Compute the product of Hermite polynomials for the given values, degree, and dimension.
+
+        Parameters:
+        - vals: Array-like of values for which to compute the Hermite polynomial product. It should be of shape (nbatch, dim)
+        - degs: The degrees of the Hermite polynomials.
+        - dim: The dimension, indicating how many values and subsequent polynomials to consider.
+
+        Returns:
+        - The product of Hermite polynomials for the given inputs.
+
+        #TODO: move this to a helper function
+        """
+        # Error handling for input parameters
+        # if not isinstance(vals, list) or not isinstance(deg, int) or not isinstance(self.dim, int):
+        #    raise ValueError("Invalid input types for vals, deg, or dim.")
+        # if len(vals) != dim:
+        #    raise ValueError("Dimension mismatch between 'vals' and 'dim'.")
+
+        # Compute the product of Hermite polynomials across the given dimensions
+        hermite_product = 1
+
+        for batch in range(r.shape[0]):
+            # cartesian of r[batch] and degs
+
+            for i in range(len(degs)):
+                deg = degs[i]
+                r_ = r[batch][i]
+
+                # print(f"print(P.Hermite([0] * {deg} + [1])({r_}))")
+                hermite_poly = P.Hermite([0] * deg + [1])(r_ * self.sqrt_omega)
+                hermite_product *= hermite_poly
+
+        return hermite_product
 
     @staticmethod
     def symmetry(func):

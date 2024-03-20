@@ -26,6 +26,7 @@ class RBM(WaveFunction):
         logger_level="INFO",
         backend="numpy",
         symmetry=None,
+        jastrow=False,
     ):
         """
         Initializes the RBM Neural Network Quantum State.
@@ -44,13 +45,18 @@ class RBM(WaveFunction):
             logger_level=logger_level,
             backend=backend,
             symmetry=symmetry,
+            jastrow=jastrow,
         )
 
+        self.configure_slater()  # NEED TO BE BEFORE CONFIGURE_BACKEND
+        self.configure_jastrow()  # NEED TO BE BEFORE CONFIGURE_BACKEND
         self.configure_backend(backend)
 
         self._initialize_vars(nparticles, dim, nhidden, factor, sigma2)
 
         self._initialize_bias_and_kernel(rng)
+        if self.jastrow:
+            self._initialize_jastrow_parameters(rng)
 
         logp = self.logprob(self.r0)
         self.state = State(self.r0, logp, 0, 0)
@@ -62,6 +68,11 @@ class RBM(WaveFunction):
                 f"{self._nhidden} hidden {neuron_str}"
             )
             self.logger.info(msg)
+
+    def _initialize_jastrow_parameters(self, rng):
+        input_j_size = self._N * (self._N - 1) // 2
+        limit = np.sqrt(2 / (input_j_size))
+        self.params.set("WJ", np.array(rng.uniform(-limit, limit, (self._N, self._N))))
 
     def __call__(self, r):
         return self.wf(
@@ -102,7 +113,7 @@ class RBM(WaveFunction):
         """
         return self.backend.logaddexp(x, 0)
 
-    def _log_wf(self, r, params):
+    def log_wf0(self, r, params):
         """Logarithmic gaussian-binary RBM"""
         # visible layer
         x_v = self.la.norm(
@@ -126,7 +137,7 @@ class RBM(WaveFunction):
         So p_rbm = |Ψ(r)|^2 = exp(-2 * log(Ψ(r))) which in log domain is -2 * log(Ψ(r))
         """
 
-        return self._factor * self._log_wf(r, params)
+        return self._factor * self.log_wf(r, params)
 
     def pdf(self, r):
         """
@@ -136,7 +147,7 @@ class RBM(WaveFunction):
 
     def logprob_closure(self, r, params):
         """Log probability amplitude"""
-        return self._rbm_psi_repr * self._log_wf(r, params).sum()
+        return self._rbm_psi_repr * self.log_wf(r, params).sum()
 
     def logprob(self, r):
         """Log probability amplitude"""
@@ -288,7 +299,7 @@ class RBM(WaveFunction):
             grad_value = self.backend.array(grad_value)
 
             # if self.backend.ndim(grad_value[0]) == 2:
-            if key == "kernel":
+            if key == "kernel" or key == "WJ":
                 grads_outer = self.backend.einsum(
                     "nij,nkl->nijkl", grad_value, grad_value
                 )

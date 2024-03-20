@@ -24,15 +24,15 @@ jax.config.update("jax_platform_name", "cpu")
 
 # Config
 output_filename = "../data/playground.csv"
-nparticles = 2
+nparticles = 6
 dim = 2
 
 
-nsamples = int(2**21)  # 2**18 = 262144,
+nsamples = int(2**18)  # 2**18 = 262144,
 nchains = 1
 eta = 0.001 / np.sqrt(nparticles * dim)  # 0.001  / np.sqrt(nparticles * dim)
 
-training_cycles = 2000  # this is cycles for the ansatz
+training_cycles = 200  # this is cycles for the ansatz
 mcmc_alg = "m"  # lmh is shit for ffnn
 optimizer = "sr"
 batch_size = 2000
@@ -63,19 +63,21 @@ system.set_wf(
     dim,  # all after this is kwargs.
     layer_sizes=[
         nparticles * dim,  # should always be this
+        14,
+        9,
         7,
         5,
         3,
         1,  # should always be this
     ],
-    activations=["elu", "gelu", "elu", "linear"],
-    symmetry="none",
-    jastrow=True,
+    activations=["elu", "gelu", "elu", "gelu", "elu", "linear"],
+    symmetry="None",
+    jastrow=False,
 )
 
 system.set_sampler(mcmc_alg=mcmc_alg, scale=1 / np.sqrt(nparticles * dim))
 system.set_hamiltonian(
-    type_="ho", int_type="Coulomb", omega=1.0, r0_reg=1, training_cycles=training_cycles
+    type_="ho", int_type="None", omega=1.0, r0_reg=1, training_cycles=training_cycles
 )
 
 system.set_optimizer(
@@ -89,15 +91,18 @@ system.set_optimizer(
 kwargs = {  # TODO: make this less repetitive
     "layer_sizes": [
         nparticles * dim,  # should always be this
+        14,
+        9,
         7,
         5,
         3,
         1,  # should always be this
     ],
-    "activations": ["elu", "gelu", "elu", "linear"],
-    "jastrow": True,
+    "activations": ["elu", "gelu", "elu", "gelu", "elu", "linear"],
+    "jastrow": False,
+    "symmetry": "None",
 }
-system.pretrain(model="Gaussian", max_iter=1200, batch_size=1000, args=kwargs)
+system.pretrain(model="Gaussian", max_iter=1200, batch_size=2000, args=kwargs)
 history = system.train(
     max_iter=training_cycles,
     batch_size=batch_size,

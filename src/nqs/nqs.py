@@ -136,6 +136,7 @@ class NQS:
         """
         if type_.lower() == "ho":
             self.hamiltonian = HO(self._N, self._dim, int_type, self._backend, kwargs)
+            self.wf.sqrt_omega = np.sqrt(kwargs.get("omega", 1.0))
         else:
             raise NotImplementedError(
                 "Only the Harmonic Oscillator and Cologero-Sutherland supported for now."
@@ -464,9 +465,9 @@ class NQS:
                 self._dim,
                 **args,
             )
-            # if jastrow, save the JW params to be used later
+            # if jastrow, save the WJ params to be used later
             if args["jastrow"]:
-                JW_params = self.wf.params.get("JW")
+                WJ_params = self.wf.params.get("WJ")
         else:
             raise NotImplementedError("Only Gaussian pretraining is supported for now")
 
@@ -492,5 +493,5 @@ class NQS:
         )
         self.wf.params = params
 
-        if args["jastrow"]:  # reinitialize the JW params
-            self.wf.params.set("JW", JW_params)
+        if args["jastrow"]:  # reinitialize the WJ params
+            self.wf.params.set("WJ", WJ_params)

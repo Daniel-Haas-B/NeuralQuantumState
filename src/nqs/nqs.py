@@ -466,13 +466,15 @@ class NQS:
                 **args,
             )
             # if jastrow, save the WJ params to be used later
-            if args["jastrow"]:
+            if str(args["correlation"]).lower() == "j":
                 WJ_params = self.wf.params.get("WJ")
+            elif str(args["correlation"]).lower() == "pj":
+                CPJ_params = self.wf.params.get("CPJ")
+            elif args["correlation"] is not None:
+                raise ValueError(f"Invalid correlation type {args['correlation']}")
+
         else:
             raise NotImplementedError("Only Gaussian pretraining is supported for now")
-
-        # FOR NOW DOES NOT MAKE SENSE
-        # pre_system.set_sampler(mcmc_alg=mcmc_alg, scale=1)
 
         pre_system.set_optimizer(
             optimizer="adam",
@@ -493,5 +495,7 @@ class NQS:
         )
         self.wf.params = params
 
-        if args["jastrow"]:  # reinitialize the WJ params
+        if str(args["correlation"]).lower() == "j":
             self.wf.params.set("WJ", WJ_params)
+        elif str(args["correlation"]).lower() == "pj":
+            self.wf.params.set("CPJ", CPJ_params)

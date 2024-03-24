@@ -12,9 +12,6 @@ from nqs.utils import wf_factory
 import jax
 from nqs.utils import advance_PRNG_state
 
-from sklearn.metrics import mean_squared_error as mse
-
-
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
 
@@ -204,7 +201,7 @@ class Gaussian:
         params = self.wf.params
         param_keys = params.keys()
         self._history.update({key: [] for key in param_keys}) if self._history else None
-        seed_seq = generate_seed_sequence(self._seed, 1)[0]
+        seed_seq = generate_seed_sequence(self._seed, 1)[0]  # noqa
 
         epoch = 0
         loss_func = lambda x, param: self.jaxmse(  # noqa
@@ -218,17 +215,6 @@ class Gaussian:
             states = state.create_batch_of_states(batch_size=batch_size)
             if self.pretrain_sampler:
                 raise NotImplementedError("Pretrain sampler not implemented yet")
-                # sample from the wf object which is now (supposed to be) a gaussian
-                states = self._sampler.step(
-                    self.wf, states, seed_seq, batch_size=batch_size
-                )
-                loss = mse(
-                    self.wf(states.positions),
-                    self.multivar_gaussian_pdf(
-                        states.positions, mean=self.backend.zeros(self._dim * self._N)
-                    ),
-                )
-
             else:
                 # generate uniform random numbers and regress them to the gaussian
                 # Advance RNG

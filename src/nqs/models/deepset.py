@@ -31,7 +31,7 @@ class DS(WaveFunction):
         logger_level="INFO",
         backend="jax",
         symmetry=None,
-        jastrow=False,
+        correlation=None,
     ):
         super().__init__(
             nparticles,
@@ -41,7 +41,6 @@ class DS(WaveFunction):
             logger=logger,
             logger_level=logger_level,
             backend=backend,
-            symmetry=symmetry,
         )
 
         """
@@ -54,11 +53,9 @@ class DS(WaveFunction):
         - dim (int): Dimensionality.
         ...
         """
-        self.jastrow = jastrow
-        self.pade_jastrow = False
         self._initialize_vars(nparticles, dim, layer_sizes, activations, factor)
-        self.configure_slater()  # NEED TO BE BEFORE CONFIGURE_BACKEND
-        self.configure_jastrow()  # NEED TO BE BEFORE CONFIGURE_BACKEND
+        self.configure_symmetry(symmetry)  # need to be before correlation
+        self.configure_correlation(correlation)  # NEED TO BE BEFORE CONFIGURE_BACKEND
         self.configure_backend(backend)
 
         self._initialize_layers(rng)
@@ -127,7 +124,7 @@ class DS(WaveFunction):
 
         if self.pade_jastrow:
             assert not self.jastrow, "Pade Jastrow requires Jastrow to be false"
-            self.params.set("WPJ", np.array(rng.uniform(-limit, limit, 1)))
+            self.params.set("CPJ", np.array(rng.uniform(-limit, limit, 1)))
 
     def log_wf0(self, x, params):
         """

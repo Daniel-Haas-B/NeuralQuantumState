@@ -21,8 +21,7 @@ class WaveFunction:
         logger_level="INFO",
         backend="numpy",
         seed=None,
-        symmetry=None,
-        jastrow=False,
+        pade=False,
     ):
         self.params = None
         self.nparticles = nparticles
@@ -32,8 +31,9 @@ class WaveFunction:
         self._logger_level = logger_level
         self.backend = backend
         self._seed = seed
-        self.symmetry = symmetry
-        self.jastrow = jastrow
+        self.symmetry = None
+        self.jastrow = False
+        self.pade_jastrow = False
         self.sqrt_omega = 1  # will be reset in the set_hamiltonian
 
         self.slater_fact = np.log(
@@ -59,12 +59,15 @@ class WaveFunction:
         functions_to_jit = [
             "log_wf",
             # "log_wf0",
-            "log_wfi",
+            "log_wfc_jastrow",
             "logprob_closure",
             "set_0",
             "set_1",
             "wf",
             "compute_sr_matrix",
+            # "grad_wf_closure", ## give diff results, strange
+            # "grads_closure",
+            # "laplacian_closure",
             "_precompute",
             "_softplus",
         ]
@@ -88,52 +91,71 @@ class WaveFunction:
         else:
             raise ValueError("Invalid backend:", backend)
 
-    def configure_jastrow(self):
-        print("self.jastrow", self.jastrow)
-        print("self.symmetry", self.symmetry)
-        if self.jastrow and self.symmetry == "fermion":
-            self.log_wf = self.log_wf_slater_jastrow
-        elif self.jastrow and self.symmetry != "fermion":
-            self.log_wf = self.log_wf_jastrow
+    def configure_symmetry(self, symmetry):
+        self.symmetry = symmetry  # boson, fermion, none
+        if self.symmetry == "fermion":  # then uses slater determinant
+            self.log_wf = self.log_wf_slater_det
         else:
             self.log_wf = self.log_wf0
 
-    def configure_pade(self):
-        self.pade_aij = self.jnp.zeros((self.nparticles, self.nparticles))
-        for i in range(self.nparticles):
-            for j in range(i + 1, self.nparticles):
-                # first N//2 particles are spin up, the rest are spin down
-                # there is a more efficient way to do this for sure
-                if i < self.nparticles // 2 and j < self.nparticles // 2:
-                    self.pade_aij = self.pade_aij.at[i, j].set(1 / (self.dim + 1))
-                elif i >= self.nparticles // 2 and j >= self.nparticles // 2:
-                    self.pade_aij = self.pade_aij.at[i, j].set(1 / (self.dim + 1))
-                else:
-                    self.pade_aij = self.pade_aij.at[i, j].set(1 / (self.dim - 1))
+    def configure_correlation(self, correlation):
+        """
+        Note:
+            Will be called after configure symmetry
+        """
+        if correlation == "pj":
+            self.pade_jastrow = True
+            self.pade_aij = jnp.zeros((self.nparticles, self.nparticles))
+            for i in range(self.nparticles):
+                for j in range(i + 1, self.nparticles):
+                    # first N//2 particles are spin up, the rest are spin down
+                    # there is a more efficient way to do this for sure
+                    if i < self.nparticles // 2 and j < self.nparticles // 2:
+                        self.pade_aij = self.pade_aij.at[i, j].set(1 / (self.dim + 1))
+                    elif i >= self.nparticles // 2 and j >= self.nparticles // 2:
+                        self.pade_aij = self.pade_aij.at[i, j].set(1 / (self.dim + 1))
+                    else:
+                        self.pade_aij = self.pade_aij.at[i, j].set(1 / (self.dim - 1))
 
-    def log_wf_slater(self, r, params):
-        # print("self.log_slater(r)", self.log_slater(r))
-        # print("self.log_wf0(r)", self.log_wf0(r, params))
-        return self.log_slater(r) + self.log_wf0(r, params)
+            self.log_wf = self.log_wf_pade_jastrow
+
+        elif correlation == "j":
+            self.jastrow = True
+            if self.symmetry == "fermion":
+                self.log_wf = self.log_wf_slater_jastrow
+            elif self.symmetry != "fermion":
+                self.log_wf = self.log_wf_jastrow
+            else:
+                self.log_wf = self.log_wf0
+
+        if self.logger is not None:
+            self.logger.info(f"Using correlation factor {correlation}")
+
+    def log_wf_slater_det(self, r, params):
+        """
+        this is the non interacting case, with only the slater determinant
+        """
+        return self.log_wf0(r, params) + self.log_slater(r)
 
     def log_wf_jastrow(self, r, params):
-        return self.log_wfi(r, params) + self.log_wf0(r, params)
+        """
+        this is the jastraw factor only, without the slater determinant
+        """
+        return self.log_wf0(r, params) + self.log_jastrow(r, params)
 
     def log_wf_slater_jastrow(self, r, params):
-        # print("self.log_slater(r)", self.log_slater(r))
-        # print("self.log_wf0(r)", self.log_wf0(r, params))
-        return self.log_slater(r) + self.log_wfi(r, params) + self.log_wf0(r, params)
+        return (
+            self.log_wf0(r, params) + self.log_slater(r) + self.log_jastrow(r, params)
+        )
 
-    def configure_slater(self):
-        if self.symmetry == "fermion":
-            print("Using Slater determinant for fermions")
-            self.log_wf = self.log_wf_slater
-        else:
-            self.log_wf = self.log_wf0
+    def log_wf_pade_jastrow(self, r, params):
+        return (
+            self.log_wf0(r, params)
+            + self.log_slater(r)
+            + self.log_pade_jastrow(r, params)
+        )
 
-    # TODO: configure slater-jastrow
-
-    def log_wfi(self, r, params):
+    def log_jastrow(self, r, params):
         """
         Only used when jastrow is True, and it is kinda irrespective of
         the NN architecture.
@@ -147,12 +169,11 @@ class WaveFunction:
 
         rij = jnp.triu(r_dist, k=1)
 
-        x = jnp.einsum("nij,ij->n", rij, params["WJ"])  # TODO: TEST THIS CHANGE TO WJ
+        x = jnp.einsum("nij,ij->n", rij, params["WJ"])
 
         return x.squeeze(-1)
 
-    # WIP
-    def log_wfi_pade(self, r, params):
+    def log_pade_jastrow(self, r, params):
         """ """
 
         epsilon = 1e-10  # Small epsilon value was 10^-8 before
@@ -163,14 +184,11 @@ class WaveFunction:
         rij = jnp.triu(r_dist, k=1)
 
         num = self.pade_aij * rij  # elemntwise multiplication
-        den = 1 + params["WPJ"] * rij  # elementwise addition
+        den = 1 + params["CPJ"] * rij  # elementwise addition
 
-        x = jnp.einsum("nij,nij->n", num, 1 / den)  # TODO: TEST THIS CHANGE TO WJ
+        x = jnp.einsum("nij,nij->n", num, 1 / den)
 
         return x.squeeze(-1)
-
-    def log_wf_jastrow(self, r, params):  # noqa
-        return self.log_wf0(r, params) + self.log_wfi(r, params)
 
     def generate_degrees(self):
         max_comb = self.nparticles // 2
@@ -235,7 +253,6 @@ class WaveFunction:
 
         # Compute the Slater determinant for the spin down particles
         log_slater_up = jnp.linalg.slogdet(D_up)[1].squeeze(-1)
-        print("log_slater_up", log_slater_up)
         log_slater_down = jnp.linalg.slogdet(D_down)[1].squeeze(-1)
 
         return (

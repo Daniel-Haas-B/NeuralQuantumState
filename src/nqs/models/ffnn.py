@@ -56,6 +56,7 @@ class FFNN(WaveFunction):
         ...
         """
         self._initialize_vars(nparticles, dim, layer_sizes, activations, factor)
+        self.configure_slater()  # NEED TO BE BEFORE CONFIGURE_BACKEND
         self.configure_jastrow()  # NEED TO BE BEFORE CONFIGURE_BACKEND
         self.configure_backend(backend)
 
@@ -99,7 +100,7 @@ class FFNN(WaveFunction):
             input_j_size = self._N * (self._N - 1) // 2
             limit = np.sqrt(2 / (input_j_size))
             self.params.set(
-                "JW", np.array(rng.uniform(-limit, limit, (self._N, self._N)))
+                "WJ", np.array(rng.uniform(-limit, limit, (self._N, self._N)))
             )
 
     def log_wf_pretrain(self, x, params):

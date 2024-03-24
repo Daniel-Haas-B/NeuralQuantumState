@@ -28,18 +28,18 @@ nparticles = 2
 dim = 2
 
 
-nsamples = int(2**19)  # 2**18 = 262144
+nsamples = int(2**16)  # 2**18 = 262144
 nchains = 1
 eta = 0.001 / np.sqrt(nparticles * dim)  # 0.001  / np.sqrt(nparticles * dim)
 
-training_cycles = 200  # this is cycles for the ansatz
+training_cycles = 10  # this is cycles for the ansatz
 mcmc_alg = "m"  # lmh is shit for ffnn
 optimizer = "sr"
 batch_size = 2000  # initial batch size
 detailed = True
 wf_type = "ds"
 seed = 42
-latent_dimension = 6
+latent_dimension = 4
 
 dfs_mean = []
 df = []
@@ -58,34 +58,29 @@ system = nqs.NQS(
     seed=seed,
 )
 
-system.set_wf(
-    "ds",
-    nparticles,
-    dim,  # all after this is kwargs.
-    layer_sizes={
-        "S0": [
-            dim,  # should always be this
-            9,
-            7,
-            5,
-            3,
-            latent_dimension,  # should always be this
-        ],
-        "S1": [
-            latent_dimension,
-            9,
-            7,
-            5,
-            3,
-            1,  # should always be this
-        ],
-    },
-    activations={
-        "S0": ["elu", "gelu", "elu", "gelu", "elu"],
-        "S1": ["gelu", "elu", "gelu", "elu", "linear"],
-    },
-    jastrow=True,
-)
+common_layers_S0 = [14, 9, 7, 5, 3]
+common_activations_S0 = ["gelu", "elu", "gelu", "elu", "gelu", "elu"]
+
+layer_sizes = {
+    "S0": [dim] + common_layers_S0 + [latent_dimension],
+    "S1": [latent_dimension, 9, 7, 5, 3, 1],
+}
+
+activations = {
+    "S0": common_activations_S0,
+    "S1": ["gelu", "elu", "gelu", "elu", "linear"],
+}
+
+# Common kwargs for multiple function calls
+common_kwargs = {
+    "layer_sizes": layer_sizes,
+    "activations": activations,
+    "correlation": None,  # or just j or None (default)
+    "symmetry": "none",
+}
+
+# Initial function call with specific kwargs
+system.set_wf("ds", nparticles, dim, **common_kwargs)
 
 system.set_sampler(mcmc_alg=mcmc_alg, scale=1 / np.sqrt(nparticles * dim))
 system.set_hamiltonian(
@@ -100,32 +95,8 @@ system.set_optimizer(
     beta2=0.999,
     epsilon=1e-8,
 )
-kwargs = {
-    "layer_sizes": {
-        "S0": [
-            dim,  # should always be this
-            9,
-            7,
-            5,
-            3,
-            latent_dimension,  # should always be this
-        ],
-        "S1": [
-            latent_dimension,
-            9,
-            7,
-            5,
-            3,
-            1,  # should always be this
-        ],
-    },
-    "activations": {
-        "S0": ["elu", "gelu", "elu", "gelu", "elu"],
-        "S1": ["gelu", "elu", "gelu", "elu", "linear"],
-    },
-    "jastrow": True,
-}
-system.pretrain(model="Gaussian", max_iter=1200, batch_size=1000, args=kwargs)
+
+system.pretrain(model="Gaussian", max_iter=1300, batch_size=1000, args=common_kwargs)
 history = system.train(
     max_iter=training_cycles,
     batch_size=batch_size,

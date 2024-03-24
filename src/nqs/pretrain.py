@@ -12,9 +12,6 @@ from nqs.utils import wf_factory
 import jax
 from nqs.utils import advance_PRNG_state
 
-from sklearn.metrics import mean_squared_error as mse
-
-
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
 
@@ -204,7 +201,7 @@ class Gaussian:
         params = self.wf.params
         param_keys = params.keys()
         self._history.update({key: [] for key in param_keys}) if self._history else None
-        seed_seq = generate_seed_sequence(self._seed, 1)[0]
+        seed_seq = generate_seed_sequence(self._seed, 1)[0]  # noqa
 
         epoch = 0
         loss_func = lambda x, param: self.jaxmse(  # noqa
@@ -218,17 +215,6 @@ class Gaussian:
             states = state.create_batch_of_states(batch_size=batch_size)
             if self.pretrain_sampler:
                 raise NotImplementedError("Pretrain sampler not implemented yet")
-                # sample from the wf object which is now (supposed to be) a gaussian
-                states = self._sampler.step(
-                    self.wf, states, seed_seq, batch_size=batch_size
-                )
-                loss = mse(
-                    self.wf(states.positions),
-                    self.multivar_gaussian_pdf(
-                        states.positions, mean=self.backend.zeros(self._dim * self._N)
-                    ),
-                )
-
             else:
                 # generate uniform random numbers and regress them to the gaussian
                 # Advance RNG
@@ -294,17 +280,17 @@ class Gaussian:
         output: float
         """
         means = self.backend.zeros(self._N * self._dim)
-        if self.symmetry == "boson" or self.symmetry is None or self.symmetry == "none":
-            means = self.backend.zeros(self._N * self._dim)
+        # if self.symmetry == "boson" or self.symmetry is None or self.symmetry == "none":
+        # means = self.backend.zeros(self._N * self._dim)
 
-        elif self.symmetry == "fermion":
-            grid_pts_per_dim = self._N
-            means = np.zeros((self._N, self._dim))
-            for i in range(self._dim):
-                means[:, i] = np.linspace(-5, 5, grid_pts_per_dim)  # TODO: FIX RANGE
-            means = means.flatten()
-            means = jnp.array(means)
-            # raise NotImplementedError("Fermion symmetry not implemented yet")
+        # elif self.symmetry == "fermion":
+        # grid_pts_per_dim = self._N
+        # means = np.zeros((self._N, self._dim))
+        # for i in range(self._dim):
+        #     means[:, i] = np.linspace(-5, 5, grid_pts_per_dim)  # TODO: FIX RANGE
+        # means = means.flatten()
+        # means = jnp.array(means)
+        # raise NotImplementedError("Fermion symmetry not implemented yet")
 
         covariance = self.backend.eye(self._dim * self._N)
         x_minus_mean = x - means

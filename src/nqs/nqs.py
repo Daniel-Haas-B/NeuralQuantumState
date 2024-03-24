@@ -136,6 +136,7 @@ class NQS:
         """
         if type_.lower() == "ho":
             self.hamiltonian = HO(self._N, self._dim, int_type, self._backend, kwargs)
+            self.wf.sqrt_omega = np.sqrt(kwargs.get("omega", 1.0))
         else:
             raise NotImplementedError(
                 "Only the Harmonic Oscillator and Cologero-Sutherland supported for now."
@@ -464,14 +465,16 @@ class NQS:
                 self._dim,
                 **args,
             )
-            # if jastrow, save the JW params to be used later
-            if args["jastrow"]:
-                JW_params = self.wf.params.get("JW")
+            # if jastrow, save the WJ params to be used later
+            if str(args["correlation"]).lower() == "j":
+                WJ_params = self.wf.params.get("WJ")
+            elif str(args["correlation"]).lower() == "pj":
+                CPJ_params = self.wf.params.get("CPJ")
+            elif args["correlation"] is not None:
+                raise ValueError(f"Invalid correlation type {args['correlation']}")
+
         else:
             raise NotImplementedError("Only Gaussian pretraining is supported for now")
-
-        # FOR NOW DOES NOT MAKE SENSE
-        # pre_system.set_sampler(mcmc_alg=mcmc_alg, scale=1)
 
         pre_system.set_optimizer(
             optimizer="adam",
@@ -492,5 +495,7 @@ class NQS:
         )
         self.wf.params = params
 
-        if args["jastrow"]:  # reinitialize the JW params
-            self.wf.params.set("JW", JW_params)
+        if str(args["correlation"]).lower() == "j":
+            self.wf.params.set("WJ", WJ_params)
+        elif str(args["correlation"]).lower() == "pj":
+            self.wf.params.set("CPJ", CPJ_params)

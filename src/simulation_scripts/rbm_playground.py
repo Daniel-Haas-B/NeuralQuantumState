@@ -17,23 +17,23 @@ jax.config.update("jax_platform_name", "cpu")
 
 # Config
 output_filename = "../data/playground.csv"
-nparticles = 20
-dim = 1
+nparticles = 6
+dim = 2
 nhidden = 4
 
-nsamples = int(2**18)  # 2**18 = 262144
+nsamples = int(2**22)
 nchains = 1
-eta = 0.1
+eta = 0.001 / np.sqrt(nparticles * dim)
 
-training_cycles = 70  # this is cycles for the NN
+training_cycles = 1000  # this is cycles for the NN
 mcmc_alg = "m"
-backend = "numpy"
+backend = "jax"
 optimizer = "sr"
 batch_size = 1000
 detailed = True
 wf_type = "rbm"
 seed = 142
-int_type = "None"  # "Coulomb"
+int_type = "Coulomb"  # "None"
 
 dfs_mean = []
 df = []
@@ -58,10 +58,11 @@ system.set_wf(
     dim,
     nhidden=nhidden,  # all after this is kwargs. In this example it is RBM dependent
     sigma2=1.0,
-    symmetry="none",
+    symmetry="fermion",
+    jastrow=True,
 )
 
-system.set_sampler(mcmc_alg=mcmc_alg, scale=0.75)
+system.set_sampler(mcmc_alg=mcmc_alg, scale=1 / np.sqrt(nparticles * dim))
 system.set_hamiltonian(
     type_="ho",
     int_type=int_type,

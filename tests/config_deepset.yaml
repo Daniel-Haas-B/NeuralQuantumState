@@ -1,0 +1,33 @@
+nparticles: 2
+dim: 2
+nsamples: 16384  # 2**14
+nchains: 1
+eta: 0.0003535533905932738  # 0.001 / np.sqrt(nparticles * dim)
+
+training_cycles: 100
+mcmc_alg: "m"
+optimizer: "sr"
+batch_size: 100  # initial batch size
+detailed: true
+wf_type: "ds"
+seed: 42
+latent_dimension: 4
+
+common_layers_S0: [7, 5, 3]
+common_activations_S0: ["gelu", "elu", "gelu", "elu"]
+layer_sizes:
+  S0: [2, 7, 5, 3, 4]  # [dim] + common_layers_S0 + [latent_dimension]
+  S1: [4, 9, 7, 5, 3, 1]  # [latent_dimension, 9, 7, 5, 3, 1]
+activations:
+  S0: ["gelu", "elu", "gelu", "elu"]
+  S1: ["gelu", "elu", "gelu", "elu", "linear"]
+
+common_kwargs:
+  layer_sizes:
+    S0: [2, 7, 5, 3, 4]
+    S1: [4, 9, 7, 5, 3, 1]
+  activations:
+    S0: ["gelu", "elu", "gelu", "elu"]
+    S1: ["gelu", "elu", "gelu", "elu", "linear"]
+  correlation: "pj"
+  symmetry: "fermion"

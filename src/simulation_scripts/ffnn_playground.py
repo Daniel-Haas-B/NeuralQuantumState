@@ -24,7 +24,7 @@ jax.config.update("jax_platform_name", "cpu")
 
 # Config
 output_filename = "../data/playground.csv"
-nparticles = 6
+nparticles = 2
 dim = 2
 
 
@@ -32,10 +32,10 @@ nsamples = int(2**18)  # 2**18 = 262144,
 nchains = 1
 eta = 0.001 / np.sqrt(nparticles * dim)  # 0.001  / np.sqrt(nparticles * dim)
 
-training_cycles = 200  # this is cycles for the ansatz
+training_cycles = 100  # this is cycles for the ansatz
 mcmc_alg = "m"  # lmh is shit for ffnn
 optimizer = "sr"
-batch_size = 2000
+batch_size = 2000  # 2000
 detailed = True
 wf_type = "ffnn"
 seed = 42
@@ -45,9 +45,7 @@ df = []
 df_all = []
 import time
 
-# for max_iter in training_cycles:
 start = time.time()
-# for i in range(5):
 
 system = nqs.NQS(
     nqs_repr="psi",
@@ -57,27 +55,20 @@ system = nqs.NQS(
     seed=seed,
 )
 
-system.set_wf(
-    "ffnn",
-    nparticles,
-    dim,  # all after this is kwargs.
-    layer_sizes=[
-        nparticles * dim,  # should always be this
-        14,
-        9,
-        7,
-        5,
-        3,
-        1,  # should always be this
-    ],
-    activations=["elu", "gelu", "elu", "gelu", "elu", "linear"],
-    symmetry="None",
-    jastrow=False,
-)
+layer_sizes = [nparticles * dim, 14, 9, 7, 5, 3, 1]
+activations = ["elu", "gelu", "elu", "gelu", "elu", "linear"]
+common_kwargs = {
+    "layer_sizes": layer_sizes,
+    "activations": activations,
+    "correlation": None,  # or just j or None (default)
+    "symmetry": "fermion",  # why does this change the pretrain? and should it?
+}
+
+system.set_wf("ffnn", nparticles, dim, **common_kwargs)  # all after this is kwargs.
 
 system.set_sampler(mcmc_alg=mcmc_alg, scale=1 / np.sqrt(nparticles * dim))
 system.set_hamiltonian(
-    type_="ho", int_type="None", omega=1.0, r0_reg=1, training_cycles=training_cycles
+    type_="ho", int_type="Coulomb", omega=1.0, r0_reg=1, training_cycles=training_cycles
 )
 
 system.set_optimizer(
@@ -88,21 +79,8 @@ system.set_optimizer(
     beta2=0.999,
     epsilon=1e-8,
 )
-kwargs = {  # TODO: make this less repetitive
-    "layer_sizes": [
-        nparticles * dim,  # should always be this
-        14,
-        9,
-        7,
-        5,
-        3,
-        1,  # should always be this
-    ],
-    "activations": ["elu", "gelu", "elu", "gelu", "elu", "linear"],
-    "jastrow": False,
-    "symmetry": "None",
-}
-system.pretrain(model="Gaussian", max_iter=1200, batch_size=2000, args=kwargs)
+
+system.pretrain(model="Gaussian", max_iter=1200, batch_size=2000, args=common_kwargs)
 history = system.train(
     max_iter=training_cycles,
     batch_size=batch_size,

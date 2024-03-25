@@ -1,6 +1,6 @@
-import math
+import math  # noqa
 from abc import abstractmethod
-from itertools import permutations
+from itertools import permutations  # noqa
 
 import jax
 import jax.numpy as jnp
@@ -58,16 +58,16 @@ class WaveFunction:
     def _jit_functions(self):
         functions_to_jit = [
             "log_wf",
-            # "log_wf0",
+            # "log_wf0", # dont use this with deepset at least
             "log_wfc_jastrow",
             "logprob_closure",
             "set_0",
             "set_1",
             "wf",
             "compute_sr_matrix",
-            # "grad_wf_closure", ## give diff results, strange
-            # "grads_closure",
-            # "laplacian_closure",
+            "grad_wf_closure",
+            "grads_closure",
+            "laplacian_closure",
             "_precompute",
             "_softplus",
         ]
@@ -295,62 +295,62 @@ class WaveFunction:
 
         return hermite_product
 
-    @staticmethod
-    def symmetry(func):
-        """
-        #TODO: ensure that receiving args are size (bacth, nparticles, dim)
-        """
+    # @staticmethod
+    # def symmetry(func):
+    #     """
+    #     #TODO: ensure that receiving args are size (bacth, nparticles, dim)
+    #     """
 
-        def wrapper(self, r, *args, **kwargs):
-            n = self.nparticles
+    #     def wrapper(self, r, *args, **kwargs):
+    #         n = self.nparticles
 
-            # first permutation is always the identity
+    #         # first permutation is always the identity
 
-            r_reshaped = r.reshape(-1, n, self.dim)
+    #         r_reshaped = r.reshape(-1, n, self.dim)
 
-            def symmetrize_r(r):
-                # print("r.shape[0]", r.shape[0])
-                # first permutation is always the identity
-                total = self.backend.zeros_like(
-                    func(self, r, *args, **kwargs)
-                )  # inneficient
+    #         def symmetrize_r(r):
+    #             # print("r.shape[0]", r.shape[0])
+    #             # first permutation is always the identity
+    #             total = self.backend.zeros_like(
+    #                 func(self, r, *args, **kwargs)
+    #             )  # inneficient
 
-                for sigma in permutations(range(n)):
-                    permuted_r = r_reshaped[:, sigma, :]
-                    # print("permuted r", permuted_r)
-                    permuted_r = permuted_r.reshape(r.shape)
-                    total += func(self, permuted_r, *args, **kwargs)
+    #             for sigma in permutations(range(n)):
+    #                 permuted_r = r_reshaped[:, sigma, :]
+    #                 # print("permuted r", permuted_r)
+    #                 permuted_r = permuted_r.reshape(r.shape)
+    #                 total += func(self, permuted_r, *args, **kwargs)
 
-                return total / math.factorial(n)
+    #             return total / math.factorial(n)
 
-            def antisymmetrize(func, *args):
-                total = self.backend.zeros_like(
-                    func(self, r, *args, **kwargs)
-                )  # inneficient
-                for sigma in permutations(range(n)):
-                    permuted_r = r_reshaped[:, sigma, :]
+    #         def antisymmetrize(func, *args):
+    #             total = self.backend.zeros_like(
+    #                 func(self, r, *args, **kwargs)
+    #             )  # inneficient
+    #             for sigma in permutations(range(n)):
+    #                 permuted_r = r_reshaped[:, sigma, :]
 
-                    inversions = 0
-                    for i in range(len(sigma)):
-                        for j in range(i + 1, len(sigma)):
-                            if sigma[i] > sigma[j]:
-                                inversions += 1
-                    sign = (-1) ** inversions
+    #                 inversions = 0
+    #                 for i in range(len(sigma)):
+    #                     for j in range(i + 1, len(sigma)):
+    #                         if sigma[i] > sigma[j]:
+    #                             inversions += 1
+    #                 sign = (-1) ** inversions
 
-                    permuted_r = permuted_r.reshape(r.shape)
+    #                 permuted_r = permuted_r.reshape(r.shape)
 
-                    total += sign * func(self, permuted_r, *args, **kwargs)
-                return total / math.factorial(n)
+    #                 total += sign * func(self, permuted_r, *args, **kwargs)
+    #             return total / math.factorial(n)
 
-            if self.symmetry == "boson":
-                return symmetrize_r(r)
+    #         if self.symmetry == "boson":
+    #             return symmetrize_r(r)
 
-            elif self.symmetry == "fermion":
-                return antisymmetrize(func, *args)
-            else:
-                return func(self, r, *args, **kwargs)
+    #         elif self.symmetry == "fermion":
+    #             return antisymmetrize(func, *args)
+    #         else:
+    #             return func(self, r, *args, **kwargs)
 
-        return wrapper
+    #     return wrapper
 
     @abstractmethod
     def laplacian(self, r):
@@ -436,3 +436,30 @@ class WaveFunction:
         to be overwritten by the inheriting class
         """
         pass
+
+    def activation(self, activation_str):
+        match activation_str:
+            case "tanh":
+                return jnp.tanh
+            case "sigmoid":
+                return jax.nn.sigmoid
+            case "relu":
+                return jax.nn.relu
+            case "softplus":
+                return jax.nn.softplus
+            case "gelu":
+                return jax.nn.gelu
+            case "linear":
+                return lambda x: x
+            case "exp":
+                return jnp.exp
+            case "elu":
+                return jax.nn.elu
+            case _:  # default
+                raise ValueError(f"Invalid activation function {activation_str}")
+
+    def rescale_parameters(self, factor):
+        """
+        Rescale the parameters of the wave function.
+        """
+        self.params.rescale(factor)

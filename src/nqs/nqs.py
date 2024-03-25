@@ -252,7 +252,8 @@ class NQS:
 
         params = self.wf.params
         param_keys = params.keys()
-        self._history.update({key: [] for key in param_keys})
+        if self._history:
+            self._history.update({key: [] for key in param_keys})
         seed_seq = generate_seed_sequence(self._seed, 1)[0]
 
         energies = []
@@ -333,7 +334,8 @@ class NQS:
             for key in param_keys:
                 grad_np = np.array(local_grads_dict.get(key))
                 grads_dict[key] = grad_np
-                self._history[key].append(np.linalg.norm(grad_np))
+                if self._history:
+                    self._history[key].append(np.linalg.norm(grad_np))
                 new_shape = (batch_size,) + (1,) * (
                     grad_np.ndim - 1
                 )  # Subtracting 1 because the first dimension is already provided by batch_size
@@ -359,9 +361,10 @@ class NQS:
                 self.sr_matrices = self.wf.compute_sr_matrix(
                     expval_grad_dict, grads_dict
                 )
+
+            grad_norms = [np.linalg.norm(final_grads[key]) for key in param_keys]
+            grad_norms = np.mean(grad_norms)
             if self._history:
-                grad_norms = [np.linalg.norm(final_grads[key]) for key in param_keys]
-                grad_norms = np.mean(grad_norms)
                 self._history["energy"].append(expval_energy)
                 self._history["std"].append(std_energy)
                 self._history["grads"].append(grad_norms)
@@ -471,7 +474,10 @@ class NQS:
             elif str(args["correlation"]).lower() == "pj":
                 CPJ_params = self.wf.params.get("CPJ")
             elif args["correlation"] is not None:
-                raise ValueError(f"Invalid correlation type {args['correlation']}")
+                if args["correlation"].lower() != "none":
+                    raise ValueError(
+                        f"Invalid correlation {args['correlation']} of type {type(args['correlation'])}"
+                    )
 
         else:
             raise NotImplementedError("Only Gaussian pretraining is supported for now")

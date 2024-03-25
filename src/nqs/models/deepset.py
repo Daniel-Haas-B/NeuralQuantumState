@@ -144,9 +144,7 @@ class DS(WaveFunction):
         x: (batch_size, part * dim) array
 
         """
-
         output = self.log_wf0(x, params)
-
         return output
 
     def set_0(self, x, params):
@@ -157,17 +155,20 @@ class DS(WaveFunction):
         Will then run over a set of particles and sum the output of the network for each particle.
         """
         collector = jnp.zeros(self.latent_dim)  # maybe this is not good in jax
-        for n in range(0, self._N * self._dim, self.dim):
-            # get the correct coordinates for each particle
-            x_n = x[..., n : n + self.dim]
 
+        def pass_per_part(x_n, params):
             for i in range(0, len(self._layer_sizes0) - 1):
                 x_n = x_n @ params.get(f"S0W{i}") + params.get(f"S0b{i}")
                 x_n = self.activation(self._activations0[i])(
                     x_n
                 )  # last one should be of latent_dim
+            return x_n
 
-            collector += x_n  # this will break
+        for n in range(0, self._N * self._dim, self.dim):
+            # get the correct coordinates for each particle
+            x_n = x[..., n : n + self.dim]
+            x_n = pass_per_part(x_n, params)
+            collector += x_n  # this should have dims (latent_dim,)
 
         return collector
 
@@ -180,10 +181,8 @@ class DS(WaveFunction):
             x = x @ params.get(f"S1W{i}") + params.get(f"S1b{i}")
             x = self.activation(self._activations1[i])(x)
 
-        # assert x.shape == (1,), f"output shape is {x.shape}"
-        return x.squeeze(-1)  # TEMPORARY
+        return x.squeeze(-1)
 
-    # @partial(jax.jit, static_argnums=(0,))
     def grad_wf_closure_jax(self, r, params):
         """
         This is the autograd version of the gradient of the logarithm of the wave function w.r.t. the coordinates
@@ -191,52 +190,29 @@ class DS(WaveFunction):
         grad_wf = jax.grad(self.log_wf, argnums=0)
         return vmap(grad_wf, in_axes=(0, None))(r, params)
 
-    def rescale_parameters(self, factor):
-        """
-        Rescale the parameters of the wave function.
-        """
-        self.params.rescale(factor)
-
     def grad_wf(self, r):
-        """
-        (∇_r) Ψ(r) = ∑_i (∇_r) Ψ(r_i)
-        """
+        """ """
         return self.grad_wf_closure(r, self.params)
 
-    # @partial(jax.jit, static_argnums=(0,))
     def laplacian_closure_jax(self, r, params):
-        """
-        (∇_r)^2 Ψ(r) = ∑_i (∇_r)^2 Ψ(r_i)
-        This can be optimized by using the fact that Ψ = exp(FFNN)
-        For now we will use the autograd version
-        """
+        """ """
 
-        def wrapped_wf(r_):
-            return self.log_wf(r_, params)
+        hessian_wf = vmap(jax.hessian(self.log_wf), in_axes=(0, None))
+        trace_hessian = vmap(jnp.trace)
 
-        hessian_wf = vmap(jax.hessian(wrapped_wf))
-
-        def trace_fn(x):
-            return jnp.trace(x)
-
-        return vmap(trace_fn)(hessian_wf(r))
+        return trace_hessian(hessian_wf(r, params))
 
     def grad_logprob(self, r):
         """
         Gradients of the log probability amplitude
 
         """
-
         return 2 * self.grad_wf(r)
 
     def laplacian(self, r):
-        """
-        examine who is which particle and who is which dimension
-
-        """
+        """ """
         return self.laplacian_closure(r, self.params)
 
-    # @partial(jax.jit, static_argnums=(0,))
     def grads_closure_jax(self, r, params):
         grad_fn = vmap(jax.grad(self.log_wf, argnums=1), in_axes=(0, None))
         grad_eval = grad_fn(r, params)  # still a parameter type
@@ -256,16 +232,13 @@ class DS(WaveFunction):
 
     def pdf(self, r):
         """Probability density function"""
-
         return self.backend.exp(self.logprob(r))
 
     def grads_logprob(self, r):
         """
         Gradients of the log probability amplitude
         Note that grads is the gradient of the log of the wave function
-        WIP
         """
-
         return 2 * self.grads(r)
 
     def logprob_closure(self, r, params):
@@ -281,7 +254,6 @@ class DS(WaveFunction):
         that is log(|psi|^2).
         In our case, psi is real, so this is 2 log(|psi|) = 2 * forward(r, params) ?
         """
-
         return 2.0 * self.log_wf_pretrain(r, params)
 
     def logprob(self, r):
@@ -349,47 +321,3 @@ class DS(WaveFunction):
             raise ValueError("num layers != num activations +1")
         if len(layer_sizes["S1"]) != len(activations["S1"]) + 1:
             raise ValueError("num layers != num activations +1")
-
-    def activation(self, activation_str):
-        match activation_str:
-            case "tanh":
-                return jnp.tanh
-            case "sigmoid":
-                return jax.nn.sigmoid
-            case "relu":
-                return jax.nn.relu
-            case "softplus":
-                return jax.nn.softplus
-            case "gelu":
-                return jax.nn.gelu
-            case "linear":
-                return lambda x: x
-            case "exp":
-                return jnp.exp
-            case "elu":
-                return jax.nn.elu
-            case _:  # default
-                raise ValueError(f"Invalid activation function {activation_str}")
-
-    # def __str__(self):
-    #     """
-    #     Construct a string representation of the neural network architecture.
-    #     """
-    #     # Start the network representation with the 'input layer'
-    #     net_repr = "Neural Network Architecture\n"
-    #     net_repr += "-" * 30 + "\n"  # Divider for clarity
-
-    #     for i, num_neurons in enumerate(self._layer_sizes0):
-    #         layer_type = (
-    #             "Input"
-    #             if i == 0
-    #             else ("Output" if i == len(self._layer_sizes0) - 1 else "Hidden")
-    #         )
-    #         layer_info = f"{layer_type} Layer (Layer {i}): {num_neurons} neurons\n"
-
-    #         # Compile layer information and visual representation
-    #         net_repr += layer_info
-
-    #     net_repr += "-" * 30  # Ending divider
-
-    #     return net_repr

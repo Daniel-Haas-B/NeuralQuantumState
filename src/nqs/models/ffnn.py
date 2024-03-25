@@ -8,11 +8,6 @@ from nqs.models.base_wf import WaveFunction
 from nqs.utils import Parameter
 from nqs.utils import State
 
-# import os
-#
-
-# from jax import grad
-
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
 
@@ -31,7 +26,7 @@ class FFNN(WaveFunction):
         logger_level="INFO",
         backend="jax",
         symmetry=None,
-        jastrow=False,
+        correlation=None,
     ):
         super().__init__(
             nparticles,
@@ -41,8 +36,6 @@ class FFNN(WaveFunction):
             logger=logger,
             logger_level=logger_level,
             backend=backend,
-            symmetry=symmetry,
-            jastrow=jastrow,
         )
 
         """
@@ -56,8 +49,8 @@ class FFNN(WaveFunction):
         ...
         """
         self._initialize_vars(nparticles, dim, layer_sizes, activations, factor)
-        self.configure_slater()  # NEED TO BE BEFORE CONFIGURE_BACKEND
-        self.configure_jastrow()  # NEED TO BE BEFORE CONFIGURE_BACKEND
+        self.configure_symmetry(symmetry)  # need to be before correlation
+        self.configure_correlation(correlation)  # NEED TO BE BEFORE CONFIGURE_BACKEND
         self.configure_backend(backend)
 
         self._initialize_layers(rng)
@@ -102,6 +95,9 @@ class FFNN(WaveFunction):
             self.params.set(
                 "WJ", np.array(rng.uniform(-limit, limit, (self._N, self._N)))
             )
+        if self.pade_jastrow:
+            assert not self.jastrow, "Pade Jastrow requires Jastrow to be false"
+            self.params.set("CPJ", np.array(rng.uniform(-limit, limit, 1)))
 
     def log_wf_pretrain(self, x, params):
         """
@@ -122,7 +118,6 @@ class FFNN(WaveFunction):
 
         return x.squeeze(-1)
 
-    # @partial(jax.jit, static_argnums=(0,))
     def grad_wf_closure_jax(self, r, params):
         """
         This is the autograd version of the gradient of the logarithm of the wave function w.r.t. the coordinates
@@ -130,19 +125,12 @@ class FFNN(WaveFunction):
         grad_wf = jax.grad(self.log_wf, argnums=0)
         return vmap(grad_wf, in_axes=(0, None))(r, params)
 
-    def rescale_parameters(self, factor):
-        """
-        Rescale the parameters of the wave function.
-        """
-        self.params.rescale(factor)
-
     def grad_wf(self, r):
         """
         (∇_r) Ψ(r) = ∑_i (∇_r) Ψ(r_i)
         """
         return self.grad_wf_closure(r, self.params)
 
-    # @partial(jax.jit, static_argnums=(0,))
     def laplacian_closure_jax(self, r, params):
         """
         (∇_r)^2 Ψ(r) = ∑_i (∇_r)^2 Ψ(r_i)
@@ -150,15 +138,10 @@ class FFNN(WaveFunction):
         For now we will use the autograd version
         """
 
-        def wrapped_wf(r_):
-            return self.log_wf(r_, params)
+        hessian_wf = vmap(jax.hessian(self.log_wf), in_axes=(0, None))
+        trace_hessian = vmap(jnp.trace)
 
-        hessian_wf = vmap(jax.hessian(wrapped_wf))
-
-        def trace_fn(x):
-            return jnp.trace(x)
-
-        return vmap(trace_fn)(hessian_wf(r))
+        return trace_hessian(hessian_wf(r, params))
 
     def laplacian(self, r):
         """
@@ -167,7 +150,6 @@ class FFNN(WaveFunction):
         """
         return self.laplacian_closure(r, self.params)
 
-    # @partial(jax.jit, static_argnums=(0,))
     def grads_closure_jax(self, r, params):
         grad_fn = vmap(jax.grad(self.log_wf, argnums=1), in_axes=(0, None))
         grad_eval = grad_fn(r, params)  # still a parameter type
@@ -277,27 +259,6 @@ class FFNN(WaveFunction):
             raise ValueError(
                 f"num layers ({len(layer_sizes)}) != num activations +1 ({len(activations)})"
             )
-
-    def activation(self, activation_str):
-        match activation_str:
-            case "tanh":
-                return jnp.tanh
-            case "sigmoid":
-                return jax.nn.sigmoid
-            case "relu":
-                return jax.nn.relu
-            case "softplus":
-                return jax.nn.softplus
-            case "gelu":
-                return jax.nn.gelu
-            case "linear":
-                return lambda x: x
-            case "exp":
-                return jnp.exp
-            case "elu":
-                return jax.nn.elu
-            case _:  # default
-                raise ValueError(f"Invalid activation function {activation_str}")
 
     def __str__(self):
         """

@@ -46,7 +46,7 @@ class VMC(WaveFunction):
     # def __call__(self, r):
     #    return self.wf(r, self.params.get("alpha"))
 
-    @WaveFunction.symmetry
+    # @WaveFunction.symmetry
     def wf(self, r, params):
         """
         Ψ(r)=exp(- ∑_{i=1}^{N*DIM} alpha_i r_i * r_i) but in log domain

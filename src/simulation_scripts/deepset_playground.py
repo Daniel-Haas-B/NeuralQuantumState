@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 
 # import seaborn as sns
-import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt  # noqa
 
 # from nqs.utils import plot_psi2
 
@@ -109,10 +109,10 @@ history = system.train(
 
 
 epochs = np.arange(len(history["energy"]))
-for key, value in history.items():
-    plt.plot(epochs, value, label=key)
-    plt.legend()
-    plt.show()
+# for key, value in history.items():
+#     plt.plot(epochs, value, label=key)
+#     plt.legend()
+#     plt.show()
 
 
 df = system.sample(nsamples, nchains=nchains, seed=seed)

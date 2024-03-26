@@ -24,11 +24,10 @@ class RmsProp(Optimizer):
         self.epsilon = kwargs["epsilon"]
 
     def step(self, params, grads, sr_matrices=None):
-        """Update the parameters. Maybe performance bottleneck?"""
+        """Update the parameters"""
 
         for key in self._param_keys:
             # Update m and v with the new gradients
-
             v_key = "v_" + key
 
             self._v_params[v_key] = (

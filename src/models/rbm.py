@@ -1,12 +1,11 @@
-from functools import partial
-
 import jax
 import jax.numpy as jnp
 import numpy as np
 from jax import vmap
-from nqs.models.base_wf import WaveFunction
-from nqs.utils import Parameter
-from nqs.utils import State
+
+from src.models.base_wf import WaveFunction
+from src.state.utils import Parameter
+from src.state.utils import State
 
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
@@ -26,7 +25,7 @@ class RBM(WaveFunction):
         logger_level="INFO",
         backend="numpy",
         symmetry=None,
-        jastrow=False,
+        correlation=None,
     ):
         """
         Initializes the RBM Neural Network Quantum State.
@@ -44,19 +43,14 @@ class RBM(WaveFunction):
             logger=logger,
             logger_level=logger_level,
             backend=backend,
-            symmetry=symmetry,
-            jastrow=jastrow,
         )
 
-        self.configure_slater()  # NEED TO BE BEFORE CONFIGURE_BACKEND
-        self.configure_jastrow()  # NEED TO BE BEFORE CONFIGURE_BACKEND
+        self._initialize_vars(nparticles, dim, nhidden, factor, sigma2)
+        self.configure_symmetry(symmetry)  # need to be before correlation
+        self.configure_correlation(correlation)  # NEED TO BE BEFORE CONFIGURE_BACKEND
         self.configure_backend(backend)
 
-        self._initialize_vars(nparticles, dim, nhidden, factor, sigma2)
-
         self._initialize_bias_and_kernel(rng)
-        if self.jastrow:
-            self._initialize_jastrow_parameters(rng)
 
         logp = self.logprob(self.r0)
         self.state = State(self.r0, logp, 0, 0)
@@ -68,11 +62,6 @@ class RBM(WaveFunction):
                 f"{self._nhidden} hidden {neuron_str}"
             )
             self.logger.info(msg)
-
-    def _initialize_jastrow_parameters(self, rng):
-        input_j_size = self._N * (self._N - 1) // 2
-        limit = np.sqrt(2 / (input_j_size))
-        self.params.set("WJ", np.array(rng.uniform(-limit, limit, (self._N, self._N))))
 
     def __call__(self, r):
         return self.wf(
@@ -89,6 +78,15 @@ class RBM(WaveFunction):
         kernel *= np.sqrt(1 / self._nvisible)
         self.params = Parameter()
         self.params.set(["v_bias", "h_bias", "kernel"], [v_bias, h_bias, kernel])
+        if self.jastrow:
+            input_j_size = self._N * (self._N - 1) // 2
+            limit = np.sqrt(2 / (input_j_size))
+            self.params.set(
+                "WJ", np.array(rng.uniform(-limit, limit, (self._N, self._N)))
+            )
+        if self.pade_jastrow:
+            assert not self.jastrow, "Pade Jastrow requires Jastrow to be false"
+            self.params.set("CPJ", np.array(rng.uniform(-limit, limit, 1)))
 
     def _initialize_vars(self, nparticles, dim, nhidden, factor, sigma2):
         self._sigma2 = sigma2
@@ -206,7 +204,6 @@ class RBM(WaveFunction):
         gr *= self._factor
         return gr.sum(axis=-1)  # sum over the coordinates
 
-    @partial(jax.jit, static_argnums=(0,))
     def laplacian_closure_jax(self, r, params):
         """
         nabla^2 of the wave function w.r.t. the coordinates
@@ -254,7 +251,6 @@ class RBM(WaveFunction):
 
         return grads_dict
 
-    @partial(jax.jit, static_argnums=(0,))
     def grads_closure_jax(self, r, params):
         """
         This is the autograd version of the gradient of the logarithm of the wave function w.r.t. the parameters

@@ -1,22 +1,16 @@
-import sys
-
-sys.path.append("/Users/haas/Documents/Masters/GANQS/src/")
-# sys.path.append("/home/daniel/home/daniel/test/GANQS/src/")
-
 import jax
-
-# import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 import numpy as np
 
+from src.state import pretrain
+
 # import seaborn as sns
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 
 # from nqs.utils import plot_psi2
 
 # Import nqs package
 
-
-from nqs import pretrain
 
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")

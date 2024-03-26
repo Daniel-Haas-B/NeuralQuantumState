@@ -31,9 +31,7 @@ class State:
         self.delta = delta
 
     def create_batch_of_states(self, batch_size):
-        """
-        # TODO: there might be a more efficient way to do this
-        """
+        """ """
         # Replicate each property of the state
 
         batch_positions = np.array([self.positions] * batch_size)

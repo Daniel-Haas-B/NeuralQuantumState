@@ -21,11 +21,10 @@ class WaveFunction:
         logger_level="INFO",
         backend="numpy",
         seed=None,
-        pade=False,
     ):
         self.params = None
-        self.nparticles = nparticles
-        self.dim = dim
+        self._N = nparticles
+        self._dim = dim
         self._log = log
         self.logger = logger
         self._logger_level = logger_level
@@ -37,7 +36,7 @@ class WaveFunction:
         self.sqrt_omega = 1  # will be reset in the set_hamiltonian
 
         self.slater_fact = np.log(
-            ss.factorial(self.nparticles)
+            ss.factorial(self._N)
         )  # move this to be after backend is set later
 
         if logger:
@@ -49,10 +48,10 @@ class WaveFunction:
 
         self.log = log
         self.rng = rng
-        self.r0 = self.rng.standard_normal(size=self.nparticles * self.dim)
+        self.r0 = self.rng.standard_normal(size=self._N * self._dim)
 
     def _reinit_positions(self):
-        self.r0 = self.rng.standard_normal(size=self.nparticles * self.dim)
+        self.r0 = self.rng.standard_normal(size=self._N * self._dim)
         print("====== reinitiated positions to", self.r0)
 
     def _jit_functions(self):
@@ -105,17 +104,17 @@ class WaveFunction:
         """
         if correlation == "pj":
             self.pade_jastrow = True
-            self.pade_aij = jnp.zeros((self.nparticles, self.nparticles))
-            for i in range(self.nparticles):
-                for j in range(i + 1, self.nparticles):
+            self.pade_aij = jnp.zeros((self._N, self._N))
+            for i in range(self._N):
+                for j in range(i + 1, self._N):
                     # first N//2 particles are spin up, the rest are spin down
                     # there is a more efficient way to do this for sure
-                    if i < self.nparticles // 2 and j < self.nparticles // 2:
-                        self.pade_aij = self.pade_aij.at[i, j].set(1 / (self.dim + 1))
-                    elif i >= self.nparticles // 2 and j >= self.nparticles // 2:
-                        self.pade_aij = self.pade_aij.at[i, j].set(1 / (self.dim + 1))
+                    if i < self._N // 2 and j < self._N // 2:
+                        self.pade_aij = self.pade_aij.at[i, j].set(1 / (self._dim + 1))
+                    elif i >= self._N // 2 and j >= self._N // 2:
+                        self.pade_aij = self.pade_aij.at[i, j].set(1 / (self._dim + 1))
                     else:
-                        self.pade_aij = self.pade_aij.at[i, j].set(1 / (self.dim - 1))
+                        self.pade_aij = self.pade_aij.at[i, j].set(1 / (self._dim - 1))
 
             self.log_wf = self.log_wf_pade_jastrow
 
@@ -191,14 +190,14 @@ class WaveFunction:
         return x.squeeze(-1)
 
     def generate_degrees(self):
-        max_comb = self.nparticles // 2
-        combinations = [[0] * self.dim]
+        max_comb = self._N // 2
+        combinations = [[0] * self._dim]
         seen = {tuple(combinations[0])}
 
         while len(combinations) < max_comb:
             new_combinations = []
             for comb in combinations:
-                for i in range(self.dim):
+                for i in range(self._dim):
                     # Try incrementing each dimension by 1
                     new_comb = comb.copy()
                     new_comb[i] += 1
@@ -226,8 +225,8 @@ class WaveFunction:
 
         where phi_i is the i-th single particle wavefunction, in our case it is a hermite polynomial.
         """
-        A = self.nparticles // 2
-        r = r.reshape(-1, self.nparticles, self.dim)
+        A = self._N // 2
+        r = r.reshape(-1, self._N, self._dim)
 
         r_up = r[:, :A, :]
         r_down = r[:, A:, :]
@@ -274,7 +273,7 @@ class WaveFunction:
         #TODO: move this to a helper function
         """
         # Error handling for input parameters
-        # if not isinstance(vals, list) or not isinstance(deg, int) or not isinstance(self.dim, int):
+        # if not isinstance(vals, list) or not isinstance(deg, int) or not isinstance(self._dim, int):
         #    raise ValueError("Invalid input types for vals, deg, or dim.")
         # if len(vals) != dim:
         #    raise ValueError("Dimension mismatch between 'vals' and 'dim'.")
@@ -302,11 +301,11 @@ class WaveFunction:
     #     """
 
     #     def wrapper(self, r, *args, **kwargs):
-    #         n = self.nparticles
+    #         n = self._N
 
     #         # first permutation is always the identity
 
-    #         r_reshaped = r.reshape(-1, n, self.dim)
+    #         r_reshaped = r.reshape(-1, n, self._dim)
 
     #         def symmetrize_r(r):
     #             # print("r.shape[0]", r.shape[0])

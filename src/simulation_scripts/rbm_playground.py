@@ -1,13 +1,10 @@
-import sys
-
-sys.path.append("/Users/haas/Documents/Masters/GANQS/src/")
 import jax
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
 
-from nqs import nqs
+from src.state import nqs
 
 # from nqs.utils import plot_psi2
 
@@ -16,7 +13,7 @@ jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
 
 # Config
-output_filename = "../data/playground.csv"
+output_filename = "/Users/haas/Documents/Masters/NQS/data/playground.csv"
 nparticles = 6
 dim = 2
 nhidden = 4
@@ -59,7 +56,7 @@ system.set_wf(
     nhidden=nhidden,  # all after this is kwargs. In this example it is RBM dependent
     sigma2=1.0,
     symmetry="fermion",
-    jastrow=True,
+    correlation="j",
 )
 
 system.set_sampler(mcmc_alg=mcmc_alg, scale=1 / np.sqrt(nparticles * dim))
@@ -74,9 +71,9 @@ system.set_optimizer(
     optimizer=optimizer,
     eta=eta,
     # gamma=0.7,
-    beta1=0.9,
-    beta2=0.999,
-    epsilon=1e-8,
+    # beta1=0.9,
+    # beta2=0.999,
+    # epsilon=1e-8,
 )
 
 history = system.train(

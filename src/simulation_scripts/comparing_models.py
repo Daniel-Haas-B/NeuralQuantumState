@@ -1,18 +1,12 @@
-import sys
-
-sys.path.append("/Users/haas/Documents/Masters/GANQS/src/")
 import jax
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
 
-from nqs import nqs
-
-from nqs.utils import plot_style
-
-from nqs.utils import plot_psi2  # noqa
-
+from src.state import nqs
+from src.state.utils import plot_psi2  # noqa
+from src.state.utils import plot_style
 
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")

@@ -19,13 +19,7 @@ class Gd(Optimizer):
         self.gamma = gamma
 
     def step(self, params, grads, sr_matrices=None):
-        """Update the parameters. Maybe performance bottleneck?"""
-        if sr_matrices is not None:
-            for key, sr_matrix in sr_matrices.items():
-                # for the love of god change this later
-                grads[key] = grads[key].reshape(sr_matrix.shape[0], -1)
-                grads[key] = np.linalg.pinv(sr_matrix) @ grads[key]
-                grads[key] = grads[key].reshape(params.get(key).shape)
+        """Update the parameters"""
 
         for key, grad in grads.items():
             self.v[key] = self.gamma * self.v[key] + grad

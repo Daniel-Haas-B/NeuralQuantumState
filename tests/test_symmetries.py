@@ -1,20 +1,10 @@
-import sys
-
-sys.path.append("/Users/haas/Documents/Masters/GANQS/src/")
-# sys.path.append("/home/daniel/home/daniel/test/GANQS/src/")
-
 import jax
+import numpy as np
+from nqs import nqs
 
 # import matplotlib.pyplot as plt
-import numpy as np
-
 # import seaborn as sns
-
-
 # Import nqs package
-
-
-from nqs import nqs
 
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")

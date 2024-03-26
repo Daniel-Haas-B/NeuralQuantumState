@@ -1,9 +1,9 @@
 # import jax
 import numpy as np
-from nqs.utils import advance_PRNG_state
-from nqs.utils import State
 
 from .sampler import Sampler
+from src.state.utils import advance_PRNG_state
+from src.state.utils import State
 
 # from jax import vmap
 

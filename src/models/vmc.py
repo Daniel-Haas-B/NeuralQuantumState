@@ -1,11 +1,11 @@
-from functools import partial
-
 import jax
+import jax.numpy as jnp
 import numpy as np
 from jax import vmap
-from nqs.models.base_wf import WaveFunction
-from nqs.utils import Parameter
-from nqs.utils import State
+
+from src.models.base_wf import WaveFunction
+from src.state.utils import Parameter
+from src.state.utils import State
 
 
 class VMC(WaveFunction):
@@ -19,6 +19,7 @@ class VMC(WaveFunction):
         logger_level="INFO",
         backend="numpy",
         symmetry=None,
+        correlation=None,
     ):
         super().__init__(  # i know this looks weird
             nparticles,
@@ -28,9 +29,10 @@ class VMC(WaveFunction):
             logger=logger,
             logger_level=logger_level,
             backend=backend,
-            symmetry=symmetry,
         )
 
+        self.configure_symmetry(symmetry)  # need to be before correlation
+        self.configure_correlation(correlation)  # NEED TO BE BEFORE CONFIGURE_BACKEND
         self.configure_backend(backend)
         self._initialize_variational_params(rng)
 
@@ -38,16 +40,13 @@ class VMC(WaveFunction):
         self.state = State(self.r0, logp, 0, 0)
 
         if self.log:
-            msg = f"""VMC initialized with {self.nparticles} particles in {self.dim} dimensions with {
+            msg = f"""VMC initialized with {self._N} particles in {self._dim} dimensions with {
                     self.params.get("alpha").size
                     } parameters"""
             self.logger.info(msg)
 
-    # def __call__(self, r):
-    #    return self.wf(r, self.params.get("alpha"))
-
     # @WaveFunction.symmetry
-    def wf(self, r, params):
+    def log_wf0(self, r, params):
         """
         Ψ(r)=exp(- ∑_{i=1}^{N*DIM} alpha_i r_i * r_i) but in log domain
         r: (N * dim) array so that r_i is a dim-dimensional vector
@@ -63,7 +62,7 @@ class VMC(WaveFunction):
         """
         Return a function that computes the log of the wavefunction squared
         """
-        return 2 * self.wf(r, alpha).sum()
+        return 2 * self.log_wf(r, alpha).sum()
 
     def logprob(self, r):
         """
@@ -79,7 +78,6 @@ class VMC(WaveFunction):
 
         return -2 * alpha * r  # again, element-wise multiplication
 
-    @partial(jax.jit, static_argnums=(0,))
     def grad_wf_closure_jax(self, r, alpha):
         """
         Returns a function that computes the gradient of the wavefunction with respect to r
@@ -89,7 +87,7 @@ class VMC(WaveFunction):
         self.wf output is of size (batch_size, )
         """
 
-        grad_wf_closure = jax.grad(self.wf, argnums=0)
+        grad_wf_closure = jax.grad(self.log_wf, argnums=0)
 
         return vmap(grad_wf_closure, in_axes=(0, None))(
             r, alpha
@@ -123,21 +121,24 @@ class VMC(WaveFunction):
         """
         Return a function that computes the gradient of the log of the wavefunction squared
         """
-        batch_size = np.shape(r)[0] if np.ndim(r) > 1 else 1
 
-        def scalar_wf(r_, alpha, i):
-            wf_values = self.wf(r_, alpha)[i]
-            return wf_values
+        grad_fn = vmap(jax.grad(self.log_wf, argnums=1), in_axes=(0, None))
+        grad_eval = grad_fn(r, alpha)  # still a parameter type
 
-        grads = vmap(lambda i: jax.grad(scalar_wf, argnums=1)(r, alpha, i))(
-            np.arange(batch_size)
-        )
-
-        return grads
+        return grad_eval
 
     def _initialize_variational_params(self, rng):
         self.params = Parameter()
-        self.params.set("alpha", rng.uniform(size=(self.nparticles * self.dim)))
+        self.params.set("alpha", rng.uniform(size=(self._N * self._dim)))
+        if self.jastrow:
+            input_j_size = self._N * (self._N - 1) // 2
+            limit = np.sqrt(2 / (input_j_size))
+            self.params.set(
+                "WJ", np.array(rng.uniform(-limit, limit, (self._N, self._N)))
+            )
+        if self.pade_jastrow:
+            assert not self.jastrow, "Pade Jastrow requires Jastrow to be false"
+            self.params.set("CPJ", np.array(rng.uniform(-limit, limit, 1)))
 
     def laplacian(self, r):
         """
@@ -162,17 +163,11 @@ class VMC(WaveFunction):
         Return a function that computes the laplacian of the wavefunction
         """
 
-        def wrapped_wf(r_):
-            return self.wf(r_, params)
+        hessian_wf = vmap(jax.hessian(self.log_wf), in_axes=(0, None))
 
-        hessian_wf = vmap(jax.hessian(wrapped_wf))
-        # Compute the Hessian for each element in the batch
-        hessian_at_r = hessian_wf(r)
+        trace_hessian = vmap(jnp.trace)
 
-        def trace_fn(x):
-            return self.backend.trace(x)
-
-        return vmap(trace_fn)(hessian_at_r)
+        return trace_hessian(hessian_wf(r, params))
 
     def pdf(self, r):
         """

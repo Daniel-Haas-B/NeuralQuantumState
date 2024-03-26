@@ -7,12 +7,7 @@ class Sr(Optimizer):
     """Gradient descent optimizer."""
 
     def __init__(self, params, eta):
-        """Initialize the optimizer.
-
-        Args:
-            params (list): List of parameters to optimize.
-            lr (float): Learning rate.
-        """
+        """Initialize the optimizer."""
         super().__init__(eta)
         self._param_keys = params.keys()
         self.t = 0
@@ -32,14 +27,6 @@ class Sr(Optimizer):
         for key, sr_matrix in sr_matrices.items():
             inv_sr_matrix = np.linalg.pinv(sr_matrix)
 
-            # if grads[key].ndim == 1: we want np.einsum("ij,j->i", inv_sr_matrix, grads[key])
-            # if grads[key].ndim == 2: we want np.einsum("ij,jk->ik", inv_sr_matrix, grads[key])
-            # ein_string = "ij,j" +"k"*(grads[key].ndim-1) + "->i" + "k"*(grads[key].ndim-1)
-            # print(f"ein_string: {ein_string}")
-            # condit_grad = np.einsum(ein_string, inv_sr_matrix, grads[key]) # will be shape
-            # (n, m) where n is the number of parameters and m is the number of elements in the parameter
-
-            # or
             grads[key] = grads[key].reshape(sr_matrix.shape[0], -1)
             condit_grad = inv_sr_matrix @ grads[key]
 

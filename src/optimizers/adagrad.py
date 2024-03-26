@@ -23,7 +23,7 @@ class Adagrad(Optimizer):
         self.epsilon = kwargs["epsilon"] if "epsilon" in kwargs else 1e-8
 
     def step(self, params, grads, sr_matrices=None):
-        """Update the parameters. Maybe performance bottleneck?"""
+        """Update the parameters."""
 
         for key in self._param_keys:
             # Update m and v with the new gradients

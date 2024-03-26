@@ -1,11 +1,11 @@
 import numpy as np
-from nqs.utils import advance_PRNG_state
-from nqs.utils import State
 
 from .sampler import Sampler
+from src.state.utils import advance_PRNG_state
+from src.state.utils import State
 
 
-class MetroHastings(Sampler):
+class MetropolisHastings(Sampler):
     def __init__(self, rng, scale, logger=None):
         super().__init__(rng, scale, logger)
 

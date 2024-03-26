@@ -1,37 +1,25 @@
-# import copy
-import sys
 import warnings
 
-sys.path.insert(0, "../src/")
-
-from nqs.utils import errors
-from nqs.utils import generate_seed_sequence
-from nqs.utils import setup_logger
-from nqs.utils import State
-from nqs.utils import wf_factory
 import jax
-from nqs.utils import advance_PRNG_state
+
+from src.state.utils import advance_PRNG_state
+from src.state.utils import errors
+from src.state.utils import generate_seed_sequence
+from src.state.utils import setup_logger
+from src.state.utils import State
+from src.state.utils import wf_factory
 
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
 
 
 import numpy as np
-
-
-# from nqs.models import RBM, FFNN, VMC, Dummy
-
 from numpy.random import default_rng
 from tqdm.auto import tqdm
 
-# from physics.hamiltonians import HarmonicOscillator as HO
-
-# sys.path.insert(0, "../samplers/")
-
-from samplers.metropolis_hastings import MetroHastings
-from samplers.metropolis import Metropolis as Metro
-
-import optimizers as opt
+import src.optimizers as opt
+from src.samplers import Metropolis as Metro
+from src.samplers import MetropolisHastings as MetroHastings
 
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
@@ -47,17 +35,11 @@ class Gaussian:
         logger_level="INFO",
         rng=None,
         seed=None,
-        symmetry=None,
     ):
-        """Neural Network Quantum State
-        It is conceptually important to understand that this is the system.
-        The system is composed of a wave function, a hamiltonian, a sampler and an optimizer.
-        This is the high level class that ties all the other classes together.
-        """
+        """ """
 
         self._check_logger(log, logger_level)
         self._log = log
-        self.symmetry = symmetry
         self.nqs_type = None
         self.hamiltonian = None
         self.backend = jnp
@@ -251,7 +233,7 @@ class Gaussian:
 
             # Descent
             self._optimizer.step(
-                self.wf.params, grad_loss_dict, self.sr_matrices
+                self.wf.params, grad_loss_dict
             )  # changes wf params inplace
 
             if loss < 10**-15:
@@ -280,17 +262,6 @@ class Gaussian:
         output: float
         """
         means = self.backend.zeros(self._N * self._dim)
-        # if self.symmetry == "boson" or self.symmetry is None or self.symmetry == "none":
-        # means = self.backend.zeros(self._N * self._dim)
-
-        # elif self.symmetry == "fermion":
-        # grid_pts_per_dim = self._N
-        # means = np.zeros((self._N, self._dim))
-        # for i in range(self._dim):
-        #     means[:, i] = np.linspace(-5, 5, grid_pts_per_dim)  # TODO: FIX RANGE
-        # means = means.flatten()
-        # means = jnp.array(means)
-        # raise NotImplementedError("Fermion symmetry not implemented yet")
 
         covariance = self.backend.eye(self._dim * self._N)
         x_minus_mean = x - means

@@ -1,29 +1,23 @@
-import sys
-
-sys.path.append("/Users/haas/Documents/Masters/GANQS/src/")
-# sys.path.append("/home/daniel/home/daniel/test/GANQS/src/")
-
 import jax
-
-# import matplotlib.pyplot as plt
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
+from src.state import nqs
+
 # import seaborn as sns
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 
 # from nqs.utils import plot_psi2
 
 # Import nqs package
 
 
-from nqs import nqs
-
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
 
 # Config
-output_filename = "../data/playground.csv"
+output_filename = "/Users/haas/Documents/Masters/NQS/data/playground.csv"
 nparticles = 2
 dim = 2
 
@@ -74,10 +68,10 @@ system.set_hamiltonian(
 system.set_optimizer(
     optimizer=optimizer,
     eta=eta,
-    gamma=0,
-    beta1=0.9,
-    beta2=0.999,
-    epsilon=1e-8,
+    # gamma=0,
+    # beta1=0.9,
+    # beta2=0.999,
+    # epsilon=1e-8,
 )
 
 system.pretrain(model="Gaussian", max_iter=1200, batch_size=2000, args=common_kwargs)

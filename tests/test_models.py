@@ -1,15 +1,13 @@
 import os
-import sys
-
-from . import test_utils
-
-# import test_utils
-sys.path.append("/Users/haas/Documents/Masters/GANQS/src/")
 
 import jax
 import numpy as np
 import pandas as pd
-from nqs import nqs
+
+from . import test_utils
+from src.state.nqs import NQS
+
+# import test_utils
 
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
@@ -19,9 +17,9 @@ def test_deepset():
     df = []
     df_all = []
 
-    config = test_utils.get_config_from_yml("config_deepset.yaml")
+    config = test_utils.get_config_from_yml("tests/config_deepset.yaml")
 
-    system = nqs.NQS(
+    system = NQS(
         nqs_repr="psi",
         backend="jax",
         log=True,
@@ -44,10 +42,10 @@ def test_deepset():
     system.set_optimizer(
         optimizer=config["optimizer"],
         eta=config["eta"],
-        gamma=0,
-        beta1=0.9,
-        beta2=0.999,
-        epsilon=1e-8,
+        # gamma=0,
+        # beta1=0.9,
+        # beta2=0.999,
+        # epsilon=1e-8,
     )
 
     system.pretrain(
@@ -70,22 +68,22 @@ def test_deepset():
 
     df_all = pd.concat(df_all)
     # to csv to assure they have the same types and precision
-    df_all.to_csv("test_temp_deepset.csv", index=False)
-    df_all_temp = pd.read_csv("test_temp_deepset.csv")
-    df_all_test = pd.read_csv("test_deepset.csv")
+    df_all.to_csv("tests/test_temp_deepset.csv", index=False)
+    df_all_temp = pd.read_csv("tests/test_temp_deepset.csv")
+    df_all_test = pd.read_csv("tests/test_deepset.csv")
 
     assert df_all_temp.equals(df_all_test)
     # delete temporary file
-    os.remove("test_temp_deepset.csv")
+    os.remove("tests/test_temp_deepset.csv")
 
 
 def test_ffnn():
     df = []
     df_all = []
 
-    config = test_utils.get_config_from_yml("config_ffnn.yaml")
+    config = test_utils.get_config_from_yml("tests/config_ffnn.yaml")
 
-    system = nqs.NQS(
+    system = NQS(
         nqs_repr="psi",
         backend="jax",
         log=True,
@@ -110,10 +108,10 @@ def test_ffnn():
     system.set_optimizer(
         optimizer=config["optimizer"],
         eta=config["eta"],
-        gamma=0,
-        beta1=0.9,
-        beta2=0.999,
-        epsilon=1e-8,
+        # gamma=0,
+        # beta1=0.9,
+        # beta2=0.999,
+        # epsilon=1e-8,
     )
 
     system.pretrain(
@@ -136,13 +134,13 @@ def test_ffnn():
 
     df_all = pd.concat(df_all)
     # to csv to assure they have the same types and precision
-    df_all.to_csv("test_temp_ffnn.csv", index=False)
-    df_all_temp = pd.read_csv("test_temp_ffnn.csv")
-    df_all_test = pd.read_csv("test_ffnn.csv")
+    df_all.to_csv("tests/test_temp_ffnn.csv", index=False)
+    df_all_temp = pd.read_csv("tests/test_temp_ffnn.csv")
+    df_all_test = pd.read_csv("tests/test_ffnn.csv")
 
     assert df_all_temp.equals(df_all_test)
     # delete temporary file
-    os.remove("test_temp_ffnn.csv")
+    os.remove("tests/test_temp_ffnn.csv")
 
 
 def test_rbm():
@@ -153,9 +151,9 @@ def test_vmc():
     pass
 
 
-# if __name__ == "__main__":
-#     test_ffnn()
-# test_deepset()
-# test_rbm()
-# test_vmc()
-# print("All tests passed!")
+if __name__ == "__main__":
+    test_ffnn()
+    test_deepset()
+    test_rbm()
+    test_vmc()
+    print("All tests passed!")

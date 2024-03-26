@@ -1,8 +1,5 @@
-from nqs.models import DS
-from nqs.models import Dummy
-from nqs.models import FFNN
-from nqs.models import RBM
-from nqs.models import VMC
+# from src.models import DS, Dummy, FFNN, RBM, VMC
+import src.models as mods
 
 
 def wf_factory(wf_type, **kwargs):
@@ -10,15 +7,15 @@ def wf_factory(wf_type, **kwargs):
 
     match wf_type:
         case "rbm":
-            return RBM(**kwargs)
+            return mods.RBM(**kwargs)
         case "ffnn":
-            return FFNN(**kwargs)
+            return mods.FFNN(**kwargs)
         case "vmc":
-            return VMC(**kwargs)
+            return mods.VMC(**kwargs)
         case "ds":
-            return DS(**kwargs)
+            return mods.DS(**kwargs)
         case "dummy":
-            return Dummy(**kwargs)
+            return mods.Dummy(**kwargs)
         case _:  # noqa
             raise NotImplementedError(
                 f"No options for {wf_type}, Only the VMC, RBM, FFNN, DS (and Dummy) supported for now."

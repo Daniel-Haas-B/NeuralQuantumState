@@ -1,21 +1,15 @@
-# import copy
-import sys
 import warnings
 
-sys.path.insert(0, "../src/")
-# print(sys.path)
-# from nqs.utils import early_stopping
-from nqs.utils import errors
-from nqs.utils import generate_seed_sequence
-from nqs.utils import setup_logger
-from nqs.utils import State
-from nqs.utils import wf_factory
-from nqs.utils import tune_sampler
 import jax
-import time
 
-from nqs import pretrain
-
+from src.state import pretrain
+from src.state.utils import errors
+from src.state.utils import generate_seed_sequence
+from src.state.utils import optimizer_factory
+from src.state.utils import setup_logger
+from src.state.utils import State
+from src.state.utils import tune_sampler
+from src.state.utils import wf_factory
 
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
@@ -23,34 +17,33 @@ jax.config.update("jax_platform_name", "cpu")
 
 import numpy as np
 import pandas as pd
-
-# from nqs.models import RBM, FFNN, VMC, Dummy
-
 from numpy.random import default_rng
 from tqdm.auto import tqdm
 
-from physics.hamiltonians import HarmonicOscillator as HO
-
-# sys.path.insert(0, "../samplers/")
-
-from samplers.metropolis_hastings import MetroHastings
-from samplers.metropolis import Metropolis as Metro
-
-import optimizers as opt
-
-# import sys
-# from abc import abstractmethod
-# from functools import partial
-# from multiprocessing import Lock
-# from multiprocessing import RLock
-
-jax.config.update("jax_enable_x64", True)
-jax.config.update("jax_platform_name", "cpu")
+from src.physics.hamiltonians import HarmonicOscillator as HO
+from src.samplers import Metropolis as Metro
+from src.samplers import MetropolisHastings as MetroHastings
 
 warnings.filterwarnings("ignore", message="divide by zero encountered")
 
 
 class NQS:
+    """Represents a Neural Network Quantum State (NQS) for simulating quantum systems.
+
+    This class ties together various components such as the wave function, Hamiltonian,
+    sampler, and optimizer to represent and simulate a quantum system.
+
+    Attributes:
+        logger (logging.Logger): Logger instance for the class.
+        nqs_type (str): Type of NQS representation ('psi' or 'psi2').
+        hamiltonian: Instance of the Hamiltonian used for simulation.
+        mcmc_alg (str): Type of MCMC algorithm used ('m' for Metropolis, 'lmh' for Metropolis-Hastings).
+        _optimizer: Optimizer instance for parameter update.
+        sr_matrices: Stochastic Reconfiguration matrices, if applicable.
+        wf: Wave function instance for the simulation.
+        _seed (int): Seed for random number generation to ensure reproducibility.
+    """
+
     def __init__(
         self,
         nqs_repr="psi2",
@@ -60,11 +53,6 @@ class NQS:
         rng=None,
         seed=None,
     ):
-        """Neural Network Quantum State
-        It is conceptually important to understand that this is the system.
-        The system is composed of a wave function, a hamiltonian, a sampler and an optimizer.
-        This is the high level class that ties all the other classes together.
-        """
 
         self._check_logger(log, logger_level)
         self._log = log
@@ -128,7 +116,6 @@ class NQS:
     def set_hamiltonian(self, type_, int_type, **kwargs):
         """
         Set the hamiltonian to be used for sampling.
-        For now we only support the Harmonic Oscillator.
 
         Hamiltonian also needs to be propagated to the sampler.
 
@@ -167,37 +154,11 @@ class NQS:
         Set the optimizer algorithm to be used for param update.
         """
         self._eta = eta
-
-        if not isinstance(optimizer, str):
-            raise TypeError("'optimizer' must be passed as str")
-
-        match optimizer.lower():
-            case "gd":
-                gamma = kwargs["gamma"] if "gamma" in kwargs else 0
-                self._optimizer = opt.Gd(self.wf.params, eta, gamma)  # dumb for now
-            case "adam":
-                beta1 = kwargs["beta1"] if "beta1" in kwargs else 0.9
-                beta2 = kwargs["beta2"] if "beta2" in kwargs else 0.999
-                epsilon = kwargs["epsilon"] if "epsilon" in kwargs else 1e-8
-                self._optimizer = opt.Adam(
-                    self.wf.params, eta, beta1=beta1, beta2=beta2, epsilon=epsilon
-                )  # _params gets passed to construct the mom and v arrays
-            case "rmsprop":
-                beta = kwargs["beta1"] if "beta1" in kwargs else 0.9
-                epsilon = kwargs["epsilon"] if "epsilon" in kwargs else 1e-8
-
-                self._optimizer = opt.RmsProp(
-                    self.wf.params, eta, beta=beta, epsilon=epsilon
-                )
-
-            case "adagrad":
-                self._optimizer = opt.Adagrad(self.wf.params, eta)
-            case "sr":
-                self._optimizer = opt.Sr(self.wf.params, eta)
-            case _:  # noqa
-                msg = "Unsupported optimizer. Choose between: \n"
-                msg += "    gd, adam, rmsprop, adagrad, sr"
-                raise ValueError(msg)
+        common_args = {
+            "params": self.wf.params,
+            "eta": eta,
+        }
+        self._optimizer = optimizer_factory(optimizer, **common_args, **kwargs)
 
     def _is_initialized(self):
         if not self._is_initialized_:
@@ -264,23 +225,12 @@ class NQS:
         # steps_before_optimize = batch_size
 
         self.state = self.wf.state
-        # states = state.create_batch_of_states(batch_size=batch_size)
-
-        # equilibrate, burn in lets see if makes a difference
-        # for _ in range(1000):
-        #    state = self._sampler.step(self.wf, state, seed_seq)
 
         grads_dict = {key: [] for key in param_keys}
         epoch = 0
 
         for _ in t_range:
             epoch += 1
-            # print("batch_size", batch_size)
-            # this object contains the states of all the sequence of steps
-            # cleans up the state after each batch
-            # state = self.state
-            # state = State(state.positions, state.logp, 0, state.delta)
-
             states = self.state.create_batch_of_states(batch_size=batch_size)
             states = self._sampler.step(
                 self.wf, states, seed_seq, batch_size=batch_size
@@ -374,15 +324,6 @@ class NQS:
                 self.wf.params, final_grads, self.sr_matrices
             )  # changes wf params inplace
 
-            #     self._agent.log(
-            #         {"abs(energy - 3)": np.abs(expval_energy - 3)},
-            #         epoch,  # change this if not 2 particles 2 dimensions
-            #     ) if self._agent else None
-            #     self._agent.log({"grads": grad_norms}, epoch) if self._agent else None
-            # self._agent.log(
-            #     {"scale": self.scale}, epoch
-            # ) if self._agent else None
-
             if grad_norms < 10**-15:
                 if self.logger is not None:
                     self.logger.warning("Gradient norm is zero, stopping training")
@@ -403,7 +344,6 @@ class NQS:
 
     def sample(self, nsamples, nchains=1, seed=None, one_body_density=False):
         """helper for the sample method from the Sampler class"""
-        t0 = time.time()
         self._is_initialized()
         self._is_trained()
         self.hamiltonian.turn_reg_off()
@@ -412,8 +352,6 @@ class NQS:
             "nparticles": self._N,
             "dim": self._dim,
             "eta": self._eta,
-            # "nvisible": self._nvisible,
-            # "nhidden": self._nhidden,
             "mcmc_alg": self.mcmc_alg,
             "nqs_type": self.nqs_type,
             "training_cycles": self._training_cycles,
@@ -433,8 +371,7 @@ class NQS:
             ].reset_index(drop=True)
 
             self._results = pd.concat([system_info_repeated, sample_results], axis=1)
-            t1 = time.time()
-            print("Sampling time: ", t1 - t0)
+
             return self._results
 
         else:
@@ -460,9 +397,8 @@ class NQS:
                 log=True,
                 logger_level="INFO",
                 seed=self._seed * 2,
-                symmetry=self._symmetry,
             )
-            pre_system.set_wf(  # TODO: MAKE LESS REPETITIVE
+            pre_system.set_wf(
                 self.wf.__class__.__name__.lower(),
                 self._N,
                 self._dim,
@@ -478,7 +414,6 @@ class NQS:
                     raise ValueError(
                         f"Invalid correlation {args['correlation']} of type {type(args['correlation'])}"
                     )
-
         else:
             raise NotImplementedError("Only Gaussian pretraining is supported for now")
 
@@ -500,7 +435,6 @@ class NQS:
             pretrain_jastrow=False,  # there is no true for now
         )
         self.wf.params = params
-
         if str(args["correlation"]).lower() == "j":
             self.wf.params.set("WJ", WJ_params)
         elif str(args["correlation"]).lower() == "pj":

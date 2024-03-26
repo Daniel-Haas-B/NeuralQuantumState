@@ -1,13 +1,13 @@
 import cProfile
 import pstats
-import sys
 
-sys.path.append("/Users/haas/Documents/Masters/GANQS/src/")
 import jax
-
-# import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+
+from src.state import nqs
+
+# import matplotlib.pyplot as plt
 
 # import seaborn as sns
 
@@ -15,8 +15,6 @@ import pandas as pd
 
 # Import nqs package
 
-
-from nqs import nqs
 
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")

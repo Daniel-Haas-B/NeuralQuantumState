@@ -1,31 +1,27 @@
-import sys
-
-sys.path.append("/Users/haas/Documents/Masters/GANQS/src/")
 import jax
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
 
-from nqs import nqs
-from nqs.utils import plot_psi2  # noqa
-
+from src.state import nqs
+from src.state.utils import plot_psi2  # noqa
 
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
 
 # Config
-output_filename = "../data/vmc_playground.csv"
+output_filename = "/Users/haas/Documents/Masters/NQS/data/playground.csv"
 nparticles = 20
 dim = 2
 nsamples = int(2**18)  # 2**18 = 262144
 nchains = 1
-eta = 0.1  # /np.sqrt(nparticles)
+eta = 0.01 / np.sqrt(nparticles * dim)  # 0.001  / np.sqrt(nparticles * dim)
 
 training_cycles = 500  # this is cycles for the ansatz
 mcmc_alg = "m"
 backend = "jax"
-optimizer = "sr"
+optimizer = "adam"
 batch_size = 1000
 detailed = True
 wf_type = "vmc"
@@ -36,9 +32,7 @@ df = []
 df_all = []
 import time
 
-# for max_iter in training_cycles:
 start = time.time()
-# for i in range(5):
 
 system = nqs.NQS(
     nqs_repr="psi",
@@ -53,11 +47,12 @@ system.set_wf(
     nparticles,
     dim,
     symmetry=None,
+    correlation="j",
 )
 
 system.set_sampler(mcmc_alg=mcmc_alg, scale=1.0 / np.sqrt(nparticles * dim))
 system.set_hamiltonian(
-    type_="ho", int_type="NONE", omega=1.0, r0_reg=3, training_cycles=training_cycles
+    type_="ho", int_type="Coulomb", omega=1.0, r0_reg=3, training_cycles=training_cycles
 )
 system.set_optimizer(
     optimizer=optimizer,

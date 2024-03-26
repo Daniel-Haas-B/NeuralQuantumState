@@ -1,13 +1,10 @@
-import sys
-
-sys.path.append("/Users/haas/Documents/Masters/GANQS/src/")
 import jax
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
 
-from nqs import nqs
+from src.state import nqs
 
 # from nqs.utils import plot_psi2
 

@@ -7,7 +7,6 @@ import jax.numpy as jnp
 import numpy as np
 from jax.tree_util import register_pytree_node
 
-
 jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
 

@@ -1,7 +1,7 @@
 # import pytest
-from src.nqs.utils import State
-from src.samplers.metropolis import Metropolis
-from src.samplers.sampler import Sampler
+from nqs.utils import State
+from samplers.metropolis import Metropolis
+from samplers.sampler import Sampler
 
 
 # Mocks for testing

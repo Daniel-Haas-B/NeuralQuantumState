@@ -30,30 +30,33 @@ class State:
         self.n_accepted = n_accepted
         self.delta = delta
 
-    # def create_batch_of_states(self, batch_size):
-    #     # Similar implementation as before, creating a list of State objects
-    #     batch_states = [
-    #         State(
-    #             jnp.array(self.positions),
-    #             np.array(self.logp),
-    #             self.n_accepted, self.delta
-    #             ) for _ in range(batch_size)
-    #         ]
-
-    #     # Wrap the list in BatchedState
-    #     return BatchedState(batch_states)
     def create_batch_of_states(self, batch_size):
-        """ """
-        # Replicate each property of the state
+        # Similar implementation as before, creating a list of State objects
+        batch_states = [
+            State(
+                jnp.array(self.positions),
+                jnp.array(self.logp),
+                self.n_accepted,
+                self.delta,
+            )
+            for _ in range(batch_size)
+        ]
 
-        batch_positions = np.array([self.positions] * batch_size)
-        batch_logp = np.array([self.logp] * batch_size)
-        batch_n_accepted = np.array([self.n_accepted] * batch_size)
-        batch_delta = np.array([self.delta] * batch_size)
+        # Wrap the list in BatchedState
+        return BatchedState(batch_states)
 
-        # Create a new State object with these batched properties
-        batch_state = State(batch_positions, batch_logp, batch_n_accepted, batch_delta)
-        return batch_state
+    # def create_batch_of_states(self, batch_size):
+    #     """ """
+    #     # Replicate each property of the state
+
+    #     batch_positions = np.array([self.positions] * batch_size)
+    #     batch_logp = np.array([self.logp] * batch_size)
+    #     batch_n_accepted = np.array([self.n_accepted] * batch_size)
+    #     batch_delta = np.array([self.delta] * batch_size)
+
+    #     # Create a new State object with these batched properties
+    #     batch_state = State(batch_positions, batch_logp, batch_n_accepted, batch_delta)
+    #     return batch_state
 
     def __repr__(self):
         return f"State(positions={self.positions}, logp={self.logp}, n_accepted={self.n_accepted}, delta={self.delta})"
@@ -98,3 +101,8 @@ class BatchedState:
 
     def __len__(self):
         return len(self.states)
+
+    @positions.setter
+    def positions(self, value):
+        for i, state in enumerate(self.states):
+            state.positions = value[i]

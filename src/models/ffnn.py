@@ -198,7 +198,7 @@ class FFNN(WaveFunction):
 
     def logprob(self, r):
         """Log probability amplitude"""
-        # print("type of logprob_closure(r, self.params):", type(self.logprob_closure(r, self.params)))
+
         return self.logprob_closure(r, self.params)
 
     def compute_sr_matrix(self, expval_grads, grads, shift=1e-6):

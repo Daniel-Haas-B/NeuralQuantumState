@@ -9,9 +9,6 @@ from src.models.base_wf import WaveFunction
 from src.state.utils import Parameter
 from src.state.utils import State
 
-jax.config.update("jax_enable_x64", True)
-jax.config.update("jax_platform_name", "cpu")
-
 
 class DS(WaveFunction):
     def __init__(
@@ -84,11 +81,11 @@ class DS(WaveFunction):
             # Initialize weights and biases
             self.params.set(
                 f"S0W{i}",
-                np.array(rng.uniform(-limit, limit, (input_size, output_size))),
+                jnp.array(rng.uniform(-limit, limit, (input_size, output_size))),
                 # np.array(rng.standard_normal(size=(input_size, output_size)))
             )
 
-            self.params.set(f"S0b{i}", np.zeros((output_size,)))
+            self.params.set(f"S0b{i}", jnp.zeros((output_size,)))
 
         for i in range(0, len(self._layer_sizes1) - 1):
             # The number of units in the layers

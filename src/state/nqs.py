@@ -1,20 +1,5 @@
 import warnings
 
-import jax
-
-from src.state import pretrain
-from src.state.utils import errors
-from src.state.utils import generate_seed_sequence
-from src.state.utils import optimizer_factory
-from src.state.utils import setup_logger
-from src.state.utils import State
-from src.state.utils import tune_sampler
-from src.state.utils import wf_factory
-
-jax.config.update("jax_enable_x64", True)
-jax.config.update("jax_platform_name", "cpu")
-
-
 import numpy as np
 import pandas as pd
 from numpy.random import default_rng
@@ -23,6 +8,14 @@ from tqdm.auto import tqdm
 from src.physics.hamiltonians import HarmonicOscillator as HO
 from src.samplers import Metropolis as Metro
 from src.samplers import MetropolisHastings as MetroHastings
+from src.state import pretrain
+from src.state.utils import errors
+from src.state.utils import generate_seed_sequence
+from src.state.utils import optimizer_factory
+from src.state.utils import setup_logger
+from src.state.utils import State
+from src.state.utils import tune_sampler
+from src.state.utils import wf_factory
 
 warnings.filterwarnings("ignore", message="divide by zero encountered")
 
@@ -225,13 +218,14 @@ class NQS:
         # steps_before_optimize = batch_size
 
         self.state = self.wf.state
-
         grads_dict = {key: [] for key in param_keys}
         epoch = 0
 
         for _ in t_range:
             epoch += 1
             states = self.state.create_batch_of_states(batch_size=batch_size)
+
+            # print("states", states[-1].positions.type)
             states = self._sampler.step(
                 self.wf, states, seed_seq, batch_size=batch_size
             )

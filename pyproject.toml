@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "nqs"
+name = "src"
 version = "0.1.0"
 description = "Thesis code"
 authors = ["Daniel <danielhaas.lima@gmail.com>"]
@@ -28,6 +28,7 @@ pytest = "^7.4.2"
 scikit-learn = "^1.3.1"
 wandb = "^0.16.0"
 isort = "^5.13.2"
+tensorboard-plugin-profile = "^2.15.1"
 
 
 [tool.poetry.group.dev.dependencies]

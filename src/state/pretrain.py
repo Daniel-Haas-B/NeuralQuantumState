@@ -9,7 +9,7 @@ from src.state.utils import setup_logger
 from src.state.utils import State
 from src.state.utils import wf_factory
 
-jax.config.update("jax_enable_x64", True)
+# jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
 
 
@@ -21,8 +21,6 @@ import src.optimizers as opt
 from src.samplers import Metropolis as Metro
 from src.samplers import MetropolisHastings as MetroHastings
 
-jax.config.update("jax_enable_x64", True)
-jax.config.update("jax_platform_name", "cpu")
 
 warnings.filterwarnings("ignore", message="divide by zero encountered")
 import jax.numpy as jnp

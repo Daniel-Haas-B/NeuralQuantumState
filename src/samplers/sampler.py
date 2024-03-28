@@ -1,6 +1,5 @@
 import copy
 
-import jax
 import numpy as np
 import pandas as pd
 from tqdm.auto import tqdm
@@ -9,9 +8,6 @@ from src.state.utils import block
 from src.state.utils import check_and_set_nchains
 from src.state.utils import generate_seed_sequence
 from src.state.utils import sampler_utils
-
-jax.config.update("jax_enable_x64", True)
-jax.config.update("jax_platform_name", "cpu")
 
 
 class Sampler:
@@ -111,9 +107,7 @@ class Sampler:
         energies = np.zeros(nsamples)
 
         for i in t_range:  # 2**18
-            # sampler_utils.tune_sampler(wf, self, tune_iter=500, tune_batch=500, seed=42, log=True, mode="standard", logger=self._logger)
             state = self._step(wf, state, seed, batch_size=batch_size)
-            # time.sleep(1)
             energies[i * batch_size : (i + 1) * batch_size] = (
                 self.hamiltonian.local_energy(wf, state.positions)
             )

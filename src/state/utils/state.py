@@ -30,6 +30,18 @@ class State:
         self.n_accepted = n_accepted
         self.delta = delta
 
+    # def create_batch_of_states(self, batch_size):
+    #     # Similar implementation as before, creating a list of State objects
+    #     batch_states = [
+    #         State(
+    #             jnp.array(self.positions),
+    #             np.array(self.logp),
+    #             self.n_accepted, self.delta
+    #             ) for _ in range(batch_size)
+    #         ]
+
+    #     # Wrap the list in BatchedState
+    #     return BatchedState(batch_states)
     def create_batch_of_states(self, batch_size):
         """ """
         # Replicate each property of the state
@@ -56,3 +68,33 @@ class State:
         self.logp[key] = value.logp
         self.n_accepted[key] = value.n_accepted
         self.delta[key] = value.delta
+
+
+class BatchedState:
+    def __init__(self, states):
+        self.states = states
+
+    @property
+    def positions(self):
+        return jnp.stack([state.positions for state in self.states])
+
+    @property
+    def logp(self):
+        return jnp.stack([state.logp for state in self.states])
+
+    @property
+    def n_accepted(self):
+        return jnp.array([state.n_accepted for state in self.states], dtype=jnp.int32)
+
+    @property
+    def delta(self):
+        return jnp.array([state.delta for state in self.states], dtype=jnp.int32)
+
+    def __getitem__(self, key):
+        return self.states[key]
+
+    def __setitem__(self, key, value):
+        self.states[key] = value
+
+    def __len__(self):
+        return len(self.states)

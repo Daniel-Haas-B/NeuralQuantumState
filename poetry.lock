@@ -952,6 +952,20 @@ files = [
 protobuf = ["grpcio-tools (>=1.62.1)"]
 
 [[package]]
+name = "gviz-api"
+version = "1.10.0"
+description = "Python API for Google Visualization"
+optional = false
+python-versions = "*"
+files = [
+    {file = "gviz_api-1.10.0-py2.py3-none-any.whl", hash = "sha256:a05055fed8c279f34f4b496eace7648c7fe9c1b06851e8a36e748541f1adbb05"},
+    {file = "gviz_api-1.10.0.tar.gz", hash = "sha256:846692dd8cc73224fc31b18e41589bd934e1cc05090c6576af4b4b26c2e71b90"},
+]
+
+[package.dependencies]
+six = "*"
+
+[[package]]
 name = "h11"
 version = "0.14.0"
 description = "A pure-Python, bring-your-own-I/O implementation of HTTP/1.1"
@@ -1001,13 +1015,13 @@ numpy = ">=1.17.3"
 
 [[package]]
 name = "httpcore"
-version = "1.0.4"
+version = "1.0.5"
 description = "A minimal low-level HTTP client."
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "httpcore-1.0.4-py3-none-any.whl", hash = "sha256:ac418c1db41bade2ad53ae2f3834a3a0f5ae76b56cf5aa497d2d033384fc7d73"},
-    {file = "httpcore-1.0.4.tar.gz", hash = "sha256:cb2839ccfcba0d2d3c1131d3c3e26dfc327326fbe7a5dc0dbfe9f6c9151bb022"},
+    {file = "httpcore-1.0.5-py3-none-any.whl", hash = "sha256:421f18bac248b25d310f3cacd198d55b8e6125c107797b609ff9b7a6ba7991b5"},
+    {file = "httpcore-1.0.5.tar.gz", hash = "sha256:34a38e2f9291467ee3b44e89dd52615370e152954ba21721378a87b2960f7a61"},
 ]
 
 [package.dependencies]
@@ -1018,7 +1032,7 @@ h11 = ">=0.13,<0.15"
 asyncio = ["anyio (>=4.0,<5.0)"]
 http2 = ["h2 (>=3,<5)"]
 socks = ["socksio (==1.*)"]
-trio = ["trio (>=0.22.0,<0.25.0)"]
+trio = ["trio (>=0.22.0,<0.26.0)"]
 
 [[package]]
 name = "httpx"
@@ -1082,13 +1096,13 @@ files = [
 
 [[package]]
 name = "ipykernel"
-version = "6.29.3"
+version = "6.29.4"
 description = "IPython Kernel for Jupyter"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "ipykernel-6.29.3-py3-none-any.whl", hash = "sha256:5aa086a4175b0229d4eca211e181fb473ea78ffd9869af36ba7694c947302a21"},
-    {file = "ipykernel-6.29.3.tar.gz", hash = "sha256:e14c250d1f9ea3989490225cc1a542781b095a18a19447fcf2b5eaf7d0ac5bd2"},
+    {file = "ipykernel-6.29.4-py3-none-any.whl", hash = "sha256:1181e653d95c6808039c509ef8e67c4126b3b3af7781496c7cbfb5ed938a27da"},
+    {file = "ipykernel-6.29.4.tar.gz", hash = "sha256:3d44070060f9475ac2092b760123fadf105d2e2493c24848b6691a7c4f42af5c"},
 ]
 
 [package.dependencies]
@@ -3713,6 +3727,24 @@ files = [
 ]
 
 [[package]]
+name = "tensorboard-plugin-profile"
+version = "2.15.1"
+description = "Profile Tensorboard Plugin"
+optional = false
+python-versions = ">= 2.7, != 3.0.*, != 3.1.*"
+files = [
+    {file = "tensorboard_plugin_profile-2.15.1-py3-none-any.whl", hash = "sha256:93231c3330d19c0647279eb296b7a1f20ea70dfd366a9fe837b016aa2cc4190c"},
+    {file = "tensorboard_plugin_profile-2.15.1.tar.gz", hash = "sha256:84bb33e446eb4a9c0616f669fc6a42cdd40eadd9ae1d74bf756f4f0479993273"},
+]
+
+[package.dependencies]
+gviz-api = ">=1.9.0"
+protobuf = ">=3.19.6,<5.0.0dev"
+setuptools = ">=41.0.0"
+six = ">=1.10.0"
+werkzeug = ">=0.11.15"
+
+[[package]]
 name = "tensorflow"
 version = "2.16.1"
 description = "TensorFlow is an open source machine learning framework for everyone."
@@ -4303,4 +4335,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = "3.10.12"
-content-hash = "d8c3e1d66cd66b17cb9259b69aa0d35aebf90d551eaf9e275f5aca5de8e84598"
+content-hash = "7de00d5d0d18dee2a0553f29067f549ab3b4d4dec0462e75f0f029addc0c036e"

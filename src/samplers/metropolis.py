@@ -1,11 +1,10 @@
 # import jax
+import jax.numpy as jnp  # noqa
 import numpy as np
 
 from .sampler import Sampler
 from src.state.utils import advance_PRNG_state
 from src.state.utils import State
-
-# from jax import vmap
 
 
 class Metropolis(Sampler):
@@ -34,10 +33,10 @@ class Metropolis(Sampler):
         # create empty array of states of size batch_size
         for i in range(batch_size):
             state = state_batch[i - 1]
+
             next_gen = advance_PRNG_state(seed, state.delta)
             rng = self._rng(next_gen)
-
-            # Sample proposal positions, i.e., move walkers
+            # proposals_pos = jnp.array(rng.normal(loc=state.positions, scale=self.scale))
             proposals_pos = rng.normal(loc=state.positions, scale=self.scale)
 
             # Sample log uniform rvs
@@ -45,7 +44,7 @@ class Metropolis(Sampler):
 
             # Compute proposal log density
             logp_proposal = wf.logprob(proposals_pos)
-
+            # print("logp_proposal type ", logp_proposal.type)
             # Metroplis acceptance criterion
             accept = log_unif < logp_proposal - state.logp
 
@@ -53,7 +52,7 @@ class Metropolis(Sampler):
             new_positions = proposals_pos if accept else state.positions
 
             # Create new state
-            new_logp = wf.logprob(new_positions) if accept else state.logp
+            new_logp = logp_proposal if accept else state.logp
             new_n_accepted = state.n_accepted + accept
             new_delta = state.delta + 1
 

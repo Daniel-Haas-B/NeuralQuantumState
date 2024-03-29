@@ -1,12 +1,7 @@
 import copy
 
-import jax
 import jax.numpy as jnp
 import numpy as np
-
-# from .base_jax_rbm import BaseJAXRBM
-jax.config.update("jax_enable_x64", True)
-jax.config.update("jax_platform_name", "cpu")
 
 
 class Hamiltonian:

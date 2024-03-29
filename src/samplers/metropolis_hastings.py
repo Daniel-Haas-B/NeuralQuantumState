@@ -71,7 +71,7 @@ class MetropolisHastings(Sampler):
             new_positions = proposals if accept else state.positions
 
             # Create new state
-            new_logp = wf.logprob(new_positions) if accept else state.logp
+            new_logp = logp_proposal if accept else state.logp
             new_n_accepted = state.n_accepted + accept
             new_delta = state.delta + 1
 

@@ -1,16 +1,70 @@
 # import jax
+import jax.numpy as jnp  # noqa
+import jax.random
 import numpy as np
+from line_profiler import LineProfiler  # noqa
 
 from .sampler import Sampler
 from src.state.utils import advance_PRNG_state
 from src.state.utils import State
 
-# from jax import vmap
-
 
 class Metropolis(Sampler):
     def __init__(self, rng, scale, logger=None):
         super().__init__(rng, scale, logger)
+
+    def _jaxstep(self, wf, state_batch, seed, batch_size):
+        """One step of the random walk Metropolis algorithm
+
+        Parameters
+        ----------
+        state : nqs.State
+            Current state of the system. See state.py
+
+        scale : float
+            Scale of proposal distribution. Default: 0.5
+
+        Returns
+        -------
+        new_state : nqs.State
+            The updated state of the system.
+
+        """
+
+        # Advance RNG batch_size times
+        # create empty array of states of size batch_size
+        rng_key = jax.random.PRNGKey(43)  # PLEASE CHANGE THIS TO DYNAMIC
+        pos_shape = state_batch[0].positions.shape
+
+        for i in range(batch_size):
+            state = state_batch[i - 1]
+
+            rng_key, next_key = jax.random.split(rng_key)
+            proposals_pos = (
+                jax.random.normal(rng_key, shape=pos_shape) * self.scale
+                + state.positions
+            )
+
+            # Sample log uniform rvs
+            log_unif = jnp.log(jax.random.uniform(rng_key))
+
+            # Compute proposal log density
+            logp_proposal = wf.logprob(proposals_pos)
+            # print("logp_proposal type ", logp_proposal.type)
+            # Metroplis acceptance criterion
+            accept = log_unif < logp_proposal - state.logp
+
+            # If accept is True, yield proposal, otherwise keep old state
+            new_positions = proposals_pos if accept else state.positions
+
+            # Create new state
+            new_logp = logp_proposal if accept else state.logp
+            new_n_accepted = state.n_accepted + accept
+            new_delta = state.delta + 1
+
+            state_batch[i] = State(new_positions, new_logp, new_n_accepted, new_delta)
+
+        return state_batch
 
     def _step(self, wf, state_batch, seed, batch_size):
         """One step of the random walk Metropolis algorithm
@@ -34,10 +88,10 @@ class Metropolis(Sampler):
         # create empty array of states of size batch_size
         for i in range(batch_size):
             state = state_batch[i - 1]
+
             next_gen = advance_PRNG_state(seed, state.delta)
             rng = self._rng(next_gen)
-
-            # Sample proposal positions, i.e., move walkers
+            # proposals_pos = jnp.array(rng.normal(loc=state.positions, scale=self.scale))
             proposals_pos = rng.normal(loc=state.positions, scale=self.scale)
 
             # Sample log uniform rvs
@@ -45,7 +99,7 @@ class Metropolis(Sampler):
 
             # Compute proposal log density
             logp_proposal = wf.logprob(proposals_pos)
-
+            # print("logp_proposal type ", logp_proposal.type)
             # Metroplis acceptance criterion
             accept = log_unif < logp_proposal - state.logp
 
@@ -53,7 +107,7 @@ class Metropolis(Sampler):
             new_positions = proposals_pos if accept else state.positions
 
             # Create new state
-            new_logp = wf.logprob(new_positions) if accept else state.logp
+            new_logp = logp_proposal if accept else state.logp
             new_n_accepted = state.n_accepted + accept
             new_delta = state.delta + 1
 
@@ -92,6 +146,13 @@ class Metropolis(Sampler):
 
     def step(self, wf, state, seed, batch_size=1):
         # state = state.create_batch_of_states(batch_size)
+        # print("batch_size: ", batch_size)
+        # lp = LineProfiler()
+        # lp_wrapper = lp(self._jaxstep)  # Wrap the method to be profiled
+        # lp_wrapper(wf, state, seed, batch_size)  # Call the wrapped method
+
+        # lp.print_stats()  # Print the profiling results
+        # exit()
 
         return self._step(wf, state, seed, batch_size)
 

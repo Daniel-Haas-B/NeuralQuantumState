@@ -1,16 +1,13 @@
 from functools import partial  # noqa
 
 import jax
-import jax.numpy as jnp
-import numpy as np
 from jax import vmap
 
 from src.models.base_wf import WaveFunction
 from src.state.utils import Parameter
 from src.state.utils import State
 
-jax.config.update("jax_enable_x64", True)
-jax.config.update("jax_platform_name", "cpu")
+# import time
 
 
 class FFNN(WaveFunction):
@@ -76,29 +73,30 @@ class FFNN(WaveFunction):
             output_size = self._layer_sizes[i + 1]
 
             # He initialization, considering the size of layers
-            limit = np.sqrt(2 / (input_size))
+            limit = self.backend.sqrt(2 / (input_size))
 
             # Initialize weights and biases
             self.params.set(
                 f"W{i}",
-                np.array(rng.uniform(-limit, limit, (input_size, output_size))),
+                self.backend.array(
+                    rng.uniform(-limit, limit, (input_size, output_size))
+                ),
             )
 
             self.params.set(
                 f"b{i}",
-                np.zeros((output_size,)),
-                # jnp.array(rng.standard_normal(size=(output_size,)))
+                self.backend.zeros((output_size,)),
             )
 
         if self.jastrow:
             input_j_size = self._N * (self._N - 1) // 2
-            limit = np.sqrt(2 / (input_j_size))
+            limit = self.backend.sqrt(2 / (input_j_size))
             self.params.set(
-                "WJ", np.array(rng.uniform(-limit, limit, (self._N, self._N)))
+                "WJ", self.backend.array(rng.uniform(-limit, limit, (self._N, self._N)))
             )
         if self.pade_jastrow:
             assert not self.jastrow, "Pade Jastrow requires Jastrow to be false"
-            self.params.set("CPJ", np.array(rng.uniform(-limit, limit, 1)))
+            self.params.set("CPJ", self.backend.array(rng.uniform(-limit, limit, 1)))
 
     def log_wf_pretrain(self, x, params):
         """
@@ -110,11 +108,15 @@ class FFNN(WaveFunction):
         return output
 
     # @WaveFunction.symmetry
+    # @partial(jax.jit, static_argnums=(0,))
     def log_wf0(self, x, params):
         """ """
+        # Pre-fetch parameters to avoid repetitive lookups
+        weights = [params.get(f"W{i}") for i in range(len(self._layer_sizes) - 1)]
+        biases = [params.get(f"b{i}") for i in range(len(self._layer_sizes) - 1)]
 
-        for i in range(0, len(self._layer_sizes) - 1):
-            x = x @ params.get(f"W{i}") + params.get(f"b{i}")
+        for i, (w, b) in enumerate(zip(weights, biases)):
+            x = self.backend.matmul(x, w) + b
             x = self.activation(self._activations[i])(x)
 
         return x.squeeze(-1)
@@ -133,14 +135,10 @@ class FFNN(WaveFunction):
         return self.grad_wf_closure(r, self.params)
 
     def laplacian_closure_jax(self, r, params):
-        """
-        (∇_r)^2 Ψ(r) = ∑_i (∇_r)^2 Ψ(r_i)
-        This can be optimized by using the fact that Ψ = exp(FFNN)
-        For now we will use the autograd version
-        """
+        """ """
 
         hessian_wf = vmap(jax.hessian(self.log_wf), in_axes=(0, None))
-        trace_hessian = vmap(jnp.trace)
+        trace_hessian = vmap(self.backend.trace)
 
         return trace_hessian(hessian_wf(r, params))
 
@@ -228,13 +226,11 @@ class FFNN(WaveFunction):
         sr_matrices = {}
 
         for key, grad_value in grads.items():
-            grad_value = self.backend.array(grad_value)
 
             if "W" in key:  # means it is a matrix
                 grads_outer = self.backend.einsum(
                     "nij,nkl->nijkl", grad_value, grad_value
                 )
-            # elif self.backend.ndim(grad_value[0]) == 1:
             else:  # means it is a (bias) vector
                 grads_outer = self.backend.einsum("ni,nj->nij", grad_value, grad_value)
 

@@ -2,13 +2,9 @@ from typing import Dict
 from typing import List
 from typing import Union
 
-import jax
 import jax.numpy as jnp
 import numpy as np
 from jax.tree_util import register_pytree_node
-
-jax.config.update("jax_enable_x64", True)
-jax.config.update("jax_platform_name", "cpu")
 
 # Updating ParameterDataType to account for list, np arrays, or jnp arrays
 ParameterDataType = Union[np.ndarray, jnp.ndarray]

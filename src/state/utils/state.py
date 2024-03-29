@@ -30,6 +30,15 @@ class State:
         self.n_accepted = n_accepted
         self.delta = delta
 
+    # def create_batch_of_states(self, batch_size):
+
+    #     batched_state = BatchedState([
+    #         self  # Assuming the sharing of state is acceptable; otherwise, adjust accordingly.
+    #         for _ in range(batch_size)
+    #     ])
+    #     return batched_state
+
+    # legacy code that is not jnp compatible
     def create_batch_of_states(self, batch_size):
         """ """
         # Replicate each property of the state
@@ -56,3 +65,38 @@ class State:
         self.logp[key] = value.logp
         self.n_accepted[key] = value.n_accepted
         self.delta[key] = value.delta
+
+
+class BatchedState:
+    def __init__(self, states):
+        self.states = states
+
+    @property
+    def positions(self):
+        return jnp.stack([state.positions for state in self.states])
+
+    @property
+    def logp(self):
+        return jnp.stack([state.logp for state in self.states])
+
+    @property
+    def n_accepted(self):
+        return jnp.array([state.n_accepted for state in self.states], dtype=jnp.int32)
+
+    @property
+    def delta(self):
+        return jnp.array([state.delta for state in self.states], dtype=jnp.int32)
+
+    def __getitem__(self, key):
+        return self.states[key]
+
+    def __setitem__(self, key, value):
+        self.states[key] = value
+
+    def __len__(self):
+        return len(self.states)
+
+    @positions.setter
+    def positions(self, value):
+        for i, state in enumerate(self.states):
+            state.positions = value[i]

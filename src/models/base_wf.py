@@ -24,7 +24,7 @@ class WaveFunction:
     ):
         self.params = None
         self._N = nparticles
-        self._dim = dim
+        self.dim = dim
         self._log = log
         self.logger = logger
         self._logger_level = logger_level
@@ -48,21 +48,20 @@ class WaveFunction:
 
         self.log = log
         self.rng = rng
-        self.r0 = self.rng.standard_normal(size=self._N * self._dim)
+        self.r0 = self.rng.standard_normal(size=self._N * self.dim)
 
     def _reinit_positions(self):
-        self.r0 = self.rng.standard_normal(size=self._N * self._dim)
+        self.r0 = self.rng.standard_normal(size=self._N * self.dim)
         print("====== reinitiated positions to", self.r0)
 
     def _jit_functions(self):
         functions_to_jit = [
-            "log_wf",
+            "log_wf",  # cant jit this with lapjax
             # "log_wf0", # dont use this with deepset at least
             "log_wfc_jastrow",
             "logprob_closure",
             "set_0",
             "set_1",
-            "wf",
             "compute_sr_matrix",
             "grad_wf_closure",
             "grads_closure",
@@ -86,6 +85,7 @@ class WaveFunction:
             self.grad_wf_closure = self.grad_wf_closure_jax
             self.grads_closure = self.grads_closure_jax
             self.laplacian_closure = self.laplacian_closure_jax
+            self.r0 = jnp.array(self.r0)
             self._jit_functions()  # maybe should be inside the child class
         else:
             raise ValueError("Invalid backend:", backend)
@@ -110,11 +110,11 @@ class WaveFunction:
                     # first N//2 particles are spin up, the rest are spin down
                     # there is a more efficient way to do this for sure
                     if i < self._N // 2 and j < self._N // 2:
-                        self.pade_aij = self.pade_aij.at[i, j].set(1 / (self._dim + 1))
+                        self.pade_aij = self.pade_aij.at[i, j].set(1 / (self.dim + 1))
                     elif i >= self._N // 2 and j >= self._N // 2:
-                        self.pade_aij = self.pade_aij.at[i, j].set(1 / (self._dim + 1))
+                        self.pade_aij = self.pade_aij.at[i, j].set(1 / (self.dim + 1))
                     else:
-                        self.pade_aij = self.pade_aij.at[i, j].set(1 / (self._dim - 1))
+                        self.pade_aij = self.pade_aij.at[i, j].set(1 / (self.dim - 1))
 
             self.log_wf = self.log_wf_pade_jastrow
 
@@ -191,13 +191,13 @@ class WaveFunction:
 
     def generate_degrees(self):
         max_comb = self._N // 2
-        combinations = [[0] * self._dim]
+        combinations = [[0] * self.dim]
         seen = {tuple(combinations[0])}
 
         while len(combinations) < max_comb:
             new_combinations = []
             for comb in combinations:
-                for i in range(self._dim):
+                for i in range(self.dim):
                     # Try incrementing each dimension by 1
                     new_comb = comb.copy()
                     new_comb[i] += 1
@@ -226,7 +226,7 @@ class WaveFunction:
         where phi_i is the i-th single particle wavefunction, in our case it is a hermite polynomial.
         """
         A = self._N // 2
-        r = r.reshape(-1, self._N, self._dim)
+        r = r.reshape(-1, self._N, self.dim)
 
         r_up = r[:, :A, :]
         r_down = r[:, A:, :]
@@ -273,7 +273,7 @@ class WaveFunction:
         #TODO: move this to a helper function
         """
         # Error handling for input parameters
-        # if not isinstance(vals, list) or not isinstance(deg, int) or not isinstance(self._dim, int):
+        # if not isinstance(vals, list) or not isinstance(deg, int) or not isinstance(self.dim, int):
         #    raise ValueError("Invalid input types for vals, deg, or dim.")
         # if len(vals) != dim:
         #    raise ValueError("Dimension mismatch between 'vals' and 'dim'.")
@@ -305,7 +305,7 @@ class WaveFunction:
 
     #         # first permutation is always the identity
 
-    #         r_reshaped = r.reshape(-1, n, self._dim)
+    #         r_reshaped = r.reshape(-1, n, self.dim)
 
     #         def symmetrize_r(r):
     #             # print("r.shape[0]", r.shape[0])

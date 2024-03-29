@@ -7,9 +7,6 @@ from src.models.base_wf import WaveFunction
 from src.state.utils import Parameter
 from src.state.utils import State
 
-jax.config.update("jax_enable_x64", True)
-jax.config.update("jax_platform_name", "cpu")
-
 
 class RBM(WaveFunction):
     def __init__(

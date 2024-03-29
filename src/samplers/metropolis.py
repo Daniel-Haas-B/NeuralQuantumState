@@ -2,6 +2,7 @@
 import jax.numpy as jnp  # noqa
 import jax.random
 import numpy as np
+from line_profiler import LineProfiler  # noqa
 
 from .sampler import Sampler
 from src.state.utils import advance_PRNG_state
@@ -33,13 +34,14 @@ class Metropolis(Sampler):
         # Advance RNG batch_size times
         # create empty array of states of size batch_size
         rng_key = jax.random.PRNGKey(43)  # PLEASE CHANGE THIS TO DYNAMIC
+        pos_shape = state_batch[0].positions.shape
 
         for i in range(batch_size):
             state = state_batch[i - 1]
 
             rng_key, next_key = jax.random.split(rng_key)
             proposals_pos = (
-                jax.random.normal(rng_key, shape=state.positions.shape) * self.scale
+                jax.random.normal(rng_key, shape=pos_shape) * self.scale
                 + state.positions
             )
 
@@ -89,8 +91,8 @@ class Metropolis(Sampler):
 
             next_gen = advance_PRNG_state(seed, state.delta)
             rng = self._rng(next_gen)
-            proposals_pos = jnp.array(rng.normal(loc=state.positions, scale=self.scale))
-            # proposals_pos = rng.normal(loc=state.positions, scale=self.scale)
+            # proposals_pos = jnp.array(rng.normal(loc=state.positions, scale=self.scale))
+            proposals_pos = rng.normal(loc=state.positions, scale=self.scale)
 
             # Sample log uniform rvs
             log_unif = np.log(rng.random())
@@ -144,8 +146,15 @@ class Metropolis(Sampler):
 
     def step(self, wf, state, seed, batch_size=1):
         # state = state.create_batch_of_states(batch_size)
+        # print("batch_size: ", batch_size)
+        # lp = LineProfiler()
+        # lp_wrapper = lp(self._jaxstep)  # Wrap the method to be profiled
+        # lp_wrapper(wf, state, seed, batch_size)  # Call the wrapped method
 
-        return self._jaxstep(wf, state, seed, batch_size)
+        # lp.print_stats()  # Print the profiling results
+        # exit()
+
+        return self._step(wf, state, seed, batch_size)
 
     def reset_scale(self, scale):
         self.scale = scale

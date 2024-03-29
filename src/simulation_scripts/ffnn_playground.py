@@ -19,7 +19,7 @@ jax.config.update("jax_platform_name", "cpu")
 
 # Config
 output_filename = "/Users/haas/Documents/Masters/NQS/data/playground.csv"
-nparticles = 2
+nparticles = 20
 dim = 2
 
 
@@ -78,7 +78,7 @@ def main():
     dfs_mean = []
     df = []
     df_all = []
-    system.pretrain(model="Gaussian", max_iter=100, batch_size=100, args=common_kwargs)
+    # system.pretrain(model="Gaussian", max_iter=100, batch_size=100, args=common_kwargs)
     history = system.train(
         max_iter=training_cycles,
         batch_size=batch_size,
@@ -141,9 +141,9 @@ def main():
 
 if __name__ == "__main__":
     # Use cProfile to run the main function and save the stats to a file
-    main()
-    # cProfile.runctx("main()", globals(), locals(), "profile_stats.prof")
-#
-# Create pstats object and sort by cumulative time
-# p = pstats.Stats("profile_stats.prof")
-# p.strip_dirs().sort_stats("cumulative").print_stats(50)
+    # main()
+    cProfile.runctx("main()", globals(), locals(), "profile_stats.prof")
+
+    # Create pstats object and sort by cumulative time
+    p = pstats.Stats("profile_stats.prof")
+    p.sort_stats("cumulative").print_stats(50)

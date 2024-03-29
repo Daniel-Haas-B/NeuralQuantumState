@@ -360,6 +360,10 @@ class NQS:
             sample_results = self._sampler.sample(
                 self.wf, self.state, nsamples, nchains, seed
             )
+            sample_results["accept_rate"] = float(sample_results["accept_rate"].iloc[0])
+
+            # convert to numpy array
+
             system_info_repeated = system_info.loc[
                 system_info.index.repeat(len(sample_results))
             ].reset_index(drop=True)

@@ -11,7 +11,7 @@ from src.state.nqs import NQS
 # from nqs.utils import plot_psi2
 
 
-jax.config.update("jax_enable_x64", True)
+# jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
 
 # Config

@@ -6,7 +6,7 @@ from nqs import nqs
 # import seaborn as sns
 # Import nqs package
 
-jax.config.update("jax_enable_x64", True)
+# jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
 
 # Config

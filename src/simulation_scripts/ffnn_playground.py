@@ -14,12 +14,12 @@ from src.state import nqs
 
 # from nqs.utils import plot_psi2
 
-jax.config.update("jax_enable_x64", True)
+# jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
 
 # Config
 output_filename = "/Users/haas/Documents/Masters/NQS/data/playground.csv"
-nparticles = 20
+nparticles = 2
 dim = 2
 
 
@@ -78,7 +78,7 @@ def main():
     dfs_mean = []
     df = []
     df_all = []
-    # system.pretrain(model="Gaussian", max_iter=100, batch_size=100, args=common_kwargs)
+    system.pretrain(model="Gaussian", max_iter=100, batch_size=100, args=common_kwargs)
     history = system.train(
         max_iter=training_cycles,
         batch_size=batch_size,

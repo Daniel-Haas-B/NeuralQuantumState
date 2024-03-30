@@ -9,7 +9,7 @@ from src.state.nqs import NQS
 
 # import test_utils
 
-jax.config.update("jax_enable_x64", True)
+# jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
 
 

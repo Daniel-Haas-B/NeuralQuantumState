@@ -6,13 +6,8 @@ import numpy as np
 import pandas as pd
 
 from src.state import nqs
+from src.state.utils import plot_obd
 
-# import matplotlib.pyplot as plt
-
-# import seaborn as sns
-# import matplotlib.pyplot as plt
-
-# from nqs.utils import plot_psi2
 
 # jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
@@ -21,19 +16,22 @@ jax.config.update("jax_platform_name", "cpu")
 output_filename = "/Users/haas/Documents/Masters/NQS/data/playground.csv"
 nparticles = 2
 dim = 2
+save_positions = True
 
-
-nsamples = int(2**16)  # 2**18 = 262144,
+nsamples = int(2**17)  # 2**18 = 262144,
 nchains = 1
 eta = 0.001 / np.sqrt(nparticles * dim)  # 0.001  / np.sqrt(nparticles * dim)
 
-training_cycles = 20  # this is cycles for the ansatz
+training_cycles = 500  # this is cycles for the ansatz
 mcmc_alg = "m"  # lmh is shit for ffnn
 optimizer = "sr"
-batch_size = 2000  # 2000
+batch_size = 200  # 2000
 detailed = True
 wf_type = "ffnn"
 seed = 42
+
+
+save_positions = True
 
 import time
 
@@ -49,6 +47,8 @@ system = nqs.NQS(
 
 layer_sizes = [nparticles * dim, 14, 11, 9, 7, 3, 1]
 activations = ["elu", "gelu", "elu", "gelu", "elu", "linear"]
+
+
 common_kwargs = {
     "layer_sizes": layer_sizes,
     "activations": activations,
@@ -60,7 +60,7 @@ system.set_wf("ffnn", nparticles, dim, **common_kwargs)  # all after this is kwa
 
 system.set_sampler(mcmc_alg=mcmc_alg, scale=1 / np.sqrt(nparticles * dim))
 system.set_hamiltonian(
-    type_="ho", int_type="Coulomb", omega=1.0, r0_reg=1, training_cycles=training_cycles
+    type_="ho", int_type="none", omega=1.0, r0_reg=1, training_cycles=training_cycles
 )
 
 system.set_optimizer(
@@ -78,7 +78,9 @@ def main():
     dfs_mean = []
     df = []
     df_all = []
-    system.pretrain(model="Gaussian", max_iter=100, batch_size=100, args=common_kwargs)
+    system.pretrain(
+        model="Gaussian", max_iter=100, batch_size=10000, args=common_kwargs
+    )
     history = system.train(
         max_iter=training_cycles,
         batch_size=batch_size,
@@ -95,7 +97,10 @@ def main():
     #     plt.legend()
     #     plt.show()
 
-    df = system.sample(nsamples, nchains=nchains, seed=seed)
+    df = system.sample(
+        nsamples, nchains, seed, one_body_density=False, save_positions=save_positions
+    )
+
     df_all.append(df)
 
     sem_factor = 1 / np.sqrt(len(df))  # sem = standard error of the mean
@@ -133,10 +138,11 @@ def main():
     # Save results
     df_final.to_csv(output_filename, index=False)
 
-    # plot energy convergence curve
-    # energy withour sr
     df_all = pd.concat(df_all)
     print(df_all)
+
+    if save_positions:
+        plot_obd("positions_FFNN.h5", nsamples, dim)
 
 
 if __name__ == "__main__":

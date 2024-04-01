@@ -111,7 +111,7 @@ class FFNN(WaveFunction):
     # @partial(jax.jit, static_argnums=(0,))
     def log_wf0(self, x, params):
         """ """
-        # Pre-fetch parameters to avoid repetitive lookups
+
         weights = [params.get(f"W{i}") for i in range(len(self._layer_sizes) - 1)]
         biases = [params.get(f"b{i}") for i in range(len(self._layer_sizes) - 1)]
 

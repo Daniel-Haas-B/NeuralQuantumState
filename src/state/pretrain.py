@@ -263,7 +263,7 @@ class Gaussian:
 
         covariance = self.backend.eye(self._dim * self._N)
         x_minus_mean = x - means
-        inv_cov = self.la.inv(covariance)
+        inv_cov = covariance  # self.la.inv(covariance)
 
         det_cov = self.la.det(covariance)
         # twopi = 2 * self.backend.pi

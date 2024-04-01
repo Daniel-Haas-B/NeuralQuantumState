@@ -1,5 +1,6 @@
 import copy
 
+import h5py
 import numpy as np
 import pandas as pd
 from tqdm.auto import tqdm
@@ -25,6 +26,7 @@ class Sampler:
         seed=None,
         lim_inf=-5,
         lim_sup=5,
+        method="histogram",
         points=80,
     ):
         if nchains != 1:
@@ -36,26 +38,27 @@ class Sampler:
 
         # create 100 states that are clones of the original state but with different coordinates for the first particle
         # then sample the wave function for each of these states
-        positions = np.linspace(lim_inf, lim_sup, points)
-        one_body_densities = np.zeros(points)
-        for i in range(points):
-            # create copy of the state
-            new_state = copy.deepcopy(state)
-            new_state.positions[0] = positions[i]
+        if method == "integrate":
+            positions = np.linspace(lim_inf, lim_sup, points)
+            one_body_densities = np.zeros(points)
+            for i in range(points):
+                # create copy of the state
+                new_state = copy.deepcopy(state)
+                new_state.positions[0] = positions[i]
 
-            one_body_density = self._marginal_sample(
-                wf, nsamples, new_state, scale, seeds[0], chain_id
-            )
+                one_body_density = self._marginal_sample(
+                    wf, nsamples, new_state, scale, seeds[0], chain_id
+                )
 
-            one_body_densities[i] = one_body_density
+                one_body_densities[i] = one_body_density
 
-        # now we plot
-        if self._logger is not None:
-            self._logger.info("Marginal sampling done")
+            # now we plot
+            if self._logger is not None:
+                self._logger.info("Marginal sampling done")
 
-        return positions, one_body_densities
+            return positions, one_body_densities
 
-    def sample(self, wf, state, nsamples, nchains=1, seed=None):
+    def sample(self, wf, state, nsamples, nchains=1, seed=None, save_positions=False):
         """ """
         scale = self.scale
         nchains = check_and_set_nchains(nchains, self._logger)
@@ -64,7 +67,7 @@ class Sampler:
             chain_id = 0
 
             results, self._energies = self._sample(
-                wf, nsamples, state, scale, seeds[0], chain_id
+                wf, nsamples, state, seeds[0], chain_id, save_positions
             )
 
             self._results = pd.DataFrame([results])
@@ -78,17 +81,18 @@ class Sampler:
                 state,
                 scale,
                 seeds,
-                self._logger,
+                save_positions,
             )
             self._results = pd.DataFrame(results)
 
         self._sampling_performed_ = True
         if self._logger is not None:
             self._logger.info("Sampling done")
+            self._logger.info(f"Save positions: {save_positions}")
 
         return self._results
 
-    def _sample(self, wf, nsamples, state, scale, seed, chain_id):
+    def _sample(self, wf, nsamples, state, seed, chain_id, save_positions=False):
         """To be called by process in the big sampler function."""
         batch_size = 2**10
 
@@ -111,6 +115,21 @@ class Sampler:
             energies[i * batch_size : (i + 1) * batch_size] = (
                 self.hamiltonian.local_energy(wf, state.positions)
             )
+            if save_positions:
+                f = h5py.File(f"data/positions_{wf.__class__.__name__}.h5", "a")
+                if i == 0:
+                    f.create_dataset(
+                        "positions",
+                        data=state.positions,
+                        compression="gzip",
+                        chunks=True,
+                        maxshape=(None, state.positions.shape[1]),
+                    )
+                else:
+                    f["positions"].resize(
+                        (f["positions"].shape[0] + state.positions.shape[0]), axis=0
+                    )
+                    f["positions"][-state.positions.shape[0] :] = state.positions
 
         if self._logger is not None:
             t_range.clear()

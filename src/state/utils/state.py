@@ -17,7 +17,7 @@ PyTree = Union[
 from dataclasses import dataclass
 
 
-@dataclass(frozen=False)
+@dataclass(frozen=False)  # frozen=False allows for mutable dataclass
 class State:
     positions: PyTree
     logp: Union[float, PyTree]

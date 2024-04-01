@@ -162,7 +162,7 @@ class WaveFunction:
         """
 
         epsilon = 1e-10  # Small epsilon value was 10^-8 before
-        r_cpy = r.reshape(-1, self._N, self._dim)
+        r_cpy = r.reshape(-1, self._N, self.dim)
         r_diff = r_cpy[:, None, :, :] - r_cpy[:, :, None, :]
         r_dist = self.la.norm(r_diff + epsilon, axis=-1)  # Add epsilon to avoid nan
 

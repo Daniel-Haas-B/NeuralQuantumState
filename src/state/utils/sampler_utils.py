@@ -34,8 +34,9 @@ def early_stopping(new_value, old_value, tolerance=1e-5):
     return dist < tolerance
 
 
-def multiproc(proc_sample, wf, nchains, nsamples, state, scale, seeds, logger=None):
-    """Enable multiprocessing for jax."""
+def multiproc(
+    proc_sample, wf, nchains, nsamples, state, scale, seeds, save_positions=False
+):
     params = wf.params
 
     # Handle iterable

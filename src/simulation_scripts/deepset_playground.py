@@ -4,6 +4,8 @@ import numpy as np
 import pandas as pd
 
 from src.state.nqs import NQS
+from src.state.utils import plot_obd
+
 
 # import seaborn as sns
 # import matplotlib.pyplot as plt
@@ -11,23 +13,24 @@ from src.state.nqs import NQS
 # from nqs.utils import plot_psi2
 
 
-# jax.config.update("jax_enable_x64", True)
+jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
 
 # Config
 output_filename = "/Users/haas/Documents/Masters/NQS/data/playground.csv"
 nparticles = 2
 dim = 2
+save_positions = True
 
 
-nsamples = int(2**16)  # 2**18 = 262144
+nsamples = int(2**17)  # 2**18 = 262144
 nchains = 1
 eta = 0.001 / np.sqrt(nparticles * dim)  # 0.001  / np.sqrt(nparticles * dim)
 
-training_cycles = 10  # this is cycles for the ansatz
+training_cycles = 200  # this is cycles for the ansatz
 mcmc_alg = "m"  # lmh is shit for ffnn
-optimizer = "sr"
-batch_size = 2000
+optimizer = "adam"
+batch_size = 1000
 detailed = True
 wf_type = "ds"
 seed = 42
@@ -41,24 +44,24 @@ system = NQS(
     seed=seed,
 )
 
-common_layers_S0 = [14, 9, 7, 5, 3]
-common_activations_S0 = ["gelu", "elu", "gelu", "elu", "gelu", "elu"]
+common_layers_S0 = [9, 7, 5, 3]
+common_activations_S0 = ["elu", "elu", "elu", "elu", "elu"]
 
 layer_sizes = {
     "S0": [dim] + common_layers_S0 + [latent_dimension],
-    "S1": [latent_dimension, 9, 7, 5, 3, 1],
+    "S1": [latent_dimension, 7, 5, 3, 1],
 }
 
 activations = {
     "S0": common_activations_S0,
-    "S1": ["gelu", "elu", "gelu", "elu", "linear"],
+    "S1": ["elu", "elu", "elu", "linear"],
 }
 
 # Common kwargs for multiple function calls
 common_kwargs = {
     "layer_sizes": layer_sizes,
     "activations": activations,
-    "correlation": None,  # or just j or None (default)
+    "correlation": "j",  # or just j or None (default)
     "symmetry": "none",
 }
 
@@ -84,9 +87,7 @@ def main():
     dfs_mean = []
     df = []
     df_all = []
-    system.pretrain(
-        model="Gaussian", max_iter=1300, batch_size=1000, args=common_kwargs
-    )
+    system.pretrain(model="Gaussian", max_iter=200, batch_size=2000, args=common_kwargs)
     history = system.train(
         max_iter=training_cycles,
         batch_size=batch_size,
@@ -103,7 +104,10 @@ def main():
     #     plt.legend()
     #     plt.show()
 
-    df = system.sample(nsamples, nchains=nchains, seed=seed)
+    df = system.sample(
+        nsamples, nchains, seed, one_body_density=False, save_positions=save_positions
+    )
+
     df_all.append(df)
 
     sem_factor = 1 / np.sqrt(len(df))  # sem = standard error of the mean
@@ -145,6 +149,9 @@ def main():
     # energy withour sr
     df_all = pd.concat(df_all)
     print(df_all)
+
+    if save_positions:
+        plot_obd("positions_DS.h5", nsamples, dim)
 
     # energy with sr
     # if nchains > 1:

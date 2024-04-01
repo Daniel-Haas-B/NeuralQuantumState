@@ -336,7 +336,14 @@ class NQS:
         if self._history:
             return self._history
 
-    def sample(self, nsamples, nchains=1, seed=None, one_body_density=False):
+    def sample(
+        self,
+        nsamples,
+        nchains=1,
+        seed=None,
+        one_body_density=False,
+        save_positions=False,
+    ):
         """helper for the sample method from the Sampler class"""
         self._is_initialized()
         self._is_trained()
@@ -358,8 +365,9 @@ class NQS:
 
         if not one_body_density:
             sample_results = self._sampler.sample(
-                self.wf, self.state, nsamples, nchains, seed
+                self.wf, self.state, nsamples, nchains, seed, save_positions
             )
+            print("sample_results", sample_results)
             sample_results["accept_rate"] = float(sample_results["accept_rate"].iloc[0])
 
             # convert to numpy array
@@ -381,7 +389,8 @@ class NQS:
                 seed,
                 lim_inf=-5,
                 lim_sup=5,
-                points=200,
+                method="histogram",
+                # points=200, # if method is integral
             )
 
         return sample_results

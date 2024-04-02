@@ -70,7 +70,7 @@ def generate_seed_sequence(user_seed=None, pool_size=None):
     return seeds
 
 
-def advance_PRNG_state(seed, delta):
+def advance_PRNG_state(seed, delta, engine="pcg64"):
     """Advance the underlying PRNG as-if delta draws have occurred.
 
     In the ABC samplers, the random values are simulated using a
@@ -93,4 +93,4 @@ def advance_PRNG_state(seed, delta):
         PRNG advanced delta steps.
     """
 
-    return np.random.PCG64(seed).advance(delta)
+    return np.random.PCG64(seed).advance(delta)  # np.random.PCG64(seed).advance(delta)

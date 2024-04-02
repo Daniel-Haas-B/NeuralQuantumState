@@ -16,18 +16,18 @@ jax.config.update("jax_platform_name", "cpu")
 output_filename = "/Users/haas/Documents/Masters/NQS/data/playground.csv"
 nparticles = 2
 dim = 2
-nsamples = int(2**18)  # 2**18 = 262144
+nsamples = int(2**17)  # 2**18 = 262144
 nchains = 1
 eta = 0.01 / np.sqrt(nparticles * dim)  # 0.001  / np.sqrt(nparticles * dim)
 
-training_cycles = 500  # this is cycles for the ansatz
+training_cycles = 0  # this is cycles for the ansatz
 mcmc_alg = "m"
 backend = "jax"
-optimizer = "sr"
+optimizer = "adam"
 batch_size = 1000
 detailed = True
 wf_type = "vmc"
-seed = 142
+seed = 42
 save_positions = True
 
 dfs_mean = []
@@ -60,9 +60,9 @@ system.set_hamiltonian(
 system.set_optimizer(
     optimizer=optimizer,
     eta=eta,
-    # beta1=0.9,
-    # beta2=0.999,
-    # epsilon=1e-8,
+    beta1=0.9,
+    beta2=0.999,
+    epsilon=1e-8,
 )
 
 history = system.train(
@@ -112,7 +112,7 @@ print((end - start))
 epochs = np.arange(training_cycles)
 
 for key, value in history.items():
-    plt.plot(epochs, value, label=key)
+    plt.plot(epochs[: len(value)], value, label=key)
     plt.legend()
     plt.show()
 

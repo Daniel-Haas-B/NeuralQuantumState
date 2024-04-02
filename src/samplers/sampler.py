@@ -1,6 +1,8 @@
 import copy
+import os
 
 import h5py
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from tqdm.auto import tqdm
@@ -94,7 +96,7 @@ class Sampler:
 
     def _sample(self, wf, nsamples, state, seed, chain_id, save_positions=False):
         """To be called by process in the big sampler function."""
-        batch_size = 2**10
+        batch_size = 2**17
 
         if self._logger is not None:
             t_range = tqdm(
@@ -107,29 +109,57 @@ class Sampler:
         else:
             t_range = range(0, nsamples // batch_size)
 
-        state = state.create_batch_of_states(batch_size=batch_size)
+        batch_state = state.create_batch_of_states(batch_size=batch_size)
+        batch_state.positions = np.random.randn(batch_size, 4)
+        print("batch_state: ", batch_state)
         energies = np.zeros(nsamples)
 
+        positions = np.zeros((nsamples, batch_state.positions.shape[1]))
+        # print("params pre: ", wf.params)
+        wf.params.set("alpha", np.array([0.5, 0.5, 0.5, 0.5]))
+        # print("params post: ", wf.params)
+
+        # delete file data/positions_{wf.__class__.__name__}.h5
+        (
+            os.remove(f"data/positions_{wf.__class__.__name__}.h5")
+            if os.path.exists(f"data/positions_{wf.__class__.__name__}.h5")
+            else None
+        )
         for i in t_range:  # 2**18
-            state = self._step(wf, state, seed, batch_size=batch_size)
-            energies[i * batch_size : (i + 1) * batch_size] = (
-                self.hamiltonian.local_energy(wf, state.positions)
+            # state.positions = np.zeros((batch_size, 4))
+            batch_state = self._step(wf, batch_state, seed, batch_size=batch_size)
+            # energies[i * batch_size : (i + 1) * batch_size] = (
+            #     self.hamiltonian.local_energy(wf, batch_state.positions)
+            # )
+            positions[i * batch_size : (i + 1) * batch_size, ...] = (
+                batch_state.positions
             )
             if save_positions:
                 f = h5py.File(f"data/positions_{wf.__class__.__name__}.h5", "a")
                 if i == 0:
                     f.create_dataset(
                         "positions",
-                        data=state.positions,
+                        data=batch_state.positions,
                         compression="gzip",
                         chunks=True,
-                        maxshape=(None, state.positions.shape[1]),
+                        maxshape=(None, batch_state.positions.shape[1]),
                     )
                 else:
                     f["positions"].resize(
-                        (f["positions"].shape[0] + state.positions.shape[0]), axis=0
+                        (f["positions"].shape[0] + batch_state.positions.shape[0]),
+                        axis=0,
                     )
-                    f["positions"][-state.positions.shape[0] :] = state.positions
+                    f["positions"][
+                        -batch_state.positions.shape[0] :
+                    ] = batch_state.positions
+
+        plt.figure(figsize=(10, 10))
+        print("positions: ", positions.shape)
+        plt.scatter(positions[:, 0], positions[:, 1])
+        # # set x lim and y lim
+        plt.xlim(-3, 3)
+        plt.ylim(-3, 3)
+        plt.show()
 
         if self._logger is not None:
             t_range.clear()

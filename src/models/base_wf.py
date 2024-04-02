@@ -50,7 +50,7 @@ class WaveFunction:
         self.rng = rng
         self.r0 = self.rng.standard_normal(size=self._N * self.dim)
 
-    def _reinit_positions(self):
+    def reinit_positions(self):
         self.r0 = self.rng.standard_normal(size=self._N * self.dim)
         print("====== reinitiated positions to", self.r0)
 
@@ -86,7 +86,7 @@ class WaveFunction:
             self.grads_closure = self.grads_closure_jax
             self.laplacian_closure = self.laplacian_closure_jax
             self.r0 = jnp.array(self.r0)
-            self._jit_functions()  # maybe should be inside the child class
+            self._jit_functions()
         else:
             raise ValueError("Invalid backend:", backend)
 
@@ -96,6 +96,8 @@ class WaveFunction:
             self.log_wf = self.log_wf_slater_det
         else:
             self.log_wf = self.log_wf0
+        if self.logger is not None:
+            self.logger.info(f"Using symmetry {symmetry}")
 
     def configure_correlation(self, correlation):
         """

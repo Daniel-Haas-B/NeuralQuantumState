@@ -1,3 +1,5 @@
+import jax
+import jax.numpy as jnp
 import numpy as np
 from line_profiler import LineProfiler  # noqa
 
@@ -8,6 +10,8 @@ from src.state.utils import State
 
 class Metropolis(Sampler):
     def __init__(self, rng, scale, logger=None):
+        self.seed = 0
+        # self.rng = np.random.MT19937(seed=42) # !JUST FOR TESTING!
         super().__init__(rng, scale, logger)
 
     def _step(self, wf, state_batch, seed, batch_size):
@@ -30,32 +34,74 @@ class Metropolis(Sampler):
 
         # Advance RNG batch_size times
         # create empty array of states of size batch_size
+
+        pcg_positions = np.zeros((batch_size, 4))
+
         for i in range(batch_size):
             state = state_batch[i - 1]
 
+            # print("state pos shape ", state.positions.shape)
+            state.positions = pcg_positions[i - 1]
+            assert (state_batch[i - 1].positions == state_batch[i - 1].positions).all()
+            # print("state pos shape ", state.positions.shape)
             next_gen = advance_PRNG_state(seed, state.delta)
             rng = self._rng(next_gen)
 
-            # proposals_pos = jnp.array(rng.normal(loc=state.positions, scale=self.scale))
-            proposals_pos = rng.normal(loc=state.positions, scale=self.scale)
-
-            # Sample log uniform rvs
-            log_unif = np.log(rng.random())
+            prev_pos = state.positions
+            proposals_pos = rng.normal(loc=prev_pos, scale=self.scale)
+            log_unif = np.log(rng.uniform())
 
             # Compute proposal log density
             logp_proposal = wf.logprob(proposals_pos)
+            current_logp = wf.logprob(prev_pos)
 
             # Metroplis acceptance criterion
-            accept = log_unif < logp_proposal - state.logp
+            accept = log_unif < logp_proposal - current_logp
 
             # If accept is True, yield proposal, otherwise keep old state
-            new_positions = proposals_pos if accept else state.positions
+            new_positions = proposals_pos if accept else prev_pos
 
             # Create new state
-            new_logp = logp_proposal if accept else state.logp
+            new_logp = logp_proposal if accept else current_logp
+            # new_logp = p_proposal if accept else state.logp
             new_n_accepted = state.n_accepted + accept
             new_delta = state.delta + 1
 
+            state_batch[i] = State(new_positions, new_logp, new_n_accepted, new_delta)
+
+        return state_batch
+
+    def jax_step(self, wf, state_batch, seed, batch_size):
+        """
+        use jax rng to generate random numbers
+        """
+        self.seed += 1
+        # print("seed: ", self.seed)
+        rng = jax.random.PRNGKey(self.seed)
+        sanity = []
+
+        for i in range(batch_size):
+
+            state = state_batch[i - 1]
+            rng, rng_input = jax.random.split(rng)
+            # generate a sanity random int
+            # if i == 0:
+            #    print("sanity check: ", jax.random.randint(subkey, (1,), 0, 10))
+            center = state.positions
+
+            proposals_pos = (
+                jax.random.normal(rng_input, shape=center.shape) * self.scale + center
+            )
+            sanity.append(proposals_pos)
+            logp_proposal = wf.logprob(proposals_pos)
+
+            log_unif = jnp.log(jax.random.uniform(rng_input))
+            accept = log_unif < logp_proposal - state.logp
+
+            new_positions = proposals_pos if accept else state.positions
+            new_logp = logp_proposal if accept else state.logp
+            new_n_accepted = state.n_accepted + accept
+            new_delta = state.delta + 1
             state_batch[i] = State(new_positions, new_logp, new_n_accepted, new_delta)
 
         return state_batch

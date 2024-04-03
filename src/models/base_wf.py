@@ -91,6 +91,7 @@ class WaveFunction:
             raise ValueError("Invalid backend:", backend)
 
     def configure_symmetry(self, symmetry):
+        print("CONFIGURING SYMMETRY =============== ")
         self.symmetry = symmetry  # boson, fermion, none
         if self.symmetry == "fermion":  # then uses slater determinant
             self.log_wf = self.log_wf_slater_det

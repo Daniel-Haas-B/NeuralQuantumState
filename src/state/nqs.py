@@ -220,10 +220,10 @@ class NQS:
         self.state = self.wf.state
         grads_dict = {key: [] for key in param_keys}
         epoch = 0
-
+        states = self.state.create_batch_of_states(batch_size=batch_size)
         for _ in t_range:
             epoch += 1
-            states = self.state.create_batch_of_states(batch_size=batch_size)
+            # states = self.state.create_batch_of_states(batch_size=batch_size)
 
             # print("states", states[-1].positions.type)
             states = self._sampler.step(

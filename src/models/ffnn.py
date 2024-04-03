@@ -201,7 +201,7 @@ class FFNN(WaveFunction):
 
         return self.logprob_closure(r, self.params)
 
-    def compute_sr_matrix(self, expval_grads, grads, shift=1e-6):
+    def compute_sr_matrix(self, expval_grads, grads, shift=1e-3):
         """
         expval_grads and grads should be dictionaries with keys "v_bias", "h_bias", "kernel" in the case of RBM
         in the case of FFNN we have "weights" and "biases" and "kernel" is not present
@@ -221,7 +221,7 @@ class FFNN(WaveFunction):
             4. Compute the expectation value of the gradient ∂_W log(ψ) over all the samples
             5. Compute the outer product of the expectation value of the gradient with itself: <∂_W log(ψ)> ⊗ <∂_W log(ψ)>
 
-            OBS: < d/dW_ij log(psi) > is already done inside train of the RBM class but we need still the < (d/dW_ij log(psi)) (d/dW_kl log(psi)) >
+            OBS: < d/dW_ij log(psi) > is already done inside train of the WF class but we need still the < (d/dW_ij log(psi)) (d/dW_kl log(psi)) >
         """
         sr_matrices = {}
 

@@ -80,8 +80,8 @@ def tune_sampler(
     """
     Tune proposal scale so that the acceptance rate is around 0.7.
     """
-
-    seed_seq = generate_seed_sequence(seed + 1, 1)[0]
+    seed = seed + 1 if seed is not None else None
+    seed_seq = generate_seed_sequence(seed, 1)[0]
 
     # Reset n_accepted
     state = current_state
@@ -137,7 +137,7 @@ def tune_sampler(
                     0.1
                 )  # this hopefully makes the predictions be more around 0 because the weights are smaller
                 # reset scale
-                sampler.reset_scale(1 / np.sqrt(wf.nparticles * wf.dim))
+                sampler.reset_scale(1 / np.sqrt(wf._N * wf._dim))
                 return  # start over
 
             sampler.tune_scale(old_scale, accept_rate)

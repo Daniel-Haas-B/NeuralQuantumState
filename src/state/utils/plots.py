@@ -93,31 +93,35 @@ def plot_obd(file_name, nsamples, dim):
     ax = fig.add_subplot(111, projection="3d")
     ax.plot_surface(X, Y, Z, cmap="BuPu", linewidth=0.5, color="grey", alpha=0.7)
 
-    # Evaluate the KDE over the x = y line
-    line_pts = np.linspace(x_min, x_max, 100)
-    z_line = kde(np.vstack([line_pts, line_pts]))
+    # Evaluate the KDE for x = 0
+    y_line = np.linspace(y_min, y_max, 200)
+    z_y_line = kde(np.vstack([np.zeros_like(y_line), y_line]))
 
-    # Project the shadow of the x = y line onto the xz and yz planes
+    # Evaluate the KDE for y = 0
+    x_line = np.linspace(x_min, x_max, 200)
+    z_x_line = kde(np.vstack([x_line, np.zeros_like(x_line)]))
+
+    # Project the KDE cuts onto the walls
     ax.plot(
-        line_pts,
-        y_max * np.ones_like(line_pts),
-        z_line,
+        x_line,
+        y_max * np.ones_like(x_line),
+        z_x_line,
         color="grey",
         linestyle="-",
         linewidth=1.5,
-    )  # Project onto xz plane (as a line on the back wall)
+    )  # Project onto xz plane
     ax.plot(
-        x_min * np.ones_like(line_pts),
-        line_pts,
-        z_line,
+        x_min * np.ones_like(y_line),
+        y_line,
+        z_y_line,
         color="grey",
         linestyle="-",
         linewidth=1.5,
-    )  # Project onto yz plane (as a line on the side wall)
+    )  # Project onto yz plane
 
-    ax.set_xlabel("X Label")
-    ax.set_ylabel("Y Label")
-    ax.set_zlabel("Z Label")
+    ax.set_xlabel("X")
+    ax.set_ylabel("Y")
+    ax.set_zlabel("Approx. One-body Density")
     file_name = file_name.split(".")[0]
     plot_style.save(f"{file_name}_density_plot")
     plt.show()
@@ -155,11 +159,23 @@ def plot_tbd(file_name, nsamples, nparticles, dim):
     # Create the plot
     plt.figure(figsize=(8, 6))
     plt.fill_between(distance_range, density, color="skyblue")
+
+    # add vertical line at 1.253 and the mean of the distances
+    plt.axvline(
+        x=1.253, color="red", linestyle="--", label="Theo $\langle D \rangle$"  # noqa
+    )  # TODO: THIS IS ONLY FOR THE 2D HARMONIC OSCILLATOR 2 PARTICLES
+    plt.axvline(
+        x=distances.mean(),
+        color="green",
+        linestyle="--",
+        label="Sample $\langle D \rangle$",  # noqa
+    )
     plt.plot(distance_range, density, color="steelblue")
     plt.title("Two-Body Distance Probability Density")
     plt.xlabel("Distance between two particles")
     plt.ylabel("Probability Density")
     plt.grid(True)
+    plt.legend()
 
     # Save the plot
     file_name = file_name.split(".")[0]

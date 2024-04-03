@@ -80,6 +80,10 @@ def advance_PRNG_state(seed, delta):
     Advancing a PRNG updates the underlying PRNG state as if a number
     of delta calls to the underlying PRNG have been made.
 
+    Disclaimer:
+    Advancing a PCG64 instead of Philox will not work as expected.
+    It seems to induce crazy correlations and we do not know why.
+
     Parameters
     ----------
     seed : SeedSequence
@@ -89,8 +93,8 @@ def advance_PRNG_state(seed, delta):
 
     Returns
     -------
-    object : PCG64
+    object : Philox
         PRNG advanced delta steps.
     """
 
-    return np.random.PCG64(seed).advance(delta)
+    return np.random.Philox(seed).advance(delta)

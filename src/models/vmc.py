@@ -35,6 +35,8 @@ class VMC(WaveFunction):
         self.configure_correlation(correlation)  # NEED TO BE BEFORE CONFIGURE_BACKEND
         self.configure_backend(backend)
         self._initialize_variational_params(rng)
+        self._N = nparticles
+        self._dim = dim
 
         logp = self.logprob(self.r0)  # log of the (absolute) wavefunction squared
         self.state = State(self.r0, logp, 0, 0)
@@ -53,16 +55,15 @@ class VMC(WaveFunction):
         alpha: (N * dim) array so that alpha_i is a dim-dimensional vector
         """
 
-        r_2 = r * r
         alpha = params.get("alpha")
-        alpha_r_2 = alpha * r_2
+        alpha_r_2 = alpha * r * r
         return -self.backend.sum(alpha_r_2, axis=-1)
 
     def logprob_closure(self, r, alpha):
         """
         Return a function that computes the log of the wavefunction squared
         """
-        return 2 * self.log_wf(r, alpha).sum()
+        return 2 * self.log_wf(r, alpha)  # .sum()
 
     def logprob(self, r):
         """
@@ -87,9 +88,7 @@ class VMC(WaveFunction):
         self.wf output is of size (batch_size, )
         """
 
-        grad_wf_closure = jax.grad(self.log_wf, argnums=0)
-
-        return vmap(grad_wf_closure, in_axes=(0, None))(
+        return vmap(jax.grad(self.log_wf, argnums=0), in_axes=(0, None))(
             r, alpha
         )  # 0, none will broadcast alpha to the batch size
 
@@ -113,9 +112,7 @@ class VMC(WaveFunction):
         """
         Return a function that computes the gradient of the log of the wavefunction squared
         """
-        r2 = r * r  # element-wise multiplication
-
-        return -r2
+        return -r * r  # element-wise multiplication
 
     def grads_closure_jax(self, r, alpha):
         """
@@ -149,15 +146,18 @@ class VMC(WaveFunction):
 
         return laplacian
 
-    def laplacian_closure(self, r, alpha):
+    def laplacian_closure(self, r, params):
         """
         Return a function that computes the laplacian of the wavefunction
         Remember in log domain, the laplacian is
         ∇^2 Ψ(r) = ∇^2 - ∑_{i=1}^{N} alpha_i r_i.T * r_i = -2 * alpha
-        # TODO: this is broken. Need Fix!
         """
         # check if this is correct!
-        return -2 * self.backend.sum(alpha)
+        alpha = params.get("alpha")
+        lap = -2 * alpha.sum()
+        lap_batch = self.backend.ones(r.shape[0]) * lap
+
+        return lap_batch
 
     def laplacian_closure_jax(self, r, params):
         """

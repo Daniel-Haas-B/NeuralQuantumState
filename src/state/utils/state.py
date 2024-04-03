@@ -38,19 +38,12 @@ class State:
     #     ])
     #     return batched_state
 
-    # legacy code that is not jnp compatible
     def create_batch_of_states(self, batch_size):
-        """ """
-        # Replicate each property of the state
-
-        batch_positions = np.array([self.positions] * batch_size)
-        batch_logp = np.array([self.logp] * batch_size)
-        batch_n_accepted = np.array([self.n_accepted] * batch_size)
-        batch_delta = np.array([self.delta] * batch_size)
-
-        # Create a new State object with these batched properties
-        batch_state = State(batch_positions, batch_logp, batch_n_accepted, batch_delta)
-        return batch_state
+        batch_states = [
+            State(self.positions.copy(), self.logp, self.n_accepted, self.delta)
+            for _ in range(batch_size)
+        ]
+        return BatchedStates(batch_states)
 
     def __repr__(self):
         return f"State(positions={self.positions}, logp={self.logp}, n_accepted={self.n_accepted}, delta={self.delta})"
@@ -67,36 +60,53 @@ class State:
         self.delta[key] = value.delta
 
 
-class BatchedState:
+class BatchedStates:
     def __init__(self, states):
         self.states = states
 
     @property
     def positions(self):
-        return jnp.stack([state.positions for state in self.states])
+        return np.array([state.positions for state in self.states])
+
+    @positions.setter
+    def positions(self, new_positions):
+        for i, state in enumerate(self.states):
+            state.positions = new_positions[i]
 
     @property
     def logp(self):
-        return jnp.stack([state.logp for state in self.states])
+        return np.array([state.logp for state in self.states])
+
+    @logp.setter
+    def logp(self, new_logp):
+        for i, state in enumerate(self.states):
+            state.logp = new_logp[i]
 
     @property
     def n_accepted(self):
-        return jnp.array([state.n_accepted for state in self.states], dtype=jnp.int32)
+        return np.array([state.n_accepted for state in self.states])
+
+    @n_accepted.setter
+    def n_accepted(self, new_n_accepted):
+        for i, state in enumerate(self.states):
+            state.n_accepted = new_n_accepted[i]
 
     @property
     def delta(self):
-        return jnp.array([state.delta for state in self.states], dtype=jnp.int32)
+        return np.array([state.delta for state in self.states])
+
+    @delta.setter
+    def delta(self, new_delta):
+        for i, state in enumerate(self.states):
+            state.delta = new_delta[i]
 
     def __getitem__(self, key):
         return self.states[key]
 
     def __setitem__(self, key, value):
+        if not isinstance(value, State):
+            raise ValueError("Value must be an instance of State.")
         self.states[key] = value
 
     def __len__(self):
         return len(self.states)
-
-    @positions.setter
-    def positions(self, value):
-        for i, state in enumerate(self.states):
-            state.positions = value[i]

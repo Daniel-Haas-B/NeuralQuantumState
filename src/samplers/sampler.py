@@ -1,4 +1,5 @@
 import copy
+import os
 
 import h5py
 import numpy as np
@@ -107,29 +108,36 @@ class Sampler:
         else:
             t_range = range(0, nsamples // batch_size)
 
-        state = state.create_batch_of_states(batch_size=batch_size)
+        batch_state = state.create_batch_of_states(batch_size=batch_size)
         energies = np.zeros(nsamples)
-
+        (
+            os.remove(f"data/positions_{wf.__class__.__name__}.h5")
+            if os.path.exists(f"data/positions_{wf.__class__.__name__}.h5")
+            else None
+        )
         for i in t_range:  # 2**18
-            state = self._step(wf, state, seed, batch_size=batch_size)
+            batch_state = self._step(wf, batch_state, seed, batch_size=batch_size)
             energies[i * batch_size : (i + 1) * batch_size] = (
-                self.hamiltonian.local_energy(wf, state.positions)
+                self.hamiltonian.local_energy(wf, batch_state.positions)
             )
             if save_positions:
                 f = h5py.File(f"data/positions_{wf.__class__.__name__}.h5", "a")
                 if i == 0:
                     f.create_dataset(
                         "positions",
-                        data=state.positions,
+                        data=batch_state.positions,
                         compression="gzip",
                         chunks=True,
-                        maxshape=(None, state.positions.shape[1]),
+                        maxshape=(None, batch_state.positions.shape[1]),
                     )
                 else:
                     f["positions"].resize(
-                        (f["positions"].shape[0] + state.positions.shape[0]), axis=0
+                        (f["positions"].shape[0] + batch_state.positions.shape[0]),
+                        axis=0,
                     )
-                    f["positions"][-state.positions.shape[0] :] = state.positions
+                    f["positions"][
+                        -batch_state.positions.shape[0] :
+                    ] = batch_state.positions
 
         if self._logger is not None:
             t_range.clear()
@@ -140,7 +148,7 @@ class Sampler:
         energy = np.mean(energies)
         error = block(energies)
         variance = np.mean(energies**2) - energy**2
-        acc_rate = state.n_accepted[-1] / nsamples
+        acc_rate = batch_state.n_accepted[-1] / nsamples
 
         sample_results = {
             "chain_id": chain_id + 1,

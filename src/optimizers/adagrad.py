@@ -22,14 +22,14 @@ class Adagrad(Optimizer):
 
         self.epsilon = kwargs["epsilon"] if "epsilon" in kwargs else 1e-8
 
-    def step(self, params, grads, sr_matrices=None):
+    def step(self, params, grads_E, sr_matrices=None):
         """Update the parameters."""
 
         for key in self._param_keys:
             # Update m and v with the new gradients
 
             v_key = "v_" + key
-            grads_val = grads[key]
+            grads_val = grads_E[key]
 
             self._v_params[v_key] = self._v_params[v_key] + grads_val**2
 

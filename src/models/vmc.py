@@ -99,14 +99,9 @@ class VMC(WaveFunction):
 
         return self.grad_wf_closure(r, self.params)
 
-    def grads(self, r):
-        """
-        Compute the gradient of the log of the wavefunction squared (why squared?)
-        """
+    def grad_params(self, r):
 
-        grads_dict = self.grads_closure(r, self.params)
-
-        return grads_dict
+        return self.grad_params_closure(r, self.params)
 
     def grads_closure(self, r, alpha):
         """
@@ -114,7 +109,7 @@ class VMC(WaveFunction):
         """
         return -r * r  # element-wise multiplication
 
-    def grads_closure_jax(self, r, alpha):
+    def grad_params_closure_jax(self, r, alpha):
         """
         Return a function that computes the gradient of the log of the wavefunction squared
         """
@@ -177,26 +172,25 @@ class VMC(WaveFunction):
 
         return self.backend.exp(self.logprob(r)) ** 2
 
-    def compute_sr_matrix(self, expval_grads, grads, shift=1e-3):
+    def compute_sr_matrix(self, expval_grad_params, grad_params, shift=1e-3):
         """
-
         Compute the matrix for the stochastic reconfiguration algorithm
 
             For alpha vector, we have:
                 S_i,j = < (d/dalpha_i log(psi)) (d/dalpha_j log(psi)) > - < d/dalpha_i log(psi) > < d/dalpha_j log(psi) >
 
 
-            1. Compute the gradient ∂_alpha log(ψ) using the grads function.
+            1. Compute the gradient ∂_alpha log(ψ) using the grad_params function.
             2. Compute the outer product of the gradient with itself: ∂_W log(ψ) ⊗ ∂_W log(ψ) )
             3. Compute the expectation value of the outer product over all the samples
             4. Compute the expectation value of the gradient ∂_W log(ψ) over all the samples
             5. Compute the outer product of the expectation value of the gradient with itself: <∂_W log(ψ)> ⊗ <∂_W log(ψ)>
 
-            OBS: < d/dW_ij log(psi) > is already done inside train of the NQS class (expval_grads) but we need still the < (d/dW_i log(psi)) (d/dW_j log(psi)) >
+            OBS: < d/dW_ij log(psi) > is already done inside train of the NQS class (expval_grad_params) but we need still the < (d/dW_i log(psi)) (d/dW_j log(psi)) >
         """
         sr_matrices = {}
 
-        for key, grad_value in grads.items():
+        for key, grad_value in grad_params.items():
             grad_value = self.backend.array(grad_value)
 
             grads_outer = self.backend.einsum(
@@ -206,7 +200,7 @@ class VMC(WaveFunction):
                 grads_outer, axis=0
             )  # this is < (d/dW_i log(psi)) (d/dW_j log(psi)) > over the batch
             outer_expval_grad = self.backend.einsum(
-                "i,j->ij", expval_grads[key], expval_grads[key]
+                "i,j->ij", expval_grad_params[key], expval_grad_params[key]
             )  # this is <∂_W log(ψ)> ⊗ <∂_W log(ψ)>
 
             sr_mat = expval_outer_grad - outer_expval_grad

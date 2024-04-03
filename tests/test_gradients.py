@@ -95,7 +95,7 @@ def test_gradient_wrt_position():
 
 def test_gradient_wrt_parameters():
     func_to_test = lambda p: ffnn.wf(r_test, p)  # noqa: E731
-    grad_params_computed = ffnn.grads(r_test)
+    grad_params_computed = ffnn.grad_params(r_test)
     grad_params_approx = finite_difference_param_gradient(func_to_test, ffnn.params)
 
     for key in grad_params_computed.keys():

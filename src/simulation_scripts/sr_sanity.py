@@ -18,9 +18,9 @@ def compute_numerical_sr_matrix(ffnn, x, alpha):
     # Use your FFNN implementation to compute the SR matrix
     params = {"alpha": alpha}  # Assuming alpha is a parameter in your model
     # wf_value = ffnn.wf(x, params)
-    grads = ffnn.grads(x, params)
+    grad_params = ffnn.grad_params(x, params)
     # Compute SR matrix using your method
-    sr_matrix = ffnn.compute_sr_matrix(grads)
+    sr_matrix = ffnn.compute_sr_matrix(grad_params)
     return sr_matrix
 
 

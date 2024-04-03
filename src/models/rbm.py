@@ -177,10 +177,8 @@ class RBM(WaveFunction):
         """
         grad of the wave function w.r.t. the coordinates
         """
-        params = self.params
-        grads = self.grad_wf_closure(r, params)
 
-        return grads
+        return self.grad_wf_closure(r, self.params)
 
     def laplacian_closure(self, r, params):
         _expit = self.sigmoid(
@@ -223,7 +221,7 @@ class RBM(WaveFunction):
 
         return laplacian
 
-    def grads_closure(self, r, params):
+    def grad_params_closure(self, r, params):
         _expit = self.sigmoid(
             params.get("h_bias") + (r @ params.get("kernel")) * self._sigma2_factor
         )
@@ -248,23 +246,19 @@ class RBM(WaveFunction):
 
         return grads_dict
 
-    def grads_closure_jax(self, r, params):
+    def grad_params_closure_jax(self, r, params):
         """
         This is the autograd version of the gradient of the logarithm of the wave function w.r.t. the parameters
         """
-        grads = vmap(jax.grad(self.wf, argnums=1), in_axes=(0, None))(r, params)
 
-        return grads
+        return vmap(jax.grad(self.wf, argnums=1), in_axes=(0, None))(r, params)
 
-    def grads(self, r):
+    def grad_params(self, r):
         """Gradients of the wave function w.r.t. the parameters"""
-        params = self.params
 
-        grads_dict = self.grads_closure(r, params)
-        return grads_dict  # grad_v_bias, grad_h_bias, grad_kernel
+        return self.grad_params_closure(r, self.params)
 
-    # @partial(jax.jit, static_argnums=(0,)) only if backend is jax
-    def compute_sr_matrix(self, expval_grads, grads, shift=1e-4):
+    def compute_sr_matrix(self, expval_grad_params, grad_params, shift=1e-4):
         """
         expval_grads and grads should be dictionaries with keys "v_bias", "h_bias", "kernel" in the case of RBM
         in the case of FFNN we have "weights" and "biases" and "kernel" is not present
@@ -277,7 +271,6 @@ class RBM(WaveFunction):
             For bias (V or H) we have:
                 S_i,j = < (d/dV_i log(psi)) (d/dV_j log(psi)) > - < d/dV_i log(psi) > < d/dV_j log(psi) >
 
-
             1. Compute the gradient ∂_W log(ψ) using the _grad_kernel function.
             2. Compute the outer product of the gradient with itself: ∂_W log(ψ) ⊗ ∂_W log(ψ)
             3. Compute the expectation value of the outer product over all the samples
@@ -288,7 +281,7 @@ class RBM(WaveFunction):
         """
         sr_matrices = {}
 
-        for key, grad_value in grads.items():
+        for key, grad_value in grad_params.items():
             grad_value = self.backend.array(grad_value)
 
             # if self.backend.ndim(grad_value[0]) == 2:
@@ -301,7 +294,9 @@ class RBM(WaveFunction):
                 grads_outer = self.backend.einsum("ni,nj->nij", grad_value, grad_value)
 
             expval_outer_grad = self.backend.mean(grads_outer, axis=0)
-            outer_expval_grad = self.backend.outer(expval_grads[key], expval_grads[key])
+            outer_expval_grad = self.backend.outer(
+                expval_grad_params[key], expval_grad_params[key]
+            )
 
             sr_mat = (
                 expval_outer_grad.reshape(outer_expval_grad.shape) - outer_expval_grad

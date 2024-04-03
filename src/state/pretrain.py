@@ -159,7 +159,7 @@ class Gaussian:
         self._training_cycles = max_iter
         self._training_batch = batch_size
         self._history = (
-            {"loss": [], "grads": []} if kwargs.get("history", False) else None
+            {"loss": [], "grad_params": []} if kwargs.get("history", False) else None
         )
 
         self._early_stop = kwargs.get("early_stop", False)
@@ -207,14 +207,15 @@ class Gaussian:
             grad_loss_dict = grad_loss_fn(positions, params)
 
             epoch += 1
-            t_range.set_postfix(loss=f"{loss:.2E}", refresh=True)
+            if self._log:
+                t_range.set_postfix(loss=f"{loss:.2E}", refresh=True)
 
             if self._history:
                 grad_norms = [
                     self.backend.mean(grad_loss_dict.get(key)) for key in param_keys
                 ]
                 self._history["loss"].append(loss)
-                self._history["grads"].append(grad_norms)
+                self._history["grad_params"].append(grad_norms)
 
             # Descent
             self._optimizer.step(

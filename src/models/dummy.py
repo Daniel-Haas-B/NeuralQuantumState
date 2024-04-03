@@ -51,7 +51,7 @@ class Dummy:
             self.backend = jnp
             self.la = jnp.linalg
             self.grad_wf_closure = self.grad_wf_closure_jax
-            self.grads_closure = self.grads_closure_jax
+            self.grad_params_closure = self.grad_params_closure_jax
             self.laplacian_closure = self.laplacian_closure_jax
             # self._jit_functions()
         else:
@@ -63,7 +63,7 @@ class Dummy:
             "grad_wf_closure",
             "laplacian_closure",
             "logprob_closure",
-            "grads_closure",
+            "grad_params_closure",
         ]
         for func in functions_to_jit:
             setattr(self, func, jax.jit(getattr(self, func)))
@@ -103,7 +103,7 @@ class Dummy:
         alpha = self.params.get("alpha")
         return self.grad_wf_closure(r, alpha)
 
-    def grads(self, r):
+    def grad_params(self, r):
         """
         Compute the gradient of the log of the wavefunction squared
         """
@@ -114,7 +114,7 @@ class Dummy:
 
         return grads_dict
 
-    def grads_closure_jax(self, r, alpha):
+    def grad_params_closure_jax(self, r, alpha):
         """
         Return a function that computes the gradient of the log of the wavefunction squared
         """
@@ -172,11 +172,11 @@ class Dummy:
         alpha = self.params.get("alpha")
         return self.backend.abs(self.wf(r, alpha)) ** 2
 
-    def compute_sr_matrix(self, expval_grads, grads, shift=1e-4):
+    def compute_sr_matrix(self, expval_grad_params, grad_params, shift=1e-4):
         """ """
         sr_matrices = {}
 
-        for key, grad_value in grads.items():
+        for key, grad_value in grad_params.items():
             grad_value = self.backend.array(
                 grad_value
             )  # this should be done outside of the function
@@ -191,7 +191,9 @@ class Dummy:
                 grads_outer = self.backend.einsum("ni,nj->nij", grad_value, grad_value)
 
             expval_outer_grad = self.backend.mean(grads_outer, axis=0)
-            outer_expval_grad = self.backend.outer(expval_grads[key], expval_grads[key])
+            outer_expval_grad = self.backend.outer(
+                expval_grad_params[key], expval_grad_params[key]
+            )
 
             sr_mat = (
                 expval_outer_grad.reshape(outer_expval_grad.shape) - outer_expval_grad

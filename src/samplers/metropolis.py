@@ -10,8 +10,7 @@ from src.state.utils import State
 
 class Metropolis(Sampler):
     def __init__(self, rng, scale, logger=None):
-        self.seed = 0
-        # self.rng = np.random.MT19937(seed=42) # !JUST FOR TESTING!
+
         super().__init__(rng, scale, logger)
 
     def _step(self, wf, state_batch, seed, batch_size):
@@ -35,15 +34,9 @@ class Metropolis(Sampler):
         # Advance RNG batch_size times
         # create empty array of states of size batch_size
 
-        pcg_positions = np.zeros((batch_size, 4))
-
         for i in range(batch_size):
             state = state_batch[i - 1]
 
-            # print("state pos shape ", state.positions.shape)
-            state.positions = pcg_positions[i - 1]
-            assert (state_batch[i - 1].positions == state_batch[i - 1].positions).all()
-            # print("state pos shape ", state.positions.shape)
             next_gen = advance_PRNG_state(seed, state.delta)
             rng = self._rng(next_gen)
 
@@ -67,7 +60,10 @@ class Metropolis(Sampler):
             new_n_accepted = state.n_accepted + accept
             new_delta = state.delta + 1
 
-            state_batch[i] = State(new_positions, new_logp, new_n_accepted, new_delta)
+            state_batch[i].positions = new_positions
+            state_batch[i].logp = new_logp
+            state_batch[i].n_accepted = new_n_accepted
+            state_batch[i].delta = new_delta
 
         return state_batch
 
@@ -84,9 +80,7 @@ class Metropolis(Sampler):
 
             state = state_batch[i - 1]
             rng, rng_input = jax.random.split(rng)
-            # generate a sanity random int
-            # if i == 0:
-            #    print("sanity check: ", jax.random.randint(subkey, (1,), 0, 10))
+
             center = state.positions
 
             proposals_pos = (
@@ -102,7 +96,10 @@ class Metropolis(Sampler):
             new_logp = logp_proposal if accept else state.logp
             new_n_accepted = state.n_accepted + accept
             new_delta = state.delta + 1
-            state_batch[i] = State(new_positions, new_logp, new_n_accepted, new_delta)
+            state_batch[i].positions = new_positions
+            state_batch[i].logp = new_logp
+            state_batch[i].n_accepted = new_n_accepted
+            state_batch[i].delta = new_delta
 
         return state_batch
 

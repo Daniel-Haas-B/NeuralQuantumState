@@ -16,11 +16,11 @@ jax.config.update("jax_platform_name", "cpu")
 output_filename = "/Users/haas/Documents/Masters/NQS/data/playground.csv"
 nparticles = 2
 dim = 2
-nsamples = int(2**17)  # 2**18 = 262144
+nsamples = int(2**19)  # 2**18 = 262144
 nchains = 1
-eta = 0.01 / np.sqrt(nparticles * dim)  # 0.001  / np.sqrt(nparticles * dim)
+eta = 0.1 / np.sqrt(nparticles * dim)  # 0.001  / np.sqrt(nparticles * dim)
 
-training_cycles = 0  # this is cycles for the ansatz
+training_cycles = 1000  # this is cycles for the ansatz
 mcmc_alg = "m"
 backend = "jax"
 optimizer = "adam"
@@ -71,7 +71,7 @@ history = system.train(
     early_stop=False,
     seed=seed,
     history=True,
-    tune=True,
+    tune=False,
 )
 
 df = system.sample(

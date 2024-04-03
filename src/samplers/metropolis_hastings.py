@@ -2,7 +2,6 @@ import numpy as np
 
 from .sampler import Sampler
 from src.state.utils import advance_PRNG_state
-from src.state.utils import State
 
 
 class MetropolisHastings(Sampler):
@@ -75,9 +74,10 @@ class MetropolisHastings(Sampler):
             new_n_accepted = state.n_accepted + accept
             new_delta = state.delta + 1
 
-            state_batch[i] = State(
-                new_positions, new_logp, new_n_accepted, new_delta
-            )  # could be slow
+            state_batch[i].positions = new_positions
+            state_batch[i].logp = new_logp
+            state_batch[i].n_accepted = new_n_accepted
+            state_batch[i].delta = new_delta
 
         return state_batch
 

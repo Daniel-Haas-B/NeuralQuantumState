@@ -70,7 +70,7 @@ def generate_seed_sequence(user_seed=None, pool_size=None):
     return seeds
 
 
-def advance_PRNG_state(seed, delta, engine="pcg64"):
+def advance_PRNG_state(seed, delta):
     """Advance the underlying PRNG as-if delta draws have occurred.
 
     In the ABC samplers, the random values are simulated using a
@@ -79,6 +79,10 @@ def advance_PRNG_state(seed, delta, engine="pcg64"):
 
     Advancing a PRNG updates the underlying PRNG state as if a number
     of delta calls to the underlying PRNG have been made.
+
+    Disclaimer:
+    Advancing a PCG64 instead of Philox will not work as expected.
+    It seems to induce crazy correlations and we do not know why.
 
     Parameters
     ----------
@@ -89,8 +93,8 @@ def advance_PRNG_state(seed, delta, engine="pcg64"):
 
     Returns
     -------
-    object : PCG64
+    object : Philox
         PRNG advanced delta steps.
     """
 
-    return np.random.PCG64(seed).advance(delta)  # np.random.PCG64(seed).advance(delta)
+    return np.random.Philox(seed).advance(delta)

@@ -239,6 +239,9 @@ pyrightconfig.json
 # End of https://www.toptal.com/developers/gitignore/api/visualstudiocode,python,jupyternotebooks,macos
 
 
+# Ignore poetry lock file
+poetry.lock
+
 ### Experiments data ###
 
 # Ignore all data files

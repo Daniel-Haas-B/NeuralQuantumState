@@ -11,6 +11,35 @@ from scipy.special import expit
 
 
 class WaveFunction:
+    """
+    Base class for various wave functions used in quantum simulations.
+
+    Attributes:
+        params (dict): Parameters of the wave function.
+        N (int): Number of particles.
+        dim (int): Dimensionality of the system.
+        _log (bool): Whether to enable logging.
+        logger (logging.Logger): Logger for debugging and info messages.
+        _logger_level (str): Level of the logger, defaults to 'INFO'.
+        backend (str): Backend used for calculations, 'numpy' or 'jax'.
+        _seed (int or None): Seed for random number generation.
+        symmetry (str or None): Symmetry of the wave function, 'boson', 'fermion', or 'none'.
+        jastrow (bool): Whether to use Jastrow factors.
+        pade_jastrow (bool): Whether to use Pade-Jastrow factors.
+        sqrt_omega (float): Square root of the oscillator frequency.
+        slater_fact (float): Logarithm of the factorial of N, for normalization.
+
+    Parameters:
+        nparticles (int): The number of particles in the system.
+        dim (int): The dimensionality of the system.
+        rng (Generator, optional): Random number generator instance.
+        log (bool, optional): Flag to enable logging. Defaults to False.
+        logger (logging.Logger, optional): Logger instance. Defaults to None.
+        logger_level (str, optional): Logging level. Defaults to 'INFO'.
+        backend (str, optional): Specifies the computation backend. Defaults to 'numpy'.
+        seed (int, optional): Seed for the random number generator. Defaults to None.
+    """
+
     def __init__(
         self,
         nparticles,
@@ -51,10 +80,16 @@ class WaveFunction:
         self.r0 = self.rng.standard_normal(size=self.N * self.dim)
 
     def reinit_positions(self):
+        """
+        Reinitialize the particle positions with a standard normal distribution.
+        """
         self.r0 = self.rng.standard_normal(size=self.N * self.dim)
         print("====== reinitiated positions to", self.r0)
 
     def _jit_functions(self):
+        """
+        JIT compile the wave function methods for performance using JAX, if available.
+        """
         functions_to_jit = [
             "log_wf",  # cant jit this with lapjax
             # "log_wf0", # dont use this with deepset at least
@@ -74,6 +109,16 @@ class WaveFunction:
                 setattr(self, func, jax.jit(getattr(self, func)))
 
     def configure_backend(self, backend):
+        """
+        Configure the computation backend for the wave function operations.
+
+        Parameters:
+            backend (str): The backend to use, 'numpy' or 'jax'.
+
+        Raises:
+            ValueError: If an invalid backend is specified.
+        """
+
         if backend == "numpy":
             self.backend = np
             self.la = np.linalg
@@ -91,6 +136,12 @@ class WaveFunction:
             raise ValueError("Invalid backend:", backend)
 
     def configure_symmetry(self, symmetry):
+        """
+        Configure the symmetry of the wave function.
+
+        Parameters:
+            symmetry (str): The symmetry to configure, 'boson', 'fermion', or 'none'.
+        """
         self.symmetry = symmetry  # boson, fermion, none
         if self.symmetry == "fermion":  # then uses slater determinant
             self.log_wf = self.log_wf_slater_det
@@ -101,8 +152,13 @@ class WaveFunction:
 
     def configure_correlation(self, correlation):
         """
-        Note:
-            Will be called after configure symmetry
+        Configure the correlation factor for the wave function.
+
+        Parameters:
+            correlation (str): The correlation factor to use, 'pj' for Pade-Jastrow, 'j' for Jastrow, or 'none'.
+
+        Notes:
+            Will be called after configure_symmetry.
         """
         if correlation == "pj":
             self.pade_jastrow = True
@@ -134,22 +190,58 @@ class WaveFunction:
 
     def log_wf_slater_det(self, r, params):
         """
-        this is the non interacting case, with only the slater determinant
+        Calculate the log of the wave function value considering only the Slater determinant,
+        which represents the non-interacting case.
+
+        Parameters:
+            r (ndarray): An array of particle positions.
+            params (dict): Parameters of the wave function.
+
+        Returns:
+            ndarray: Logarithm of the Slater determinant component of the wave function.
         """
         return self.log_wf0(r, params) + self.log_slater(r)
 
     def log_wf_jastrow(self, r, params):
         """
-        this is the jastraw factor only, without the slater determinant
+        Calculate the log of the wave function value considering only the Jastrow factor.
+
+        Parameters:
+            r (ndarray): An array of particle positions.
+            params (dict): Parameters of the wave function, including Jastrow factor parameters.
+
+        Returns:
+            ndarray: Logarithm of the Jastrow factor component of the wave function.
         """
         return self.log_wf0(r, params) + self.log_jastrow(r, params)
 
     def log_wf_slater_jastrow(self, r, params):
+        """
+        Calculate the log of the wave function value using both the Slater determinant and Jastrow factor.
+
+        Parameters:
+            r (ndarray): An array of particle positions.
+            params (dict): Parameters of the wave function, including Slater and Jastrow parameters.
+
+        Returns:
+            ndarray: Logarithm of the combined Slater and Jastrow wave function.
+        """
+
         return (
             self.log_wf0(r, params) + self.log_slater(r) + self.log_jastrow(r, params)
         )
 
     def log_wf_pade_jastrow(self, r, params):
+        """
+        Calculate the log of the wave function value using both the Slater determinant and Pade-Jastrow factor.
+
+        Parameters:
+            r (ndarray): An array of particle positions.
+            params (dict): Parameters of the wave function, including Pade-Jastrow factor parameters.
+
+        Returns:
+            ndarray: Logarithm of the combined Slater and Pade-Jastrow wave function.
+        """
         return (
             self.log_wf0(r, params)
             + self.log_slater(r)
@@ -158,9 +250,14 @@ class WaveFunction:
 
     def log_jastrow(self, r, params):
         """
-        Only used when jastrow is True, and it is kinda irrespective of
-        the NN architecture.
-        TODO: One future idea is to make a NN for the "learning" of the Jastrow factor.
+        Compute the Jastrow factor component of the wave function.
+
+        Parameters:
+            r (ndarray): An array of particle positions reshaped into (-1, N, dim) dimensions.
+            params (dict): Parameters of the wave function including the Jastrow weight matrix 'WJ'.
+
+        Returns:
+            ndarray: Computed Jastrow factor.
         """
 
         epsilon = 1e-10  # Small epsilon value was 10^-8 before
@@ -175,7 +272,16 @@ class WaveFunction:
         return x.squeeze(-1)
 
     def log_pade_jastrow(self, r, params):
-        """ """
+        """
+        Compute the Pade-Jastrow factor for the wave function, which is a specific type of Jastrow factor.
+
+        Parameters:
+            r (ndarray): An array of particle positions reshaped into (-1, N, dim) dimensions.
+            params (dict): Parameters of the wave function including the Pade-Jastrow coefficient 'CPJ'.
+
+        Returns:
+            ndarray: Computed Pade-Jastrow factor.
+        """
 
         epsilon = 1e-10  # Small epsilon value was 10^-8 before
         r_cpy = r.reshape(-1, self.N, self.dim)
@@ -192,6 +298,13 @@ class WaveFunction:
         return x.squeeze(-1)
 
     def generate_degrees(self):
+        """
+        Generate all possible combinations of degrees for the single-particle wave functions
+        used in the Slater determinant.
+
+        Returns:
+            ndarray: Array of combinations of degrees with the shape (N//2, dim).
+        """
         max_comb = self.N // 2
         combinations = [[0] * self.dim]
         seen = {tuple(combinations[0])}
@@ -215,17 +328,26 @@ class WaveFunction:
 
     def log_slater(self, r):
         """
-        Decomposed spin Slater determinant in log domain.
-        ln psi = ln det (D(up)) + ln det (D(down))
-        In our ground state, half of the particles are spin up and half are spin down.
-        We will also add the 1/sqrt(N!) normalization factor here.
+        Compute the logarithm of the Slater determinant for a system of particles, considering
+        the spin decomposition in the ground state.
 
-        D = |phi_1(r_1) phi_2(r_1) ... phi_n(r_1)|
-            |phi_1(r_2) phi_2(r_2) ... phi_n(r_2)|
-            |   ...         ...          ...     |
-            |phi_1(r_n) phi_2(r_n) ... phi_n(r_n)|
+        Parameters:
+            r (ndarray): An array of particle positions reshaped into (-1, N, dim) dimensions.
 
-        where phi_i is the i-th single particle wavefunction, in our case it is a hermite polynomial.
+        Returns:
+            ndarray: Computed logarithm of the Slater determinant for the given positions.
+
+        The determinant D is calculated as follows, where phi_i is the i-th single particle wavefunction,
+        which in our case is a Hermite polynomial:
+
+        .. math::
+
+            D = \\begin{vmatrix}
+            \\phi_1(r_1) & \\phi_2(r_1) & \\cdots & \\phi_n(r_1) \\\\
+            \\phi_1(r_2) & \\phi_2(r_2) & \\cdots & \\phi_n(r_2) \\\\
+            \\vdots      & \\vdots      & \\ddots & \\vdots      \\\\
+            \\phi_1(r_n) & \\phi_2(r_n) & \\cdots & \\phi_n(r_n)
+            \\end{vmatrix}
         """
         A = self.N // 2
         r = r.reshape(-1, self.N, self.dim)
@@ -262,25 +384,16 @@ class WaveFunction:
 
     def hermite(self, r, degs):
         """
-        Compute the product of Hermite polynomials for the given values, degree, and dimension.
+        Compute the product of Hermite polynomials for a given set of positions and degrees.
 
         Parameters:
-        - vals: Array-like of values for which to compute the Hermite polynomial product. It should be of shape (nbatch, dim)
-        - degs: The degrees of the Hermite polynomials.
-        - dim: The dimension, indicating how many values and subsequent polynomials to consider.
+            r (ndarray): An array of particle positions.
+            degs (list of int): Degrees of the Hermite polynomials for each dimension.
 
         Returns:
-        - The product of Hermite polynomials for the given inputs.
-
-        #TODO: move this to a helper function
+            float: Product of Hermite polynomials for the given positions and degrees.
         """
-        # Error handling for input parameters
-        # if not isinstance(vals, list) or not isinstance(deg, int) or not isinstance(self.dim, int):
-        #    raise ValueError("Invalid input types for vals, deg, or dim.")
-        # if len(vals) != dim:
-        #    raise ValueError("Dimension mismatch between 'vals' and 'dim'.")
 
-        # Compute the product of Hermite polynomials across the given dimensions
         hermite_product = 1
 
         for batch in range(r.shape[0]):
@@ -460,25 +573,34 @@ class WaveFunction:
 
     def compute_sr_matrix(self, expval_grad_params, grad_params, shift=1e-3):
         """
-        expval_grad_params and grad_params should be dictionaries with keys "v_bias", "h_bias", "kernel" in the case of RBM
-        in the case of FFNN we have "weights" and "biases" and "kernel" is not present
-        WIP: for now this does not involve the averages because r will be a single sample
-        Compute the matrix for the stochastic reconfiguration algorithm
-            for now we do it only for the kernel
-            The expression here is for kernel element W_ij:
-                S_ij,kl = < (d/dW_ij log(psi)) (d/dW_kl log(psi)) > - < d/dW_ij log(psi) > < d/dW_kl log(psi) >
+        Compute the matrix for the stochastic reconfiguration algorithm.
+        The expval_grad_params and grad_params should be dictionaries with keys
+        "v_bias", "h_bias", "kernel" in the case of RBM. In the case of FFNN,
+        we have "weights" and "biases", and "kernel" is not present.
 
-            For bias (V or H) we have:
-                S_i,j = < (d/dV_i log(psi)) (d/dV_j log(psi)) > - < d/dV_i log(psi) > < d/dV_j log(psi) >
+        The expression here is for kernel element W_ij:
+        S_ij,kl = < (d/dW_ij log(psi)) (d/dW_kl log(psi)) > - < d/dW_ij log(psi) > < d/dW_kl log(psi) >
 
+        For bias (V or H) we have:
+        S_i,j = < (d/dV_i log(psi)) (d/dV_j log(psi)) > - < d/dV_i log(psi) > < d/dV_j log(psi) >
 
+        Steps:
             1. Compute the gradient ∂_W log(ψ) using the _grad_kernel function.
             2. Compute the outer product of the gradient with itself: ∂_W log(ψ) ⊗ ∂_W log(ψ)
             3. Compute the expectation value of the outer product over all the samples
             4. Compute the expectation value of the gradient ∂_W log(ψ) over all the samples
             5. Compute the outer product of the expectation value of the gradient with itself: <∂_W log(ψ)> ⊗ <∂_W log(ψ)>
 
-            OBS: < d/dW_ij log(psi) > is already done inside train of the WF class but we need still the < (d/dW_ij log(psi)) (d/dW_kl log(psi)) >
+        Observation:
+            < d/dW_ij log(psi) > is already done inside train of the WF class but we need still the < (d/dW_ij log(psi)) (d/dW_kl log(psi)) >.
+
+        Parameters:
+            expval_grad_params (dict): Expected values of the gradients.
+            grad_params (dict): Gradients of the parameters.
+            shift (float): Shift used in the stochastic reconfiguration to avoid singularities.
+
+        Returns:
+            dict: The computed stochastic reconfiguration matrices.
         """
         sr_matrices = {}
 

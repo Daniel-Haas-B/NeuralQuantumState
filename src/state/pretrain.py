@@ -4,9 +4,7 @@ import jax
 
 from src.state.utils import advance_PRNG_state
 from src.state.utils import errors
-from src.state.utils import generate_seed_sequence
 from src.state.utils import setup_logger
-from src.state.utils import State
 from src.state.utils import wf_factory
 
 # jax.config.update("jax_enable_x64", True)
@@ -66,11 +64,11 @@ class Gaussian:
         Set the wave function to be used for sampling.
         Successfully setting the wave function will also initialize it.
         """
-        self._N = nparticles
-        self._dim = dim
+        self.N = nparticles
+        self.dim = dim
         common_args = {
-            "nparticles": self._N,
-            "dim": self._dim,
+            "nparticles": self.N,
+            "dim": self.dim,
             "rng": self.rng(self._seed) if self.rng else np.random.default_rng(),
             "log": self._log,
             "logger": self.logger,
@@ -161,7 +159,7 @@ class Gaussian:
         self._training_cycles = max_iter
         self._training_batch = batch_size
         self._history = (
-            {"loss": [], "grads": []} if kwargs.get("history", False) else None
+            {"loss": [], "grad_params": []} if kwargs.get("history", False) else None
         )
 
         self._early_stop = kwargs.get("early_stop", False)
@@ -181,18 +179,17 @@ class Gaussian:
         params = self.wf.params
         param_keys = params.keys()
         self._history.update({key: [] for key in param_keys}) if self._history else None
-        seed_seq = generate_seed_sequence(self._seed, 1)[0]  # noqa
 
         epoch = 0
         loss_func = lambda x, param: self.jaxmse(  # noqa
             self.wf.logprob_closure_pretrain(x, param), self.multivar_gaussian_pdf(x)
         )
-        self.state = self.wf.state
+        # self.state = self.wf.state
         for _ in t_range:
-            state = self.wf.state
-            state = State(state.positions, state.logp, 0, state.delta)
+            # state = self.wf.state
+            # state = State(state.positions, state.logp, 0, state.delta)
 
-            states = state.create_batch_of_states(batch_size=batch_size)
+            # states = state.create_batch_of_states(batch_size=batch_size)
             if self.pretrain_sampler:
                 raise NotImplementedError("Pretrain sampler not implemented yet")
             else:
@@ -200,34 +197,25 @@ class Gaussian:
                 # Advance RNG
                 next_gen = advance_PRNG_state(self._seed, epoch)
                 rng = self.rng(next_gen)
-                # mean = self.backend.zeros(self._N * self._dim)
-                # twopi = 2 * self.backend.pi
-                # states.positions = rng.uniform(
-                #      -5, 5, (batch_size, self._dim * self._N)
-                # )  # TODO: FIX RANGE
 
-                states.positions = rng.normal(
-                    loc=0, scale=2, size=(batch_size, self._dim * self._N)
+                positions = rng.normal(
+                    loc=0, scale=2, size=(batch_size, self.dim * self.N)
                 )
-                # states.positions = rng.standard_normal(size=(batch_size, self._dim * self._N))
-                # twopi ** len(mean)
-                # states.positions = rng.uniform(-2, 2, (batch_size, self._dim * self._N))
-
-                # print(mse(self.wf.logprob_closure(states.positions, self.wf.params), self.multivar_gaussian_pdf(states.positions, mean)))
-                loss = loss_func(states.positions, self.wf.params)
+                loss = loss_func(positions, self.wf.params)
 
             grad_loss_fn = jax.grad(loss_func, argnums=1)
-            grad_loss_dict = grad_loss_fn(states.positions, params)
+            grad_loss_dict = grad_loss_fn(positions, params)
 
             epoch += 1
-            t_range.set_postfix(loss=f"{loss:.2E}", refresh=True)
+            if self._log:
+                t_range.set_postfix(loss=f"{loss:.2E}", refresh=True)
 
             if self._history:
                 grad_norms = [
                     self.backend.mean(grad_loss_dict.get(key)) for key in param_keys
                 ]
                 self._history["loss"].append(loss)
-                self._history["grads"].append(grad_norms)
+                self._history["grad_params"].append(grad_norms)
 
             # Descent
             self._optimizer.step(
@@ -238,9 +226,6 @@ class Gaussian:
                 if self.logger is not None:
                     self.logger.warning("loss is zero, stopping training")
                 break
-
-        self.state = State(states[-1].positions, states[-1].logp, 0, states[-1].delta)
-        self._is_trained_ = True
 
         if self.logger is not None:
             self.logger.info("Pre-training done")
@@ -259,9 +244,9 @@ class Gaussian:
 
         output: float
         """
-        means = self.backend.zeros(self._N * self._dim)
+        means = self.backend.zeros(self.N * self.dim)
 
-        covariance = self.backend.eye(self._dim * self._N)
+        covariance = self.backend.eye(self.dim * self.N)
         x_minus_mean = x - means
         inv_cov = covariance  # self.la.inv(covariance)
 

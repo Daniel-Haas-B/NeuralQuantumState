@@ -29,7 +29,7 @@ optimizer = "sr"
 batch_size = 2000
 detailed = True
 wf_type = "rbm"
-seed = 142
+seed = 42
 int_type = "None"  # "None"
 save_positions = True
 

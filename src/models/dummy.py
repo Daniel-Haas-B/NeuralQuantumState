@@ -34,7 +34,7 @@ class Dummy:
 
         self.log = log
         self.rng = rng if rng else np.random.default_rng()
-        r = rng.standard_normal(size=self._N * self._dim)
+        r = rng.standard_normal(size=self.N * self.dim)
 
         self._initialize_variational_params(rng)
 
@@ -42,7 +42,7 @@ class Dummy:
         self.state = State(r, logp, 0, 0)
 
         if self.log:
-            msg = f"""Dummy initialized with {self._N} particles in {self._dim} dimensions.
+            msg = f"""Dummy initialized with {self.N} particles in {self.dim} dimensions.
             WARNING: this is a dummy wavefunction and the parameters have no effect"""
             self.logger.info(msg)
 
@@ -51,7 +51,7 @@ class Dummy:
             self.backend = jnp
             self.la = jnp.linalg
             self.grad_wf_closure = self.grad_wf_closure_jax
-            self.grads_closure = self.grads_closure_jax
+            self.grad_params_closure = self.grad_params_closure_jax
             self.laplacian_closure = self.laplacian_closure_jax
             # self._jit_functions()
         else:
@@ -63,7 +63,7 @@ class Dummy:
             "grad_wf_closure",
             "laplacian_closure",
             "logprob_closure",
-            "grads_closure",
+            "grad_params_closure",
         ]
         for func in functions_to_jit:
             setattr(self, func, jax.jit(getattr(self, func)))
@@ -103,18 +103,20 @@ class Dummy:
         alpha = self.params.get("alpha")
         return self.grad_wf_closure(r, alpha)
 
-    def grads(self, r):
+    def grad_params(self, r):
         """
         Compute the gradient of the log of the wavefunction squared
         """
         alpha = self.params.get("alpha")
-        grads_alpha = self.grads_closure(r, alpha)  # note it does not depend on alpha
+        grads_alpha = self.grad_params_closure(
+            r, alpha
+        )  # note it does not depend on alpha
 
         grads_dict = {"alpha": grads_alpha}
 
         return grads_dict
 
-    def grads_closure_jax(self, r, alpha):
+    def grad_params_closure_jax(self, r, alpha):
         """
         Return a function that computes the gradient of the log of the wavefunction squared
         """
@@ -131,15 +133,15 @@ class Dummy:
         return grads
 
     def _initialize_vars(self, nparticles, dim, rng, log, logger, logger_level):
-        self._N = nparticles
-        self._dim = dim
+        self.N = nparticles
+        self.dim = dim
         self._log = log
         self._logger = logger
         self._logger_level = logger_level
 
     def _initialize_variational_params(self, rng):
         self.params = Parameter()
-        self.params.set("alpha", rng.uniform(size=(self._N * self._dim)))
+        self.params.set("alpha", rng.uniform(size=(self.N * self.dim)))
 
     def laplacian(self, r):
         """
@@ -172,26 +174,29 @@ class Dummy:
         alpha = self.params.get("alpha")
         return self.backend.abs(self.wf(r, alpha)) ** 2
 
-    def compute_sr_matrix(self, expval_grads, grads, shift=1e-4):
+    def compute_sr_matrix(self, expval_grad_params, grad_params, shift=1e-4):
         """ """
         sr_matrices = {}
 
-        for key, grad_value in grads.items():
+        for key, grad_value in grad_params.items():
             grad_value = self.backend.array(
                 grad_value
             )  # this should be done outside of the function
 
             if self.backend.ndim(grad_value[0]) == 2:
-                # if key == "kernel":
-                grads_outer = self.backend.einsum(
+                grad_params_outer = self.backend.einsum(
                     "nij,nkl->nijkl", grad_value, grad_value
                 )
             elif self.backend.ndim(grad_value[0]) == 1:
                 # else:
-                grads_outer = self.backend.einsum("ni,nj->nij", grad_value, grad_value)
+                grad_params_outer = self.backend.einsum(
+                    "ni,nj->nij", grad_value, grad_value
+                )
 
-            expval_outer_grad = self.backend.mean(grads_outer, axis=0)
-            outer_expval_grad = self.backend.outer(expval_grads[key], expval_grads[key])
+            expval_outer_grad = self.backend.mean(grad_params_outer, axis=0)
+            outer_expval_grad = self.backend.outer(
+                expval_grad_params[key], expval_grad_params[key]
+            )
 
             sr_mat = (
                 expval_outer_grad.reshape(outer_expval_grad.shape) - outer_expval_grad

@@ -29,7 +29,7 @@ class Adam(Optimizer):
         self.beta2 = kwargs.get("beta2", 0.999)
         self.epsilon = kwargs.get("epsilon", 1e-8)
 
-    def step(self, params, grads, sr_matrices=None):
+    def step(self, params, grad_params_E, sr_matrices=None):
         """Update the parameters. Maybe performance bottleneck?"""
         self.t += 1  # increment time step
 
@@ -39,11 +39,13 @@ class Adam(Optimizer):
             m_key = "m_" + key
             v_key = "v_" + key
             self._m_params[m_key] = (
-                self.beta1 * self._m_params[m_key] + (1 - self.beta1) * grads[key]
+                self.beta1 * self._m_params[m_key]
+                + (1 - self.beta1) * grad_params_E[key]
             )
 
             self._v_params[v_key] = (
-                self.beta2 * self._v_params[v_key] + (1 - self.beta2) * grads[key] ** 2
+                self.beta2 * self._v_params[v_key]
+                + (1 - self.beta2) * grad_params_E[key] ** 2
             )
 
             # Calculate bias-corrected estimates

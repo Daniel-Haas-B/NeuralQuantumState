@@ -109,10 +109,10 @@ class DS(WaveFunction):
             )
 
         if self.jastrow:
-            input_j_size = self._N * (self._N - 1) // 2
+            input_j_size = self.N * (self.N - 1) // 2
             limit = np.sqrt(2 / (input_j_size))
             self.params.set(
-                "WJ", np.array(rng.uniform(-limit, limit, (self._N, self._N)))
+                "WJ", np.array(rng.uniform(-limit, limit, (self.N, self.N)))
             )
 
         if self.pade_jastrow:
@@ -125,7 +125,7 @@ class DS(WaveFunction):
         x: (batch_size, part * dim) array
 
         """
-        output_set0 = self.set_0(x, params) / self._N
+        output_set0 = self.set_0(x, params) / self.N
         output_set1 = self.set_1(  # noqa
             output_set0, params
         )  # this one needs to have linear activation as last
@@ -157,9 +157,9 @@ class DS(WaveFunction):
                 )  # last one should be of latent_dim
             return x_n
 
-        for n in range(0, self._N * self._dim, self._dim):
+        for n in range(0, self.N * self.dim, self.dim):
             # get the correct coordinates for each particle
-            x_n = x[..., n : n + self._dim]
+            x_n = x[..., n : n + self.dim]
             x_n = pass_per_part(x_n, params)
             collector += x_n  # this should have dims (latent_dim,)
 
@@ -206,12 +206,12 @@ class DS(WaveFunction):
         """ """
         return self.laplacian_closure(r, self.params)
 
-    def grads_closure_jax(self, r, params):
+    def grad_params_closure_jax(self, r, params):
         grad_fn = vmap(jax.grad(self.log_wf, argnums=1), in_axes=(0, None))
         grad_eval = grad_fn(r, params)  # still a parameter type
         return grad_eval
 
-    def grads(self, r):
+    def grad_params(self, r):
         """
         Gradients of the wave function with respect to the neural network parameters.
         """
@@ -219,20 +219,11 @@ class DS(WaveFunction):
         # jax.grad will return a function that computes the gradient of wf.
         # This function will expect a parameter input, which in our case are the neural network parameters.
 
-        grads_dict = self.grads_closure(r, self.params)
-
-        return grads_dict
+        return self.grad_params_closure(r, self.params)
 
     def pdf(self, r):
         """Probability density function"""
         return self.backend.exp(self.logprob(r))
-
-    def grads_logprob(self, r):
-        """
-        Gradients of the log probability amplitude
-        Note that grads is the gradient of the log of the wave function
-        """
-        return 2 * self.grads(r)
 
     def logprob_closure(self, r, params):
         """Log probability amplitude
@@ -254,51 +245,6 @@ class DS(WaveFunction):
 
         return self.logprob_closure(r, self.params)
 
-    def compute_sr_matrix(self, expval_grads, grads, shift=1e-6):
-        """
-        expval_grads and grads should be dictionaries with keys "v_bias", "h_bias", "kernel" in the case of RBM
-        in the case of FFNN we have "weights" and "biases" and "kernel" is not present
-        WIP: for now this does not involve the averages because r will be a single sample
-        Compute the matrix for the stochastic reconfiguration algorithm
-            for now we do it only for the kernel
-            The expression here is for kernel element W_ij:
-                S_ij,kl = < (d/dW_ij log(psi)) (d/dW_kl log(psi)) > - < d/dW_ij log(psi) > < d/dW_kl log(psi) >
-
-            For bias (V or H) we have:
-                S_i,j = < (d/dV_i log(psi)) (d/dV_j log(psi)) > - < d/dV_i log(psi) > < d/dV_j log(psi) >
-
-
-            1. Compute the gradient ∂_W log(ψ) using the _grad_kernel function.
-            2. Compute the outer product of the gradient with itself: ∂_W log(ψ) ⊗ ∂_W log(ψ)
-            3. Compute the expectation value of the outer product over all the samples
-            4. Compute the expectation value of the gradient ∂_W log(ψ) over all the samples
-            5. Compute the outer product of the expectation value of the gradient with itself: <∂_W log(ψ)> ⊗ <∂_W log(ψ)>
-
-            OBS: < d/dW_ij log(psi) > is already done inside train of the RBM class but we need still the < (d/dW_ij log(psi)) (d/dW_kl log(psi)) >
-        """
-        sr_matrices = {}
-
-        for key, grad_value in grads.items():
-            grad_value = self.backend.array(grad_value)
-
-            if "W" in key:  # means it is a matrix
-                grads_outer = self.backend.einsum(
-                    "nij,nkl->nijkl", grad_value, grad_value
-                )
-            # elif self.backend.ndim(grad_value[0]) == 1:
-            else:  # means it is a (bias) vector
-                grads_outer = self.backend.einsum("ni,nj->nij", grad_value, grad_value)
-
-            expval_outer_grad = self.backend.mean(grads_outer, axis=0)
-            outer_expval_grad = self.backend.outer(expval_grads[key], expval_grads[key])
-
-            sr_mat = (
-                expval_outer_grad.reshape(outer_expval_grad.shape) - outer_expval_grad
-            )
-            sr_matrices[key] = sr_mat + shift * self.backend.eye(sr_mat.shape[0])
-
-        return sr_matrices
-
     def _initialize_vars(self, nparticles, dim, layer_sizes, activations, factor):
         self._factor = factor
         self._layer_sizes0 = layer_sizes["S0"]
@@ -307,9 +253,9 @@ class DS(WaveFunction):
         self._activations0 = activations["S0"]
         self._activations1 = activations["S1"]
         self._ffnn_psi_repr = 2 * self._factor
-        self._N = nparticles
-        self._dim = dim
-        self._nvisible = self._N * self._dim
+        self.N = nparticles
+        self.dim = dim
+        self.Nvisible = self.N * self.dim
         if len(layer_sizes["S0"]) != len(activations["S0"]) + 1:
             raise ValueError("num layers != num activations +1")
         if len(layer_sizes["S1"]) != len(activations["S1"]) + 1:

@@ -35,14 +35,14 @@ class VMC(WaveFunction):
         self.configure_correlation(correlation)  # NEED TO BE BEFORE CONFIGURE_BACKEND
         self.configure_backend(backend)
         self._initialize_variational_params(rng)
-        self._N = nparticles
-        self._dim = dim
+        self.N = nparticles
+        self.dim = dim
 
         logp = self.logprob(self.r0)  # log of the (absolute) wavefunction squared
         self.state = State(self.r0, logp, 0, 0)
 
         if self.log:
-            msg = f"""VMC initialized with {self._N} particles in {self.dim} dimensions with {
+            msg = f"""VMC initialized with {self.N} particles in {self.dim} dimensions with {
                     self.params.get("alpha").size
                     } parameters"""
             self.logger.info(msg)
@@ -99,22 +99,17 @@ class VMC(WaveFunction):
 
         return self.grad_wf_closure(r, self.params)
 
-    def grads(self, r):
-        """
-        Compute the gradient of the log of the wavefunction squared (why squared?)
-        """
+    def grad_params(self, r):
 
-        grads_dict = self.grads_closure(r, self.params)
+        return self.grad_params_closure(r, self.params)
 
-        return grads_dict
-
-    def grads_closure(self, r, alpha):
+    def grad_params_closure(self, r, alpha):
         """
         Return a function that computes the gradient of the log of the wavefunction squared
         """
         return -r * r  # element-wise multiplication
 
-    def grads_closure_jax(self, r, alpha):
+    def grad_params_closure_jax(self, r, alpha):
         """
         Return a function that computes the gradient of the log of the wavefunction squared
         """
@@ -126,12 +121,12 @@ class VMC(WaveFunction):
 
     def _initialize_variational_params(self, rng):
         self.params = Parameter()
-        self.params.set("alpha", rng.uniform(size=(self._N * self.dim)))
+        self.params.set("alpha", rng.uniform(size=(self.N * self.dim)))
         if self.jastrow:
-            input_j_size = self._N * (self._N - 1) // 2
+            input_j_size = self.N * (self.N - 1) // 2
             limit = np.sqrt(2 / (input_j_size))
             self.params.set(
-                "WJ", np.array(rng.uniform(-limit, limit, (self._N, self._N)))
+                "WJ", np.array(rng.uniform(-limit, limit, (self.N, self.N)))
             )
         if self.pade_jastrow:
             assert not self.jastrow, "Pade Jastrow requires Jastrow to be false"
@@ -176,41 +171,3 @@ class VMC(WaveFunction):
         """
 
         return self.backend.exp(self.logprob(r)) ** 2
-
-    def compute_sr_matrix(self, expval_grads, grads, shift=1e-3):
-        """
-
-        Compute the matrix for the stochastic reconfiguration algorithm
-
-            For alpha vector, we have:
-                S_i,j = < (d/dalpha_i log(psi)) (d/dalpha_j log(psi)) > - < d/dalpha_i log(psi) > < d/dalpha_j log(psi) >
-
-
-            1. Compute the gradient ∂_alpha log(ψ) using the grads function.
-            2. Compute the outer product of the gradient with itself: ∂_W log(ψ) ⊗ ∂_W log(ψ) )
-            3. Compute the expectation value of the outer product over all the samples
-            4. Compute the expectation value of the gradient ∂_W log(ψ) over all the samples
-            5. Compute the outer product of the expectation value of the gradient with itself: <∂_W log(ψ)> ⊗ <∂_W log(ψ)>
-
-            OBS: < d/dW_ij log(psi) > is already done inside train of the NQS class (expval_grads) but we need still the < (d/dW_i log(psi)) (d/dW_j log(psi)) >
-        """
-        sr_matrices = {}
-
-        for key, grad_value in grads.items():
-            grad_value = self.backend.array(grad_value)
-
-            grads_outer = self.backend.einsum(
-                "ni,nj->nij", grad_value, grad_value
-            )  # this is ∂_W log(ψ) ⊗ ∂_W log(ψ) for the batch
-            expval_outer_grad = self.backend.mean(
-                grads_outer, axis=0
-            )  # this is < (d/dW_i log(psi)) (d/dW_j log(psi)) > over the batch
-            outer_expval_grad = self.backend.einsum(
-                "i,j->ij", expval_grads[key], expval_grads[key]
-            )  # this is <∂_W log(ψ)> ⊗ <∂_W log(ψ)>
-
-            sr_mat = expval_outer_grad - outer_expval_grad
-
-            sr_matrices[key] = sr_mat + shift * self.backend.eye(sr_mat.shape[0])
-
-        return sr_matrices

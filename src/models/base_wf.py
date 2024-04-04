@@ -23,7 +23,7 @@ class WaveFunction:
         seed=None,
     ):
         self.params = None
-        self._N = nparticles
+        self.N = nparticles
         self.dim = dim
         self._log = log
         self.logger = logger
@@ -36,7 +36,7 @@ class WaveFunction:
         self.sqrt_omega = 1  # will be reset in the set_hamiltonian
 
         self.slater_fact = np.log(
-            ss.factorial(self._N)
+            ss.factorial(self.N)
         )  # move this to be after backend is set later
 
         if logger:
@@ -48,10 +48,10 @@ class WaveFunction:
 
         self.log = log
         self.rng = rng
-        self.r0 = self.rng.standard_normal(size=self._N * self.dim)
+        self.r0 = self.rng.standard_normal(size=self.N * self.dim)
 
     def reinit_positions(self):
-        self.r0 = self.rng.standard_normal(size=self._N * self.dim)
+        self.r0 = self.rng.standard_normal(size=self.N * self.dim)
         print("====== reinitiated positions to", self.r0)
 
     def _jit_functions(self):
@@ -64,7 +64,7 @@ class WaveFunction:
             "set_1",
             "compute_sr_matrix",
             "grad_wf_closure",
-            "grads_closure",
+            "grad_params_closure",
             "laplacian_closure",
             "_precompute",
             "_softplus",
@@ -83,7 +83,7 @@ class WaveFunction:
             self.la = jnp.linalg
             self.sigmoid = expit  # jax.nn.sigmoid
             self.grad_wf_closure = self.grad_wf_closure_jax
-            self.grads_closure = self.grads_closure_jax
+            self.grad_params_closure = self.grad_params_closure_jax
             self.laplacian_closure = self.laplacian_closure_jax
             self.r0 = jnp.array(self.r0)
             self._jit_functions()
@@ -106,14 +106,14 @@ class WaveFunction:
         """
         if correlation == "pj":
             self.pade_jastrow = True
-            self.pade_aij = jnp.zeros((self._N, self._N))
-            for i in range(self._N):
-                for j in range(i + 1, self._N):
+            self.pade_aij = jnp.zeros((self.N, self.N))
+            for i in range(self.N):
+                for j in range(i + 1, self.N):
                     # first N//2 particles are spin up, the rest are spin down
                     # there is a more efficient way to do this for sure
-                    if i < self._N // 2 and j < self._N // 2:
+                    if i < self.N // 2 and j < self.N // 2:
                         self.pade_aij = self.pade_aij.at[i, j].set(1 / (self.dim + 1))
-                    elif i >= self._N // 2 and j >= self._N // 2:
+                    elif i >= self.N // 2 and j >= self.N // 2:
                         self.pade_aij = self.pade_aij.at[i, j].set(1 / (self.dim + 1))
                     else:
                         self.pade_aij = self.pade_aij.at[i, j].set(1 / (self.dim - 1))
@@ -164,7 +164,7 @@ class WaveFunction:
         """
 
         epsilon = 1e-10  # Small epsilon value was 10^-8 before
-        r_cpy = r.reshape(-1, self._N, self.dim)
+        r_cpy = r.reshape(-1, self.N, self.dim)
         r_diff = r_cpy[:, None, :, :] - r_cpy[:, :, None, :]
         r_dist = self.la.norm(r_diff + epsilon, axis=-1)  # Add epsilon to avoid nan
 
@@ -178,7 +178,7 @@ class WaveFunction:
         """ """
 
         epsilon = 1e-10  # Small epsilon value was 10^-8 before
-        r_cpy = r.reshape(-1, self._N, self._dim)
+        r_cpy = r.reshape(-1, self.N, self.dim)
         r_diff = r_cpy[:, None, :, :] - r_cpy[:, :, None, :]
         r_dist = self.la.norm(r_diff + epsilon, axis=-1)  # Add epsilon to avoid nan
 
@@ -192,7 +192,7 @@ class WaveFunction:
         return x.squeeze(-1)
 
     def generate_degrees(self):
-        max_comb = self._N // 2
+        max_comb = self.N // 2
         combinations = [[0] * self.dim]
         seen = {tuple(combinations[0])}
 
@@ -227,8 +227,8 @@ class WaveFunction:
 
         where phi_i is the i-th single particle wavefunction, in our case it is a hermite polynomial.
         """
-        A = self._N // 2
-        r = r.reshape(-1, self._N, self.dim)
+        A = self.N // 2
+        r = r.reshape(-1, self.N, self.dim)
 
         r_up = r[:, :A, :]
         r_down = r[:, A:, :]
@@ -303,7 +303,7 @@ class WaveFunction:
     #     """
 
     #     def wrapper(self, r, *args, **kwargs):
-    #         n = self._N
+    #         n = self.N
 
     #         # first permutation is always the identity
 
@@ -382,14 +382,7 @@ class WaveFunction:
         pass
 
     @abstractmethod
-    def compute_sr_matrix(self, expval_grads, grads, shift=1e-6):
-        """
-        to be overwritten by the inheriting class
-        """
-        pass
-
-    @abstractmethod
-    def grads(self, r):
+    def grad_params(self, r):
         """
         to be overwritten by the inheriting class
         """
@@ -464,3 +457,51 @@ class WaveFunction:
         Rescale the parameters of the wave function.
         """
         self.params.rescale(factor)
+
+    def compute_sr_matrix(self, expval_grad_params, grad_params, shift=1e-3):
+        """
+        expval_grad_params and grad_params should be dictionaries with keys "v_bias", "h_bias", "kernel" in the case of RBM
+        in the case of FFNN we have "weights" and "biases" and "kernel" is not present
+        WIP: for now this does not involve the averages because r will be a single sample
+        Compute the matrix for the stochastic reconfiguration algorithm
+            for now we do it only for the kernel
+            The expression here is for kernel element W_ij:
+                S_ij,kl = < (d/dW_ij log(psi)) (d/dW_kl log(psi)) > - < d/dW_ij log(psi) > < d/dW_kl log(psi) >
+
+            For bias (V or H) we have:
+                S_i,j = < (d/dV_i log(psi)) (d/dV_j log(psi)) > - < d/dV_i log(psi) > < d/dV_j log(psi) >
+
+
+            1. Compute the gradient ∂_W log(ψ) using the _grad_kernel function.
+            2. Compute the outer product of the gradient with itself: ∂_W log(ψ) ⊗ ∂_W log(ψ)
+            3. Compute the expectation value of the outer product over all the samples
+            4. Compute the expectation value of the gradient ∂_W log(ψ) over all the samples
+            5. Compute the outer product of the expectation value of the gradient with itself: <∂_W log(ψ)> ⊗ <∂_W log(ψ)>
+
+            OBS: < d/dW_ij log(psi) > is already done inside train of the WF class but we need still the < (d/dW_ij log(psi)) (d/dW_kl log(psi)) >
+        """
+        sr_matrices = {}
+
+        for key, grad_value in grad_params.items():
+
+            if "W" in key:  # means it is a matrix
+                grad_params_outer = self.backend.einsum(
+                    "nij,nkl->nijkl", grad_value, grad_value
+                )  # this is ∂_W log(ψ) ⊗ ∂_W log(ψ) for the batch
+            else:  # means it is a (bias) vector
+                grad_params_outer = self.backend.einsum(
+                    "ni,nj->nij", grad_value, grad_value
+                )
+
+            # this is < (d/dW_i log(psi)) (d/dW_j log(psi)) > over the batch
+            expval_outer_grad = self.backend.mean(grad_params_outer, axis=0)
+            outer_expval_grad = self.backend.outer(
+                expval_grad_params[key], expval_grad_params[key]
+            )  # this is <∂_W log(ψ)> ⊗ <∂_W log(ψ)>
+
+            sr_mat = (
+                expval_outer_grad.reshape(outer_expval_grad.shape) - outer_expval_grad
+            )
+            sr_matrices[key] = sr_mat + shift * self.backend.eye(sr_mat.shape[0])
+
+        return sr_matrices

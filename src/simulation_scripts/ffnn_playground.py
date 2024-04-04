@@ -79,7 +79,10 @@ def main():
     df = []
     df_all = []
     system.pretrain(
-        model="Gaussian", max_iter=100, batch_size=10000, args=common_kwargs
+        model="Gaussian",
+        max_iter=100,
+        batch_size=10000,
+        args=common_kwargs,
     )
     history = system.train(
         max_iter=training_cycles,

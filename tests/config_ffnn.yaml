@@ -10,6 +10,8 @@ optimizer: "sr"
 batch_size: 100  # initial batch size
 detailed: true
 seed: 42
+wf_type: "ffnn"
+
 
 common_kwargs:
     layer_sizes: [4, 14, 9, 7, 5, 3, 1]

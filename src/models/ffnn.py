@@ -149,12 +149,12 @@ class FFNN(WaveFunction):
         """
         return self.laplacian_closure(r, self.params)
 
-    def grads_closure_jax(self, r, params):
+    def grad_params_closure_jax(self, r, params):
         grad_fn = vmap(jax.grad(self.log_wf, argnums=1), in_axes=(0, None))
         grad_eval = grad_fn(r, params)  # still a parameter type
         return grad_eval
 
-    def grads(self, r):
+    def grad_params(self, r):
         """
         Gradients of the wave function with respect to the neural network parameters.
         """
@@ -162,23 +162,12 @@ class FFNN(WaveFunction):
         # jax.grad will return a function that computes the gradient of wf.
         # This function will expect a parameter input, which in our case are the neural network parameters.
 
-        grads_dict = self.grads_closure(r, self.params)
-
-        return grads_dict
+        return self.grad_params_closure(r, self.params)
 
     def pdf(self, r):
         """Probability density function"""
 
         return self.backend.exp(self.logprob(r))
-
-    def grads_logprob(self, r):
-        """
-        Gradients of the log probability amplitude
-        Note that grads is the gradient of the log of the wave function
-        WIP
-        """
-
-        return 2 * self.grads(r)
 
     def logprob_closure(self, r, params):
         """Log probability amplitude
@@ -201,9 +190,9 @@ class FFNN(WaveFunction):
 
         return self.logprob_closure(r, self.params)
 
-    def compute_sr_matrix(self, expval_grads, grads, shift=1e-3):
+    def compute_sr_matrix(self, expval_grad_params, grad_params, shift=1e-3):
         """
-        expval_grads and grads should be dictionaries with keys "v_bias", "h_bias", "kernel" in the case of RBM
+        expval_grad_params and grad_params should be dictionaries with keys "v_bias", "h_bias", "kernel" in the case of RBM
         in the case of FFNN we have "weights" and "biases" and "kernel" is not present
         WIP: for now this does not involve the averages because r will be a single sample
         Compute the matrix for the stochastic reconfiguration algorithm
@@ -225,17 +214,21 @@ class FFNN(WaveFunction):
         """
         sr_matrices = {}
 
-        for key, grad_value in grads.items():
+        for key, grad_value in grad_params.items():
 
             if "W" in key:  # means it is a matrix
-                grads_outer = self.backend.einsum(
+                grad_params_outer = self.backend.einsum(
                     "nij,nkl->nijkl", grad_value, grad_value
                 )
             else:  # means it is a (bias) vector
-                grads_outer = self.backend.einsum("ni,nj->nij", grad_value, grad_value)
+                grad_params_outer = self.backend.einsum(
+                    "ni,nj->nij", grad_value, grad_value
+                )
 
-            expval_outer_grad = self.backend.mean(grads_outer, axis=0)
-            outer_expval_grad = self.backend.outer(expval_grads[key], expval_grads[key])
+            expval_outer_grad = self.backend.mean(grad_params_outer, axis=0)
+            outer_expval_grad = self.backend.outer(
+                expval_grad_params[key], expval_grad_params[key]
+            )
 
             sr_mat = (
                 expval_outer_grad.reshape(outer_expval_grad.shape) - outer_expval_grad

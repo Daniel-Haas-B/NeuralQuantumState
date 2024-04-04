@@ -108,7 +108,9 @@ class Dummy:
         Compute the gradient of the log of the wavefunction squared
         """
         alpha = self.params.get("alpha")
-        grads_alpha = self.grads_closure(r, alpha)  # note it does not depend on alpha
+        grads_alpha = self.grad_params_closure(
+            r, alpha
+        )  # note it does not depend on alpha
 
         grads_dict = {"alpha": grads_alpha}
 
@@ -183,14 +185,16 @@ class Dummy:
 
             if self.backend.ndim(grad_value[0]) == 2:
                 # if key == "kernel":
-                grads_outer = self.backend.einsum(
+                grad_params_outer = self.backend.einsum(
                     "nij,nkl->nijkl", grad_value, grad_value
                 )
             elif self.backend.ndim(grad_value[0]) == 1:
                 # else:
-                grads_outer = self.backend.einsum("ni,nj->nij", grad_value, grad_value)
+                grad_params_outer = self.backend.einsum(
+                    "ni,nj->nij", grad_value, grad_value
+                )
 
-            expval_outer_grad = self.backend.mean(grads_outer, axis=0)
+            expval_outer_grad = self.backend.mean(grad_params_outer, axis=0)
             outer_expval_grad = self.backend.outer(
                 expval_grad_params[key], expval_grad_params[key]
             )

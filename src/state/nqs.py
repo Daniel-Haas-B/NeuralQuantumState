@@ -183,7 +183,7 @@ class NQS:
         self._training_cycles = max_iter
         self._training_batch = batch_size
         self._history = (
-            {"energy": [], "std": [], "grads": []}
+            {"energy": [], "std": [], "grad_params": []}
             if kwargs.get("history", False)
             else None
         )
@@ -211,14 +211,14 @@ class NQS:
         seed_seq = generate_seed_sequence(self._seed, 1)[0]
 
         energies = []
-        final_grads = {key: None for key in param_keys}
+        grad_params_E = {key: None for key in param_keys}
 
         expval_energies_dict = {key: None for key in param_keys}
         expval_grad_dict = {key: None for key in param_keys}
         # steps_before_optimize = batch_size
 
         self.state = self.wf.state
-        grads_dict = {key: [] for key in param_keys}
+        grad_params_dict = {key: [] for key in param_keys}
         epoch = 0
         states = self.state.create_batch_of_states(batch_size=batch_size)
         for _ in t_range:
@@ -255,7 +255,7 @@ class NQS:
                 current_acc = states[-1].n_accepted / batch_size
 
             energies = self.hamiltonian.local_energy(self.wf, states.positions)
-            local_grads_dict = self.wf.grads(states.positions)
+            local_grad_params_dict = self.wf.grad_params(states.positions)
 
             energies = np.array(energies)
             expval_energy = np.mean(energies)
@@ -276,8 +276,8 @@ class NQS:
             )
 
             for key in param_keys:
-                grad_np = np.array(local_grads_dict.get(key))
-                grads_dict[key] = grad_np
+                grad_np = np.array(local_grad_params_dict.get(key))
+                grad_params_dict[key] = grad_np
                 if self._history:
                     self._history[key].append(np.linalg.norm(grad_np))
                 new_shape = (batch_size,) + (1,) * (
@@ -288,34 +288,34 @@ class NQS:
                 expval_energies_dict[key] = np.mean(energies * grad_np, axis=0)
                 expval_grad_dict[key] = np.mean(grad_np, axis=0)
 
-                final_grads[key] = 2 * (
+                grad_params_E[key] = 2 * (
                     expval_energies_dict[key] - expval_energy * expval_grad_dict[key]
                 )
 
                 if self._grad_clip:
                     # print("grad_np before", grad_np.shape )
-                    grad_norm = np.linalg.norm(final_grads[key])
+                    grad_norm = np.linalg.norm(grad_params_E[key])
                     # print("grad_norm", grad_norm)
                     if grad_norm > self._grad_clip:
-                        final_grads[key] = (
-                            self._grad_clip * final_grads[key] / grad_norm
+                        grad_params_E[key] = (
+                            self._grad_clip * grad_params_E[key] / grad_norm
                         )
 
             if self._optimizer.__class__.__name__ == "Sr":
                 self.sr_matrices = self.wf.compute_sr_matrix(
-                    expval_grad_dict, grads_dict
+                    expval_grad_dict, grad_params_dict
                 )
 
-            grad_norms = [np.linalg.norm(final_grads[key]) for key in param_keys]
+            grad_norms = [np.linalg.norm(grad_params_E[key]) for key in param_keys]
             grad_norms = np.mean(grad_norms)
             if self._history:
                 self._history["energy"].append(expval_energy)
                 self._history["std"].append(std_energy)
-                self._history["grads"].append(grad_norms)
+                self._history["grad_params"].append(grad_norms)
 
             # Descent
             self._optimizer.step(
-                self.wf.params, final_grads, self.sr_matrices
+                self.wf.params, grad_params_E, self.sr_matrices
             )  # changes wf params inplace
 
             if grad_norms < 10**-15:
@@ -327,8 +327,8 @@ class NQS:
             self.state = State(
                 states[-1].positions, states[-1].logp, 0, states[-1].delta
             )
-            final_grads = {key: None for key in param_keys}
-            grads_dict = {key: [] for key in param_keys}
+            grad_params_E = {key: None for key in param_keys}
+            grad_params_dict = {key: [] for key in param_keys}
 
         self._is_trained_ = True
         if self.logger is not None:

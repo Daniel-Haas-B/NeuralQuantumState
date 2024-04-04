@@ -23,7 +23,7 @@ class RmsProp(Optimizer):
         self.beta = kwargs["beta"]
         self.epsilon = kwargs["epsilon"]
 
-    def step(self, params, grads_E, sr_matrices=None):
+    def step(self, params, grad_params_E, sr_matrices=None):
         """Update the parameters"""
 
         for key in self._param_keys:
@@ -31,12 +31,13 @@ class RmsProp(Optimizer):
             v_key = "v_" + key
 
             self._v_params[v_key] = (
-                self.beta * self._v_params[v_key] + (1 - self.beta) * grads_E[key] ** 2
+                self.beta * self._v_params[v_key]
+                + (1 - self.beta) * grad_params_E[key] ** 2
             )
 
             current_value = params.get(key)
 
-            updated_value = current_value - self.eta * grads_E[key] / (
+            updated_value = current_value - self.eta * grad_params_E[key] / (
                 np.sqrt(self._v_params[v_key] + self.epsilon)
             )
             params.set([key], [updated_value])

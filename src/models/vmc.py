@@ -103,7 +103,7 @@ class VMC(WaveFunction):
 
         return self.grad_params_closure(r, self.params)
 
-    def grads_closure(self, r, alpha):
+    def grad_params_closure(self, r, alpha):
         """
         Return a function that computes the gradient of the log of the wavefunction squared
         """
@@ -193,11 +193,11 @@ class VMC(WaveFunction):
         for key, grad_value in grad_params.items():
             grad_value = self.backend.array(grad_value)
 
-            grads_outer = self.backend.einsum(
+            grad_params_outer = self.backend.einsum(
                 "ni,nj->nij", grad_value, grad_value
             )  # this is ∂_W log(ψ) ⊗ ∂_W log(ψ) for the batch
             expval_outer_grad = self.backend.mean(
-                grads_outer, axis=0
+                grad_params_outer, axis=0
             )  # this is < (d/dW_i log(psi)) (d/dW_j log(psi)) > over the batch
             outer_expval_grad = self.backend.einsum(
                 "i,j->ij", expval_grad_params[key], expval_grad_params[key]

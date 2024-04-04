@@ -64,7 +64,7 @@ class WaveFunction:
             "set_1",
             "compute_sr_matrix",
             "grad_wf_closure",
-            "grads_closure",
+            "grad_params_closure",
             "laplacian_closure",
             "_precompute",
             "_softplus",
@@ -83,7 +83,7 @@ class WaveFunction:
             self.la = jnp.linalg
             self.sigmoid = expit  # jax.nn.sigmoid
             self.grad_wf_closure = self.grad_wf_closure_jax
-            self.grads_closure = self.grads_closure_jax
+            self.grad_params_closure = self.grad_params_closure_jax
             self.laplacian_closure = self.laplacian_closure_jax
             self.r0 = jnp.array(self.r0)
             self._jit_functions()
@@ -91,7 +91,6 @@ class WaveFunction:
             raise ValueError("Invalid backend:", backend)
 
     def configure_symmetry(self, symmetry):
-        print("CONFIGURING SYMMETRY =============== ")
         self.symmetry = symmetry  # boson, fermion, none
         if self.symmetry == "fermion":  # then uses slater determinant
             self.log_wf = self.log_wf_slater_det
@@ -383,14 +382,14 @@ class WaveFunction:
         pass
 
     @abstractmethod
-    def compute_sr_matrix(self, expval_grads, grads, shift=1e-6):
+    def compute_sr_matrix(self, expval_grad_params, grad_params, shift=1e-6):
         """
         to be overwritten by the inheriting class
         """
         pass
 
     @abstractmethod
-    def grads(self, r):
+    def grad_params(self, r):
         """
         to be overwritten by the inheriting class
         """

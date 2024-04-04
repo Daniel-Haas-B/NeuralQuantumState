@@ -260,7 +260,7 @@ class RBM(WaveFunction):
 
     def compute_sr_matrix(self, expval_grad_params, grad_params, shift=1e-4):
         """
-        expval_grads and grads should be dictionaries with keys "v_bias", "h_bias", "kernel" in the case of RBM
+        expval_grad_params and grads should be dictionaries with keys "v_bias", "h_bias", "kernel" in the case of RBM
         in the case of FFNN we have "weights" and "biases" and "kernel" is not present
         WIP: for now this does not involve the averages because r will be a single sample
         Compute the matrix for the stochastic reconfiguration algorithm

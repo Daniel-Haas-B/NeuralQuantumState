@@ -109,10 +109,10 @@ class DS(WaveFunction):
             )
 
         if self.jastrow:
-            input_j_size = self._N * (self._N - 1) // 2
+            input_j_size = self.N * (self.N - 1) // 2
             limit = np.sqrt(2 / (input_j_size))
             self.params.set(
-                "WJ", np.array(rng.uniform(-limit, limit, (self._N, self._N)))
+                "WJ", np.array(rng.uniform(-limit, limit, (self.N, self.N)))
             )
 
         if self.pade_jastrow:
@@ -125,7 +125,7 @@ class DS(WaveFunction):
         x: (batch_size, part * dim) array
 
         """
-        output_set0 = self.set_0(x, params) / self._N
+        output_set0 = self.set_0(x, params) / self.N
         output_set1 = self.set_1(  # noqa
             output_set0, params
         )  # this one needs to have linear activation as last
@@ -157,9 +157,9 @@ class DS(WaveFunction):
                 )  # last one should be of latent_dim
             return x_n
 
-        for n in range(0, self._N * self._dim, self._dim):
+        for n in range(0, self.N * self.dim, self.dim):
             # get the correct coordinates for each particle
-            x_n = x[..., n : n + self._dim]
+            x_n = x[..., n : n + self.dim]
             x_n = pass_per_part(x_n, params)
             collector += x_n  # this should have dims (latent_dim,)
 
@@ -253,9 +253,9 @@ class DS(WaveFunction):
         self._activations0 = activations["S0"]
         self._activations1 = activations["S1"]
         self._ffnn_psi_repr = 2 * self._factor
-        self._N = nparticles
-        self._dim = dim
-        self._nvisible = self._N * self._dim
+        self.N = nparticles
+        self.dim = dim
+        self.Nvisible = self.N * self.dim
         if len(layer_sizes["S0"]) != len(activations["S0"]) + 1:
             raise ValueError("num layers != num activations +1")
         if len(layer_sizes["S1"]) != len(activations["S1"]) + 1:

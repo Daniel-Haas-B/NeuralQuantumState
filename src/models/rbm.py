@@ -53,10 +53,10 @@ class RBM(WaveFunction):
         self.state = State(self.r0, logp, 0, 0)
 
         if self.log:
-            neuron_str = "neurons" if self._nhidden > 1 else "neuron"
+            neuron_str = "neurons" if self.Nhidden > 1 else "neuron"
             msg = (
                 f"Neural Network Quantum State initialized as RBM with "
-                f"{self._nhidden} hidden {neuron_str}"
+                f"{self.Nhidden} hidden {neuron_str}"
             )
             self.logger.info(msg)
 
@@ -69,17 +69,17 @@ class RBM(WaveFunction):
         )
 
     def _initialize_bias_and_kernel(self, rng):
-        v_bias = rng.standard_normal(size=self._nvisible) * 0.01
-        h_bias = rng.standard_normal(size=self._nhidden) * 0.01
-        kernel = rng.standard_normal(size=(self._nvisible, self._nhidden))
-        kernel *= np.sqrt(1 / self._nvisible)
+        v_bias = rng.standard_normal(size=self.Nvisible) * 0.01
+        h_bias = rng.standard_normal(size=self.Nhidden) * 0.01
+        kernel = rng.standard_normal(size=(self.Nvisible, self.Nhidden))
+        kernel *= np.sqrt(1 / self.Nvisible)
         self.params = Parameter()
         self.params.set(["v_bias", "h_bias", "W_kernel"], [v_bias, h_bias, kernel])
         if self.jastrow:
-            input_j_size = self._N * (self._N - 1) // 2
+            input_j_size = self.N * (self.N - 1) // 2
             limit = np.sqrt(2 / (input_j_size))
             self.params.set(
-                "WJ", np.array(rng.uniform(-limit, limit, (self._N, self._N)))
+                "WJ", np.array(rng.uniform(-limit, limit, (self.N, self.N)))
             )
         if self.pade_jastrow:
             assert not self.jastrow, "Pade Jastrow requires Jastrow to be false"
@@ -89,10 +89,10 @@ class RBM(WaveFunction):
         self._sigma2 = sigma2
         self._factor = factor
         self._rbm_psi_repr = 2 * self._factor
-        self._N = nparticles
-        self._dim = dim
-        self._nvisible = self._N * self._dim
-        self._nhidden = nhidden
+        self.N = nparticles
+        self.dim = dim
+        self.Nvisible = self.N * self.dim
+        self.Nhidden = nhidden
         self._precompute()
 
     def _precompute(self):

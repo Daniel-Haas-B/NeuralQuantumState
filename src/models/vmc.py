@@ -35,14 +35,14 @@ class VMC(WaveFunction):
         self.configure_correlation(correlation)  # NEED TO BE BEFORE CONFIGURE_BACKEND
         self.configure_backend(backend)
         self._initialize_variational_params(rng)
-        self._N = nparticles
-        self._dim = dim
+        self.N = nparticles
+        self.dim = dim
 
         logp = self.logprob(self.r0)  # log of the (absolute) wavefunction squared
         self.state = State(self.r0, logp, 0, 0)
 
         if self.log:
-            msg = f"""VMC initialized with {self._N} particles in {self.dim} dimensions with {
+            msg = f"""VMC initialized with {self.N} particles in {self.dim} dimensions with {
                     self.params.get("alpha").size
                     } parameters"""
             self.logger.info(msg)
@@ -121,12 +121,12 @@ class VMC(WaveFunction):
 
     def _initialize_variational_params(self, rng):
         self.params = Parameter()
-        self.params.set("alpha", rng.uniform(size=(self._N * self.dim)))
+        self.params.set("alpha", rng.uniform(size=(self.N * self.dim)))
         if self.jastrow:
-            input_j_size = self._N * (self._N - 1) // 2
+            input_j_size = self.N * (self.N - 1) // 2
             limit = np.sqrt(2 / (input_j_size))
             self.params.set(
-                "WJ", np.array(rng.uniform(-limit, limit, (self._N, self._N)))
+                "WJ", np.array(rng.uniform(-limit, limit, (self.N, self.N)))
             )
         if self.pade_jastrow:
             assert not self.jastrow, "Pade Jastrow requires Jastrow to be false"

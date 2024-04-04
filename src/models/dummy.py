@@ -34,7 +34,7 @@ class Dummy:
 
         self.log = log
         self.rng = rng if rng else np.random.default_rng()
-        r = rng.standard_normal(size=self._N * self._dim)
+        r = rng.standard_normal(size=self.N * self.dim)
 
         self._initialize_variational_params(rng)
 
@@ -42,7 +42,7 @@ class Dummy:
         self.state = State(r, logp, 0, 0)
 
         if self.log:
-            msg = f"""Dummy initialized with {self._N} particles in {self._dim} dimensions.
+            msg = f"""Dummy initialized with {self.N} particles in {self.dim} dimensions.
             WARNING: this is a dummy wavefunction and the parameters have no effect"""
             self.logger.info(msg)
 
@@ -133,15 +133,15 @@ class Dummy:
         return grads
 
     def _initialize_vars(self, nparticles, dim, rng, log, logger, logger_level):
-        self._N = nparticles
-        self._dim = dim
+        self.N = nparticles
+        self.dim = dim
         self._log = log
         self._logger = logger
         self._logger_level = logger_level
 
     def _initialize_variational_params(self, rng):
         self.params = Parameter()
-        self.params.set("alpha", rng.uniform(size=(self._N * self._dim)))
+        self.params.set("alpha", rng.uniform(size=(self.N * self.dim)))
 
     def laplacian(self, r):
         """

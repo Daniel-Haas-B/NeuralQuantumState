@@ -23,7 +23,7 @@ class WaveFunction:
         seed=None,
     ):
         self.params = None
-        self._N = nparticles
+        self.N = nparticles
         self.dim = dim
         self._log = log
         self.logger = logger
@@ -36,7 +36,7 @@ class WaveFunction:
         self.sqrt_omega = 1  # will be reset in the set_hamiltonian
 
         self.slater_fact = np.log(
-            ss.factorial(self._N)
+            ss.factorial(self.N)
         )  # move this to be after backend is set later
 
         if logger:
@@ -48,10 +48,10 @@ class WaveFunction:
 
         self.log = log
         self.rng = rng
-        self.r0 = self.rng.standard_normal(size=self._N * self.dim)
+        self.r0 = self.rng.standard_normal(size=self.N * self.dim)
 
     def reinit_positions(self):
-        self.r0 = self.rng.standard_normal(size=self._N * self.dim)
+        self.r0 = self.rng.standard_normal(size=self.N * self.dim)
         print("====== reinitiated positions to", self.r0)
 
     def _jit_functions(self):
@@ -106,14 +106,14 @@ class WaveFunction:
         """
         if correlation == "pj":
             self.pade_jastrow = True
-            self.pade_aij = jnp.zeros((self._N, self._N))
-            for i in range(self._N):
-                for j in range(i + 1, self._N):
+            self.pade_aij = jnp.zeros((self.N, self.N))
+            for i in range(self.N):
+                for j in range(i + 1, self.N):
                     # first N//2 particles are spin up, the rest are spin down
                     # there is a more efficient way to do this for sure
-                    if i < self._N // 2 and j < self._N // 2:
+                    if i < self.N // 2 and j < self.N // 2:
                         self.pade_aij = self.pade_aij.at[i, j].set(1 / (self.dim + 1))
-                    elif i >= self._N // 2 and j >= self._N // 2:
+                    elif i >= self.N // 2 and j >= self.N // 2:
                         self.pade_aij = self.pade_aij.at[i, j].set(1 / (self.dim + 1))
                     else:
                         self.pade_aij = self.pade_aij.at[i, j].set(1 / (self.dim - 1))
@@ -164,7 +164,7 @@ class WaveFunction:
         """
 
         epsilon = 1e-10  # Small epsilon value was 10^-8 before
-        r_cpy = r.reshape(-1, self._N, self.dim)
+        r_cpy = r.reshape(-1, self.N, self.dim)
         r_diff = r_cpy[:, None, :, :] - r_cpy[:, :, None, :]
         r_dist = self.la.norm(r_diff + epsilon, axis=-1)  # Add epsilon to avoid nan
 
@@ -178,7 +178,7 @@ class WaveFunction:
         """ """
 
         epsilon = 1e-10  # Small epsilon value was 10^-8 before
-        r_cpy = r.reshape(-1, self._N, self._dim)
+        r_cpy = r.reshape(-1, self.N, self.dim)
         r_diff = r_cpy[:, None, :, :] - r_cpy[:, :, None, :]
         r_dist = self.la.norm(r_diff + epsilon, axis=-1)  # Add epsilon to avoid nan
 
@@ -192,7 +192,7 @@ class WaveFunction:
         return x.squeeze(-1)
 
     def generate_degrees(self):
-        max_comb = self._N // 2
+        max_comb = self.N // 2
         combinations = [[0] * self.dim]
         seen = {tuple(combinations[0])}
 
@@ -227,8 +227,8 @@ class WaveFunction:
 
         where phi_i is the i-th single particle wavefunction, in our case it is a hermite polynomial.
         """
-        A = self._N // 2
-        r = r.reshape(-1, self._N, self.dim)
+        A = self.N // 2
+        r = r.reshape(-1, self.N, self.dim)
 
         r_up = r[:, :A, :]
         r_down = r[:, A:, :]
@@ -303,7 +303,7 @@ class WaveFunction:
     #     """
 
     #     def wrapper(self, r, *args, **kwargs):
-    #         n = self._N
+    #         n = self.N
 
     #         # first permutation is always the identity
 

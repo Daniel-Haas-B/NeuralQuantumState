@@ -46,6 +46,17 @@ class NQS:
         rng=None,
         seed=None,
     ):
+        """
+        Initialize the Neural Quantum State (NQS) simulation environment.
+
+        Parameters:
+            nqs_repr (str): Representation of the NQS, either 'psi' for wave function itself or 'psi2' for the wave function amplitude. Default is 'psi2'.
+            backend (str): The backend to use for calculations. Default is 'numpy'.
+            log (bool): Flag to determine if logging is enabled. Default is True.
+            logger_level (str): The logging level. Default is 'INFO'.
+            rng (Generator, optional): A NumPy random number generator instance. If None, a default generator is created.
+            seed (int, optional): A seed for the random number generator to ensure reproducibility.
+        """
 
         self._check_logger(log, logger_level)
         self._log = log
@@ -86,15 +97,23 @@ class NQS:
 
     def set_wf(self, wf_type, nparticles, dim, **kwargs):
         """
-        Set the wave function to be used for sampling.
-        Successfully setting the wave function will also initialize it.
+        Set and initialize the wave function for the NQS simulation.
+
+        Parameters:
+            wf_type (str): The type of wave function to use.
+            nparticles (int): The number of particles in the system.
+            dim (int): The dimensionality of the system.
+            **kwargs: Additional keyword arguments for the wave function initialization.
+
+        Raises:
+            ValueError: If an invalid wave function type is provided.
         """
-        self._N = nparticles
-        self._dim = dim
+        self.N = nparticles
+        self.dim = dim
         self._symmetry = kwargs.get("symmetry", "none")
         common_args = {
-            "nparticles": self._N,
-            "dim": self._dim,
+            "nparticles": self.N,
+            "dim": self.dim,
             "rng": self.rng(self._seed) if self.rng else np.random.default_rng(),
             "log": self._log,
             "logger": self.logger,
@@ -108,14 +127,18 @@ class NQS:
 
     def set_hamiltonian(self, type_, int_type, **kwargs):
         """
-        Set the hamiltonian to be used for sampling.
+        Set the Hamiltonian for the NQS simulation.
 
-        Hamiltonian also needs to be propagated to the sampler.
+        Parameters:
+            type_ (str): The type of Hamiltonian to use (e.g., 'ho' for Harmonic Oscillator).
+            int_type (str): The type of interaction between particles.
+            **kwargs: Additional keyword arguments for Hamiltonian initialization.
 
-        If int_type is None, we assume non interacting particles.
+        Raises:
+            NotImplementedError: If an unsupported Hamiltonian type is provided.
         """
         if type_.lower() == "ho":
-            self.hamiltonian = HO(self._N, self._dim, int_type, self._backend, kwargs)
+            self.hamiltonian = HO(self.N, self.dim, int_type, self._backend, kwargs)
             self.wf.sqrt_omega = np.sqrt(kwargs.get("omega", 1.0))
         else:
             raise NotImplementedError(
@@ -126,8 +149,14 @@ class NQS:
 
     def set_sampler(self, mcmc_alg, scale=0.5):
         """
-        Set the MCMC algorithm to be used for sampling.
-        """
+        Set the Markov Chain Monte Carlo (MCMC) sampling algorithm for the NQS simulation.
+
+        Parameters:
+            mcmc_alg (str): The type of MCMC algorithm to use ('m' for Metropolis, 'lmh' for Metropolis-Hastings).
+            scale (float): The scale parameter for the MCMC sampling. Default is 0.5.
+
+        Raises:
+            ValueError: If an unsupported MCMC algorithm is specified."""
 
         if not isinstance(mcmc_alg, str):
             raise TypeError("'mcmc_alg' must be passed as str")
@@ -144,8 +173,15 @@ class NQS:
 
     def set_optimizer(self, optimizer, eta, **kwargs):
         """
-        Set the optimizer algorithm to be used for param update.
-        """
+        Set the optimization algorithm for parameter updates in the NQS simulation.
+
+        Parameters:
+            optimizer (str): The optimizer to use (e.g., 'adam').
+            eta (float): The learning rate.
+            **kwargs: Additional keyword arguments for the optimizer.
+
+        Raises:
+            ValueError: If an unsupported optimizer is specified."""
         self._eta = eta
         common_args = {
             "params": self.wf.params,
@@ -154,21 +190,50 @@ class NQS:
         self._optimizer = optimizer_factory(optimizer, **common_args, **kwargs)
 
     def _is_initialized(self):
+        """
+        Check if the NQS simulation environment has been initialized properly.
+
+        Raises:
+            NotInitialized: If the environment has not been initialized.
+        """
         if not self._is_initialized_:
             msg = "A call to 'init' must be made before training"
             raise errors.NotInitialized(msg)
 
     def _is_trained(self):
+        """
+        Check if the NQS model has been trained.
+
+        Raises:
+            NotTrained: If the model has not undergone training.
+        """
         if not self._is_trained_:
             msg = "A call to 'train' must be made before sampling"
             raise errors.NotTrained(msg)
 
     def _sampling_performed(self):
+        """
+        Check if sampling has been performed.
+
+        Raises:
+            SamplingNotPerformed: If sampling has not yet been performed.
+        """
         if not self._is_trained_:
             msg = "A call to 'sample' must be made in order to access results"
             raise errors.SamplingNotPerformed(msg)
 
     def _check_logger(self, log, logger_level):
+        """
+        Check the validity of logging parameters.
+
+        Parameters:
+            log (bool): Indicates whether logging is enabled.
+            logger_level (str): The logging level.
+
+        Raises:
+            TypeError: If 'log' is not a boolean or 'logger_level' is not a string.
+        """
+
         if not isinstance(log, bool):
             raise TypeError("'log' must be True or False")
 
@@ -177,7 +242,18 @@ class NQS:
 
     def train(self, max_iter, batch_size, **kwargs):
         """
-        Train the wave function parameters.
+        Train the wave function parameters using the provided optimizer and sampler.
+
+        Parameters:
+            max_iter (int): The maximum number of training iterations.
+            batch_size (int): The batch size for sampling.
+            **kwargs: Additional keyword arguments for training control, such as 'history', 'early_stop', etc.
+
+        Returns:
+            dict: A dictionary containing training history if 'history' is enabled, otherwise None.
+
+        Raises:
+            Various exceptions for invalid training states or configurations.
         """
         self._is_initialized()
         self._training_cycles = max_iter
@@ -344,14 +420,30 @@ class NQS:
         one_body_density=False,
         save_positions=False,
     ):
-        """helper for the sample method from the Sampler class"""
+        """
+        Perform sampling of the system's quantum state using the previously set wave function and sampler.
+
+        Parameters:
+            nsamples (int): The number of samples to generate.
+            nchains (int): The number of independent Markov chains to use for sampling. Default is 1.
+            seed (int, optional): A seed for the random number generator to ensure reproducibility of the sampling process.
+            one_body_density (bool): If True, computes the one-body density of the quantum state. Default is False.
+            save_positions (bool): If True, saves the particle positions during sampling. Default is False.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing the sampling results or one-body density results, depending on the parameters.
+
+        Raises:
+            Various exceptions if the system is not properly initialized or trained.
+        """
+
         self._is_initialized()
         self._is_trained()
         self.hamiltonian.turn_reg_off()
 
         system_info = {
-            "nparticles": self._N,
-            "dim": self._dim,
+            "nparticles": self.N,
+            "dim": self.dim,
             "eta": self._eta,
             "mcmc_alg": self.mcmc_alg,
             "nqs_type": self.nqs_type,
@@ -397,7 +489,20 @@ class NQS:
 
     def pretrain(self, model, max_iter, batch_size, args=None):
         """
-        # TODO: make this less repetitive
+        Pretrain the wave function using a specified model. This is typically used to initialize the wave function parameters to sensible values before the main training phase.
+
+        Parameters:
+            model (str): The pretraining model to use (e.g., 'gaussian' for Gaussian-based pretraining).
+            max_iter (int): The maximum number of iterations for the pretraining.
+            batch_size (int): The batch size to use during pretraining.
+            args (dict, optional): Additional arguments specific to the pretraining model.
+
+        Raises:
+            NotImplementedError: If a non-supported pretraining model is specified.
+            ValueError: If invalid model-specific parameters are provided.
+
+        Returns:
+            None: The method updates the wave function parameters in place.
         """
         if model.lower() == "gaussian":
             pre_system = pretrain.Gaussian(
@@ -407,8 +512,8 @@ class NQS:
             )
             pre_system.set_wf(
                 self.wf.__class__.__name__.lower(),
-                self._N,
-                self._dim,
+                self.N,
+                self.dim,
                 **args,
             )
             # if jastrow, save the WJ params to be used later

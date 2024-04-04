@@ -15,8 +15,8 @@ class Hamiltonian:
         """
         Note that this assumes that the wavefunction form is in the log domain
         """
-        self._N = nparticles
-        self._dim = dim
+        self.N = nparticles
+        self.dim = dim
         self._int_type = int_type
 
         if backend == "numpy":
@@ -92,7 +92,7 @@ class HarmonicOscillator(Hamiltonian):
         v_int = 0.0
         match self._int_type.lower():
             case "coulomb":
-                r_cpy = r.reshape(-1, self._N, self._dim)  # (nbatch, N, dim)
+                r_cpy = r.reshape(-1, self.N, self.dim)  # (nbatch, N, dim)
                 r_diff = r_cpy[:, None, :, :] - r_cpy[:, :, None, :]
                 noise = 1e-10
                 r_dist = self.la.norm(r_diff + noise, axis=-1)
@@ -120,7 +120,7 @@ class HarmonicOscillator(Hamiltonian):
                     )
                 )
             case "calogero":
-                r_cpy = copy.deepcopy(r).reshape(self._N, self._dim)
+                r_cpy = copy.deepcopy(r).reshape(self.N, self.dim)
                 r_dist = self.la.norm(r_cpy[None, ...] - r_cpy[:, None], axis=-1)
                 v_int = self.backend.sum(
                     self.backend.triu(1 / r_dist**2, k=1)

@@ -64,11 +64,11 @@ class Gaussian:
         Set the wave function to be used for sampling.
         Successfully setting the wave function will also initialize it.
         """
-        self._N = nparticles
-        self._dim = dim
+        self.N = nparticles
+        self.dim = dim
         common_args = {
-            "nparticles": self._N,
-            "dim": self._dim,
+            "nparticles": self.N,
+            "dim": self.dim,
             "rng": self.rng(self._seed) if self.rng else np.random.default_rng(),
             "log": self._log,
             "logger": self.logger,
@@ -199,7 +199,7 @@ class Gaussian:
                 rng = self.rng(next_gen)
 
                 positions = rng.normal(
-                    loc=0, scale=2, size=(batch_size, self._dim * self._N)
+                    loc=0, scale=2, size=(batch_size, self.dim * self.N)
                 )
                 loss = loss_func(positions, self.wf.params)
 
@@ -244,9 +244,9 @@ class Gaussian:
 
         output: float
         """
-        means = self.backend.zeros(self._N * self._dim)
+        means = self.backend.zeros(self.N * self.dim)
 
-        covariance = self.backend.eye(self._dim * self._N)
+        covariance = self.backend.eye(self.dim * self.N)
         x_minus_mean = x - means
         inv_cov = covariance  # self.la.inv(covariance)
 

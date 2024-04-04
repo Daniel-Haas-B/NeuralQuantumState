@@ -89,10 +89,10 @@ class FFNN(WaveFunction):
             )
 
         if self.jastrow:
-            input_j_size = self._N * (self._N - 1) // 2
+            input_j_size = self.N * (self.N - 1) // 2
             limit = self.backend.sqrt(2 / (input_j_size))
             self.params.set(
-                "WJ", self.backend.array(rng.uniform(-limit, limit, (self._N, self._N)))
+                "WJ", self.backend.array(rng.uniform(-limit, limit, (self.N, self.N)))
             )
         if self.pade_jastrow:
             assert not self.jastrow, "Pade Jastrow requires Jastrow to be false"
@@ -195,9 +195,9 @@ class FFNN(WaveFunction):
         self._layer_sizes = layer_sizes
         self._activations = activations
         self._ffnn_psi_repr = 2 * self._factor
-        self._N = nparticles
-        self._dim = dim
-        self._nvisible = self._N * self._dim
+        self.N = nparticles
+        self.dim = dim
+        self.Nvisible = self.N * self.dim
         if len(layer_sizes) != len(activations) + 1:
             raise ValueError(
                 f"num layers ({len(layer_sizes)}) != num activations +1 ({len(activations)})"

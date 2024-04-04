@@ -31,6 +31,7 @@ isort = "^5.13.2"
 tensorboard-plugin-profile = "^2.15.1"
 line-profiler = "^4.1.2"
 jax-metal = "^0.0.6"
+sphinx = "^7.2.6"
 
 
 [tool.poetry.group.dev.dependencies]

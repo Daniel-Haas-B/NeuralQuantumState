@@ -190,53 +190,6 @@ class FFNN(WaveFunction):
 
         return self.logprob_closure(r, self.params)
 
-    def compute_sr_matrix(self, expval_grad_params, grad_params, shift=1e-3):
-        """
-        expval_grad_params and grad_params should be dictionaries with keys "v_bias", "h_bias", "kernel" in the case of RBM
-        in the case of FFNN we have "weights" and "biases" and "kernel" is not present
-        WIP: for now this does not involve the averages because r will be a single sample
-        Compute the matrix for the stochastic reconfiguration algorithm
-            for now we do it only for the kernel
-            The expression here is for kernel element W_ij:
-                S_ij,kl = < (d/dW_ij log(psi)) (d/dW_kl log(psi)) > - < d/dW_ij log(psi) > < d/dW_kl log(psi) >
-
-            For bias (V or H) we have:
-                S_i,j = < (d/dV_i log(psi)) (d/dV_j log(psi)) > - < d/dV_i log(psi) > < d/dV_j log(psi) >
-
-
-            1. Compute the gradient ∂_W log(ψ) using the _grad_kernel function.
-            2. Compute the outer product of the gradient with itself: ∂_W log(ψ) ⊗ ∂_W log(ψ)
-            3. Compute the expectation value of the outer product over all the samples
-            4. Compute the expectation value of the gradient ∂_W log(ψ) over all the samples
-            5. Compute the outer product of the expectation value of the gradient with itself: <∂_W log(ψ)> ⊗ <∂_W log(ψ)>
-
-            OBS: < d/dW_ij log(psi) > is already done inside train of the WF class but we need still the < (d/dW_ij log(psi)) (d/dW_kl log(psi)) >
-        """
-        sr_matrices = {}
-
-        for key, grad_value in grad_params.items():
-
-            if "W" in key:  # means it is a matrix
-                grad_params_outer = self.backend.einsum(
-                    "nij,nkl->nijkl", grad_value, grad_value
-                )
-            else:  # means it is a (bias) vector
-                grad_params_outer = self.backend.einsum(
-                    "ni,nj->nij", grad_value, grad_value
-                )
-
-            expval_outer_grad = self.backend.mean(grad_params_outer, axis=0)
-            outer_expval_grad = self.backend.outer(
-                expval_grad_params[key], expval_grad_params[key]
-            )
-
-            sr_mat = (
-                expval_outer_grad.reshape(outer_expval_grad.shape) - outer_expval_grad
-            )
-            sr_matrices[key] = sr_mat + shift * self.backend.eye(sr_mat.shape[0])
-
-        return sr_matrices
-
     def _initialize_vars(self, nparticles, dim, layer_sizes, activations, factor):
         self._factor = factor
         self._layer_sizes = layer_sizes

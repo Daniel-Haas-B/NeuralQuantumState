@@ -184,7 +184,6 @@ class Dummy:
             )  # this should be done outside of the function
 
             if self.backend.ndim(grad_value[0]) == 2:
-                # if key == "kernel":
                 grad_params_outer = self.backend.einsum(
                     "nij,nkl->nijkl", grad_value, grad_value
                 )

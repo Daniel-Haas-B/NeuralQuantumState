@@ -65,7 +65,7 @@ class RBM(WaveFunction):
             r,
             self.params.get("v_bias"),
             self.params.get("h_bias"),
-            self.params.get("kernel"),
+            self.params.get("W_kernel"),
         )
 
     def _initialize_bias_and_kernel(self, rng):
@@ -74,7 +74,7 @@ class RBM(WaveFunction):
         kernel = rng.standard_normal(size=(self._nvisible, self._nhidden))
         kernel *= np.sqrt(1 / self._nvisible)
         self.params = Parameter()
-        self.params.set(["v_bias", "h_bias", "kernel"], [v_bias, h_bias, kernel])
+        self.params.set(["v_bias", "h_bias", "W_kernel"], [v_bias, h_bias, kernel])
         if self.jastrow:
             input_j_size = self._N * (self._N - 1) // 2
             limit = np.sqrt(2 / (input_j_size))
@@ -119,7 +119,7 @@ class RBM(WaveFunction):
 
         # hidden layer
         x_h = self._softplus(
-            params.get("h_bias") + (r @ params.get("kernel")) * self._sigma2_factor
+            params.get("h_bias") + (r @ params.get("W_kernel")) * self._sigma2_factor
         )  # potential failure point
         x_h = self.backend.sum(x_h, axis=-1)
         # print("x_h + x_v", x_h + x_v)
@@ -156,12 +156,12 @@ class RBM(WaveFunction):
         """
 
         _expit = self.sigmoid(
-            params.get("h_bias") + (r @ params.get("kernel")) * self._sigma2_factor
+            params.get("h_bias") + (r @ params.get("W_kernel")) * self._sigma2_factor
         )
 
         einsum_str = "ij,bj->bi"  # if r.ndim == 2 else "ij,j->i"  # TODO: CHANGE THIS
         gr = -(r - params.get("v_bias")) + self.backend.einsum(
-            einsum_str, params.get("kernel"), _expit
+            einsum_str, params.get("W_kernel"), _expit
         )
         gr *= self._sigma2 * self._factor
         return gr
@@ -182,13 +182,13 @@ class RBM(WaveFunction):
 
     def laplacian_closure(self, r, params):
         _expit = self.sigmoid(
-            params.get("h_bias") + (r @ params.get("kernel")) * self._sigma2_factor
+            params.get("h_bias") + (r @ params.get("W_kernel")) * self._sigma2_factor
         )  # r @ kernel is the r1 * W1 + r2 * W2 + ...
         _expos = self.sigmoid(
-            -params.get("h_bias") - (r @ params.get("kernel")) * self._sigma2_factor
+            -params.get("h_bias") - (r @ params.get("W_kernel")) * self._sigma2_factor
         )
 
-        kernel2 = self.backend.square(params.get("kernel"))  # shape: (4, 4) if 2d
+        kernel2 = self.backend.square(params.get("W_kernel"))  # shape: (4, 4) if 2d
 
         # Element-wise multiplication, results in shape: (batch_size, 4)
         exp_prod = _expos * _expit
@@ -223,7 +223,7 @@ class RBM(WaveFunction):
 
     def grad_params_closure(self, r, params):
         _expit = self.sigmoid(
-            params.get("h_bias") + (r @ params.get("kernel")) * self._sigma2_factor
+            params.get("h_bias") + (r @ params.get("W_kernel")) * self._sigma2_factor
         )
 
         grad_h_bias = self._factor * _expit
@@ -241,7 +241,7 @@ class RBM(WaveFunction):
         grads_dict = {
             "v_bias": grad_v_bias,
             "h_bias": grad_h_bias,
-            "kernel": grad_kernel,
+            "W_kernel": grad_kernel,
         }
 
         return grads_dict
@@ -257,53 +257,6 @@ class RBM(WaveFunction):
         """Gradients of the wave function w.r.t. the parameters"""
 
         return self.grad_params_closure(r, self.params)
-
-    def compute_sr_matrix(self, expval_grad_params, grad_params, shift=1e-4):
-        """
-        expval_grad_params and grads should be dictionaries with keys "v_bias", "h_bias", "kernel" in the case of RBM
-        in the case of FFNN we have "weights" and "biases" and "kernel" is not present
-        WIP: for now this does not involve the averages because r will be a single sample
-        Compute the matrix for the stochastic reconfiguration algorithm
-            for now we do it only for the kernel
-            The expression here is for kernel element W_ij:
-                S_ij,kl = < (d/dW_ij log(psi)) (d/dW_kl log(psi)) > - < d/dW_ij log(psi) > < d/dW_kl log(psi) >
-
-            For bias (V or H) we have:
-                S_i,j = < (d/dV_i log(psi)) (d/dV_j log(psi)) > - < d/dV_i log(psi) > < d/dV_j log(psi) >
-
-            1. Compute the gradient ∂_W log(ψ) using the _grad_kernel function.
-            2. Compute the outer product of the gradient with itself: ∂_W log(ψ) ⊗ ∂_W log(ψ)
-            3. Compute the expectation value of the outer product over all the samples
-            4. Compute the expectation value of the gradient ∂_W log(ψ) over all the samples
-            5. Compute the outer product of the expectation value of the gradient with itself: <∂_W log(ψ)> ⊗ <∂_W log(ψ)>
-
-            OBS: < d/dW_ij log(psi) > is already done inside train of the RBM class but we need still the < (d/dW_ij log(psi)) (d/dW_kl log(psi)) >
-        """
-        sr_matrices = {}
-
-        for key, grad_value in grad_params.items():
-            grad_value = self.backend.array(grad_value)
-
-            # if self.backend.ndim(grad_value[0]) == 2:
-            if key == "kernel" or key == "WJ":
-                grads_outer = self.backend.einsum(
-                    "nij,nkl->nijkl", grad_value, grad_value
-                )
-            # elif self.backend.ndim(grad_value[0]) == 1:
-            else:
-                grads_outer = self.backend.einsum("ni,nj->nij", grad_value, grad_value)
-
-            expval_outer_grad = self.backend.mean(grads_outer, axis=0)
-            outer_expval_grad = self.backend.outer(
-                expval_grad_params[key], expval_grad_params[key]
-            )
-
-            sr_mat = (
-                expval_outer_grad.reshape(outer_expval_grad.shape) - outer_expval_grad
-            )
-            sr_matrices[key] = sr_mat + shift * self.backend.eye(sr_mat.shape[0])
-
-        return sr_matrices
 
     @property
     def sigma2(self):

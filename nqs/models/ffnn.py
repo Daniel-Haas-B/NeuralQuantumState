@@ -2,7 +2,6 @@ from functools import partial  # noqa
 
 import jax
 from jax import vmap
-
 from src.models.base_wf import WaveFunction
 from src.state.utils import Parameter
 from src.state.utils import State

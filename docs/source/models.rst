@@ -1,7 +1,7 @@
 Models Documentation
 ====================
 
-.. automodule:: src.models.base_wf
+.. automodule:: nqs.models.base_wf
    :members:
    :undoc-members:
    :show-inheritance:

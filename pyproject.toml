@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "src"
+name = "nqs"
 version = "0.1.0"
 description = "Thesis code"
 authors = ["Daniel <danielhaas.lima@gmail.com>"]
@@ -51,5 +51,5 @@ build-backend = "poetry.core.masonry.api"
 [tool.pytest.ini_options]
 pythonpath = [
     ".",
-    "src",
+    "nqs",
 ]

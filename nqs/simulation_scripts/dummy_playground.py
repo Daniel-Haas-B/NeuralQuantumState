@@ -3,39 +3,39 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-
 from src.state import nqs
-from src.state.utils import plot_obd
-from src.state.utils import plot_tbd
+
+# from nqs.utils import plot_psi2
 
 
-jax.config.update("jax_enable_x64", True)
+# jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
 
 # Config
-output_filename = "/Users/haas/Documents/Masters/NQS/data/playground.csv"
+output_filename = "../data/vmc_playground.csv"
 nparticles = 2
 dim = 2
-nsamples = int(2**19)  # 2**18 = 262144
+nsamples = int(2**10)  # 2**18 = 262144
 nchains = 1
-eta = 0.1 / np.sqrt(nparticles * dim)  # 0.001  / np.sqrt(nparticles * dim)
+eta = 0.1
 
-training_cycles = 1000  # this is cycles for the ansatz
+training_cycles = 5  # this is cycles for the ansatz
 mcmc_alg = "m"
 backend = "jax"
 optimizer = "adam"
-batch_size = 1000
+batch_size = 1
 detailed = True
-wf_type = "vmc"
-seed = 42
-save_positions = True
+wf_type = "dummy"
+seed = 142
 
 dfs_mean = []
 df = []
 df_all = []
 import time
 
+# for max_iter in training_cycles:
 start = time.time()
+# for i in range(5):
 
 system = nqs.NQS(
     nqs_repr="psi",
@@ -49,13 +49,12 @@ system.set_wf(
     wf_type,
     nparticles,
     dim,
-    symmetry=None,
-    correlation="none",
+    sigma2=1.0,
 )
 
-system.set_sampler(mcmc_alg=mcmc_alg, scale=1.0 / np.sqrt(nparticles * dim))
+system.set_sampler(mcmc_alg=mcmc_alg, scale=1.0)
 system.set_hamiltonian(
-    type_="ho", int_type="none", omega=1.0, r0_reg=3, training_cycles=training_cycles
+    type_="ho", int_type="Coulomb", omega=1.0, r0_reg=3, training_cycles=training_cycles
 )
 system.set_optimizer(
     optimizer=optimizer,
@@ -71,12 +70,9 @@ history = system.train(
     early_stop=False,
     seed=seed,
     history=True,
-    tune=False,
 )
 
-df = system.sample(
-    nsamples, nchains, seed, one_body_density=False, save_positions=save_positions
-)
+df = system.sample(nsamples, nchains=nchains, seed=seed)
 df_all.append(df)
 
 sem_factor = 1 / np.sqrt(len(df))  # sem = standard error of the mean
@@ -107,14 +103,16 @@ info_data = (
 data = {**mean_data, **info_data}  # ** unpacks the dictionary
 df_mean = pd.DataFrame([data])
 dfs_mean.append(df_mean)
+
+epochs = np.arange(training_cycles)
+plt.plot(epochs, history["energy"], label="energy")
+plt.legend()
+plt.show()
+plt.plot(epochs, history["grad_params"], label="gradient_norm")
+plt.legend()
+plt.show()
 end = time.time()
 print((end - start))
-epochs = np.arange(training_cycles)
-
-for key, value in history.items():
-    plt.plot(epochs[: len(value)], value, label=key)
-    plt.legend()
-    plt.show()
 
 
 df_final = pd.concat(dfs_mean)
@@ -127,11 +125,6 @@ df_final.to_csv(output_filename, index=False)
 df_all = pd.concat(df_all)
 print(df_all)
 # energy with sr
-if save_positions:
-    plot_obd("positions_VMC.h5", nsamples, dim)
-    plot_tbd("positions_VMC.h5", nsamples, nparticles, dim)
-
-
 if nchains > 1:
     sns.lineplot(data=df_all, x="chain_id", y="energy")
 else:
@@ -141,4 +134,11 @@ else:
 
 plt.xlabel("Chain")
 plt.ylabel("Energy")
+plt.show()
+exit()
+positions, one_body_density = system.sample(
+    nsamples, nchains=1, seed=seed, one_body_density=True
+)
+
+plt.plot(positions, one_body_density)
 plt.show()

@@ -16,6 +16,8 @@ build:
         # VIRTUAL_ENV needs to be set manually for now.
         # See https://github.com/readthedocs/readthedocs.org/pull/11152/
         - VIRTUAL_ENV=$READTHEDOCS_VIRTUALENV_PATH poetry install --with docs
+        # Install the project package itself, ensure that it's editable if needed
+        - VIRTUAL_ENV=$READTHEDOCS_VIRTUALENV_PATH poetry run pip install -e .
 
 sphinx:
   configuration: docs/source/conf.py

@@ -3,7 +3,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-
 from src.state import nqs
 from src.state.utils import plot_obd
 from src.state.utils import plot_tbd
@@ -16,21 +15,18 @@ jax.config.update("jax_platform_name", "cpu")
 output_filename = "/Users/haas/Documents/Masters/NQS/data/playground.csv"
 nparticles = 2
 dim = 2
-nhidden = 4
-
-nsamples = int(2**18)
+nsamples = int(2**19)  # 2**18 = 262144
 nchains = 1
-eta = 0.001 / np.sqrt(nparticles * dim)
+eta = 0.1 / np.sqrt(nparticles * dim)  # 0.001  / np.sqrt(nparticles * dim)
 
-training_cycles = 1000  # this is cycles for the NN
+training_cycles = 1000  # this is cycles for the ansatz
 mcmc_alg = "m"
-backend = "numpy"
-optimizer = "sr"
-batch_size = 2000
+backend = "jax"
+optimizer = "adam"
+batch_size = 1000
 detailed = True
-wf_type = "rbm"
+wf_type = "vmc"
 seed = 42
-int_type = "None"  # "None"
 save_positions = True
 
 dfs_mean = []
@@ -38,9 +34,7 @@ df = []
 df_all = []
 import time
 
-# for max_iter in training_cycles:
 start = time.time()
-# for i in range(5):
 
 system = nqs.NQS(
     nqs_repr="psi",
@@ -54,45 +48,30 @@ system.set_wf(
     wf_type,
     nparticles,
     dim,
-    nhidden=nhidden,  # all after this is kwargs. In this example it is RBM dependent
-    sigma2=1.0,
-    symmetry="none",
+    symmetry=None,
     correlation="none",
 )
 
-system.set_sampler(mcmc_alg=mcmc_alg, scale=1 / np.sqrt(nparticles * dim))
+system.set_sampler(mcmc_alg=mcmc_alg, scale=1.0 / np.sqrt(nparticles * dim))
 system.set_hamiltonian(
-    type_="ho",
-    int_type=int_type,
-    omega=1.0,
-    r0_reg=5,
-    training_cycles=training_cycles,
+    type_="ho", int_type="none", omega=1.0, r0_reg=3, training_cycles=training_cycles
 )
 system.set_optimizer(
     optimizer=optimizer,
     eta=eta,
-    # gamma=0.7,
-    # beta1=0.9,
-    # beta2=0.999,
-    # epsilon=1e-8,
+    beta1=0.9,
+    beta2=0.999,
+    epsilon=1e-8,
 )
 
 history = system.train(
     max_iter=training_cycles,
     batch_size=batch_size,
     early_stop=False,
+    seed=seed,
     history=True,
     tune=False,
-    grad_clip=0,
-    seed=seed,
 )
-
-epochs = np.arange(len(history["energy"]))
-
-for key, value in history.items():
-    plt.plot(epochs, value, label=key)
-    plt.legend()
-    plt.show()
 
 df = system.sample(
     nsamples, nchains, seed, one_body_density=False, save_positions=save_positions
@@ -112,8 +91,6 @@ info_data = (
             "dim",
             "eta",
             "scale",
-            # "nvisible",
-            # "nhidden",
             "mcmc_alg",
             "nqs_type",
             "nsamples",
@@ -131,6 +108,12 @@ df_mean = pd.DataFrame([data])
 dfs_mean.append(df_mean)
 end = time.time()
 print((end - start))
+epochs = np.arange(training_cycles)
+
+for key, value in history.items():
+    plt.plot(epochs[: len(value)], value, label=key)
+    plt.legend()
+    plt.show()
 
 
 df_final = pd.concat(dfs_mean)
@@ -142,15 +125,18 @@ df_final.to_csv(output_filename, index=False)
 # energy withour sr
 df_all = pd.concat(df_all)
 print(df_all)
-
+# energy with sr
 if save_positions:
-    plot_obd("positions_RBM.h5", nsamples, dim)
-    plot_tbd("positions_RBM.h5", nsamples, nparticles, dim)
+    plot_obd("positions_VMC.h5", nsamples, dim)
+    plot_tbd("positions_VMC.h5", nsamples, nparticles, dim)
+
 
 if nchains > 1:
     sns.lineplot(data=df_all, x="chain_id", y="energy")
 else:
     sns.scatterplot(data=df_all, x="chain_id", y="energy")
+# ylim
+# plt.ylim(2.9, 3.6)
 
 plt.xlabel("Chain")
 plt.ylabel("Energy")

@@ -3,7 +3,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-
 from src.state import nqs
 from src.state.utils import plot_psi2  # noqa
 from src.state.utils import plot_style

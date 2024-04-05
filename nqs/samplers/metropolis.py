@@ -2,10 +2,10 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from line_profiler import LineProfiler  # noqa
-
-from .sampler import Sampler
 from src.state.utils import advance_PRNG_state
 from src.state.utils import State
+
+from .sampler import Sampler
 
 
 class Metropolis(Sampler):

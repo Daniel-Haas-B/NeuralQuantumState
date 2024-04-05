@@ -4,12 +4,11 @@ import os
 import h5py
 import numpy as np
 import pandas as pd
-from tqdm.auto import tqdm
-
 from src.state.utils import block
 from src.state.utils import check_and_set_nchains
 from src.state.utils import generate_seed_sequence
 from src.state.utils import sampler_utils
+from tqdm.auto import tqdm
 
 
 class Sampler:

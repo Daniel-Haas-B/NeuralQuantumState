@@ -1,7 +1,6 @@
 import warnings
 
 import jax
-
 from src.state.utils import advance_PRNG_state
 from src.state.utils import errors
 from src.state.utils import setup_logger

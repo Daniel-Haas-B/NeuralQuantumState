@@ -2,7 +2,6 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 from jax import vmap
-
 from src.state.utils import Parameter
 from src.state.utils import State
 

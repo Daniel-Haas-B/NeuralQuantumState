@@ -1,6 +1,5 @@
 import jax
 import wandb
-
 from src.state import nqs
 
 # import seaborn as sns

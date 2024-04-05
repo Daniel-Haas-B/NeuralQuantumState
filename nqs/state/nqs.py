@@ -3,8 +3,6 @@ import warnings
 import numpy as np
 import pandas as pd
 from numpy.random import default_rng
-from tqdm.auto import tqdm
-
 from src.physics.hamiltonians import HarmonicOscillator as HO
 from src.samplers import Metropolis as Metro
 from src.samplers import MetropolisHastings as MetroHastings
@@ -16,6 +14,7 @@ from src.state.utils import setup_logger
 from src.state.utils import State
 from src.state.utils import tune_sampler
 from src.state.utils import wf_factory
+from tqdm.auto import tqdm
 
 warnings.filterwarnings("ignore", message="divide by zero encountered")
 

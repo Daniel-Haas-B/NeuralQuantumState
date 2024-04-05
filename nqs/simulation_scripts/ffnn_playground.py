@@ -1,19 +1,14 @@
+import cProfile  # noqa
+import pstats  # noqa
+
 import jax
-import matplotlib.pyplot as plt  # noqa
 import numpy as np
 import pandas as pd
-
-from src.state.nqs import NQS
+from src.state import nqs
 from src.state.utils import plot_obd
 
 
-# import seaborn as sns
-# import matplotlib.pyplot as plt
-
-# from nqs.utils import plot_psi2
-
-
-jax.config.update("jax_enable_x64", True)
+# jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
 
 # Config
@@ -22,21 +17,26 @@ nparticles = 2
 dim = 2
 save_positions = True
 
-
-nsamples = int(2**17)  # 2**18 = 262144
+nsamples = int(2**17)  # 2**18 = 262144,
 nchains = 1
 eta = 0.001 / np.sqrt(nparticles * dim)  # 0.001  / np.sqrt(nparticles * dim)
 
-training_cycles = 200  # this is cycles for the ansatz
+training_cycles = 500  # this is cycles for the ansatz
 mcmc_alg = "m"  # lmh is shit for ffnn
-optimizer = "adam"
-batch_size = 1000
+optimizer = "sr"
+batch_size = 200  # 2000
 detailed = True
-wf_type = "ds"
+wf_type = "ffnn"
 seed = 42
-latent_dimension = 4
 
-system = NQS(
+
+save_positions = True
+
+import time
+
+start = time.time()
+
+system = nqs.NQS(
     nqs_repr="psi",
     backend="jax",
     log=True,
@@ -44,33 +44,22 @@ system = NQS(
     seed=seed,
 )
 
-common_layers_S0 = [9, 7, 5, 3]
-common_activations_S0 = ["elu", "elu", "elu", "elu", "elu"]
+layer_sizes = [nparticles * dim, 14, 11, 9, 7, 3, 1]
+activations = ["elu", "gelu", "elu", "gelu", "elu", "linear"]
 
-layer_sizes = {
-    "S0": [dim] + common_layers_S0 + [latent_dimension],
-    "S1": [latent_dimension, 7, 5, 3, 1],
-}
 
-activations = {
-    "S0": common_activations_S0,
-    "S1": ["elu", "elu", "elu", "linear"],
-}
-
-# Common kwargs for multiple function calls
 common_kwargs = {
     "layer_sizes": layer_sizes,
     "activations": activations,
-    "correlation": "j",  # or just j or None (default)
-    "symmetry": "none",
+    "correlation": None,  # or just j or None (default)
+    "symmetry": "none",  # why does this change the pretrain? and should it?
 }
 
-# Initial function call with specific kwargs
-system.set_wf("ds", nparticles, dim, **common_kwargs)
+system.set_wf("ffnn", nparticles, dim, **common_kwargs)  # all after this is kwargs.
 
 system.set_sampler(mcmc_alg=mcmc_alg, scale=1 / np.sqrt(nparticles * dim))
 system.set_hamiltonian(
-    type_="ho", int_type="Coulomb", omega=1.0, r0_reg=1, training_cycles=training_cycles
+    type_="ho", int_type="none", omega=1.0, r0_reg=1, training_cycles=training_cycles
 )
 
 system.set_optimizer(
@@ -84,10 +73,16 @@ system.set_optimizer(
 
 
 def main():
+
     dfs_mean = []
     df = []
     df_all = []
-    system.pretrain(model="Gaussian", max_iter=200, batch_size=2000, args=common_kwargs)
+    system.pretrain(
+        model="Gaussian",
+        max_iter=100,
+        batch_size=10000,
+        args=common_kwargs,
+    )
     history = system.train(
         max_iter=training_cycles,
         batch_size=batch_size,
@@ -123,8 +118,6 @@ def main():
                 "dim",
                 "eta",
                 "scale",
-                # "nvisible",
-                # "nhidden",
                 "mcmc_alg",
                 "nqs_type",
                 "nsamples",
@@ -139,43 +132,26 @@ def main():
     data = {**mean_data, **info_data}
     df_mean = pd.DataFrame([data])
     dfs_mean.append(df_mean)
+    end = time.time()
+    print((end - start))
 
     df_final = pd.concat(dfs_mean)
 
     # Save results
     df_final.to_csv(output_filename, index=False)
 
-    # plot energy convergence curve
-    # energy withour sr
     df_all = pd.concat(df_all)
     print(df_all)
 
     if save_positions:
-        plot_obd("positions_DS.h5", nsamples, dim)
-
-    # energy with sr
-    # if nchains > 1:
-    #     sns.lineplot(data=df_all, x="chain_id", y="energy", hue="sr")
-    # else:
-    #     sns.scatterplot(data=df_all, x="chain_id", y="energy", hue="sr")
-    # ylim
-    # plt.ylim(2.9, 3.6)
-
-    # plt.xlabel("Chain")
-    # plt.ylabel("Energy")
-    # plt.show()
-
-    # plot probability
-
-    # positions, one_body_density = system.sample(
-    #     2**12, nchains=1, seed=seed, one_body_density=True
-    # )
-
-    # plt.plot(positions, one_body_density)
-    # plt.show()
-
-    # plot_psi2(system.wf, num_points=300, r_min=-5, r_max=5)
+        plot_obd("positions_FFNN.h5", nsamples, dim)
 
 
 if __name__ == "__main__":
-    main()
+    # Use cProfile to run the main function and save the stats to a file
+    # main()
+    cProfile.runctx("main()", globals(), locals(), "profile_stats.prof")
+
+    # Create pstats object and sort by cumulative time
+    p = pstats.Stats("profile_stats.prof")
+    p.sort_stats("cumulative").print_stats(50)

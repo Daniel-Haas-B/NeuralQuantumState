@@ -2,7 +2,8 @@ import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 from scipy.stats import gaussian_kde
-from src.state.utils import plot_style
+
+from nqs.state.utils import plot_style
 
 
 def plot_psi2(wf, r_min=-2, r_max=2, num_points=1000):

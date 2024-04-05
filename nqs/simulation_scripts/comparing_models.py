@@ -3,9 +3,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
-from src.state import nqs
-from src.state.utils import plot_psi2  # noqa
-from src.state.utils import plot_style
+
+from nqs.state import nqs
+from nqs.state.utils import plot_psi2  # noqa
+from nqs.state.utils import plot_style
 
 # jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")

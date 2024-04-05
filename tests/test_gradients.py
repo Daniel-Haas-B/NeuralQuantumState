@@ -1,6 +1,6 @@
 import sys
 
-sys.path.append("/Users/haas/Documents/Masters/GANQS/src/nqs")
+sys.path.append("/Users/haas/Documents/Masters/GANQS/nqs")
 
 import pytest
 from models.ffnn import FFNN

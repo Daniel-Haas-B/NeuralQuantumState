@@ -1,5 +1,4 @@
-# from src.models import DS, Dummy, FFNN, RBM, VMC
-import src.models as mods
+import nqs.models as mods
 
 
 def wf_factory(wf_type, **kwargs):

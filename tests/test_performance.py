@@ -10,7 +10,7 @@ def playground_path():
     # Replace this with the actual logic to determine the playground path
     # For example, it could be a hardcoded path, a command-line argument, or an environment variable
     return (
-        "/Users/haas/Documents/Masters/GANQS/src/simulation_scripts/ffnn_playground.py"
+        "/Users/haas/Documents/Masters/GANQS/nqs/simulation_scripts/ffnn_playground.py"
     )
 
 

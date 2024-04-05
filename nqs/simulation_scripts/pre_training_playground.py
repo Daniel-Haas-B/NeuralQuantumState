@@ -1,7 +1,8 @@
 import jax
 import matplotlib.pyplot as plt
 import numpy as np
-from src.state import pretrain
+
+from nqs.state import pretrain
 
 # import seaborn as sns
 # import matplotlib.pyplot as plt

@@ -1,6 +1,7 @@
 import jax
 import wandb
-from src.state import nqs
+
+from nqs.state import nqs
 
 # import seaborn as sns
 # import matplotlib.pyplot as plt

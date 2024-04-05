@@ -4,8 +4,9 @@ import pstats  # noqa
 import jax
 import numpy as np
 import pandas as pd
-from src.state import nqs
-from src.state.utils import plot_obd
+
+from nqs.state import nqs
+from nqs.state.utils import plot_obd
 
 
 # jax.config.update("jax_enable_x64", True)

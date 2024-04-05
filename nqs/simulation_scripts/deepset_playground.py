@@ -2,8 +2,9 @@ import jax
 import matplotlib.pyplot as plt  # noqa
 import numpy as np
 import pandas as pd
-from src.state.nqs import NQS
-from src.state.utils import plot_obd
+
+from nqs.state.nqs import NQS
+from nqs.state.utils import plot_obd
 
 
 # import seaborn as sns

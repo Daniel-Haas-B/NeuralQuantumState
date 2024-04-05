@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 
 from . import test_utils
-from src.state.nqs import NQS
+from nqs.state.nqs import NQS
 
 # import test_utils
 

@@ -1,7 +1,7 @@
 import numpy as np
-from src.state.utils import advance_PRNG_state
 
 from .sampler import Sampler
+from nqs.state.utils import advance_PRNG_state
 
 
 class MetropolisHastings(Sampler):

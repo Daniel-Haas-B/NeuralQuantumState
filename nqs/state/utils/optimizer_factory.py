@@ -1,8 +1,8 @@
-from src.optimizers import Adagrad
-from src.optimizers import Adam
-from src.optimizers import Gd
-from src.optimizers import RmsProp
-from src.optimizers import Sr
+from nqs.optimizers import Adagrad
+from nqs.optimizers import Adam
+from nqs.optimizers import Gd
+from nqs.optimizers import RmsProp
+from nqs.optimizers import Sr
 
 
 def optimizer_factory(opti_type, **kwargs):

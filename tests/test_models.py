@@ -24,7 +24,6 @@ def system(config):
     system = NQS(
         nqs_repr="psi",
         backend="jax",
-        log=True,
         logger_level="INFO",
         seed=config["seed"],
     )

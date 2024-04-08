@@ -40,7 +40,6 @@ start = time.time()
 system = nqs.NQS(
     nqs_repr="psi",
     backend=backend,
-    log=True,
     logger_level="INFO",
     seed=seed,
 )

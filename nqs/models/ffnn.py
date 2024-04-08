@@ -30,7 +30,6 @@ class FFNN(WaveFunction):
             nparticles,
             dim,
             rng=rng,
-            log=log,
             logger=logger,
             logger_level=logger_level,
             backend=backend,
@@ -56,7 +55,7 @@ class FFNN(WaveFunction):
         logp = self.logprob(self.r0)
         self.state = State(self.r0, logp, 0, 0)
 
-        if self.log:
+        if self.logger_level != "SILENT":
             msg = f"Neural Network Quantum State initialized with symmetry {self.symmetry} as FFNN with {self.__str__()}."  # noqa
             self.logger.info(msg)
 

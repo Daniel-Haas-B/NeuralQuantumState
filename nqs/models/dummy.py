@@ -13,7 +13,6 @@ class Dummy:
         nparticles,
         dim,
         rng=None,
-        log=False,
         logger=None,
         logger_level="INFO",
         backend="numpy",
@@ -23,7 +22,7 @@ class Dummy:
         It is simply an identity function and the parameters have no effect
         """
         self.configure_backend(backend)
-        self._initialize_vars(nparticles, dim, rng, log, logger, logger_level)
+        self._initialize_vars(nparticles, dim, rng, logger, logger_level)
 
         if logger:
             self.logger = logger
@@ -32,7 +31,6 @@ class Dummy:
 
             self.logger = logging.getLogger(__name__)
 
-        self.log = log
         self.rng = rng if rng else np.random.default_rng()
         r = rng.standard_normal(size=self.N * self.dim)
 
@@ -41,7 +39,7 @@ class Dummy:
         logp = self.logprob(r)  # log of the (absolute) wavefunction squared
         self.state = State(r, logp, 0, 0)
 
-        if self.log:
+        if self.logger_level != "SILENT":
             msg = f"""Dummy initialized with {self.N} particles in {self.dim} dimensions.
             WARNING: this is a dummy wavefunction and the parameters have no effect"""
             self.logger.info(msg)
@@ -135,9 +133,8 @@ class Dummy:
     def _initialize_vars(self, nparticles, dim, rng, log, logger, logger_level):
         self.N = nparticles
         self.dim = dim
-        self._log = log
         self._logger = logger
-        self._logger_level = logger_level
+        self.logger_level = logger_level
 
     def _initialize_variational_params(self, rng):
         self.params = Parameter()

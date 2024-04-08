@@ -57,7 +57,6 @@ def main():
     system = nqs.NQS(
         nqs_repr="psi",
         backend="jax",
-        log=True,
         logger_level="INFO",
         use_sr=config.sr,
         seed=seed,

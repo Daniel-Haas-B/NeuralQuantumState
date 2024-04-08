@@ -19,7 +19,7 @@ dim = 2
 save_positions = True
 
 nsamples = int(2**10)  # 2**18 = 262144,
-nchains = 2
+nchains = 1
 eta = 0.001 / np.sqrt(nparticles * dim)  # 0.001  / np.sqrt(nparticles * dim)
 
 training_cycles = 10  # this is cycles for the ansatz
@@ -29,7 +29,7 @@ batch_size = 1000  # 2000
 detailed = True
 wf_type = "ffnn"
 seed = 42
-
+logger_level = "SILENT"
 
 save_positions = True
 
@@ -40,8 +40,7 @@ start = time.time()
 system = nqs.NQS(
     nqs_repr="psi",
     backend="jax",
-    log=True,
-    logger_level="INFO",
+    logger_level=logger_level,
     seed=seed,
 )
 
@@ -86,6 +85,7 @@ def main():
         model="Gaussian",
         max_iter=100,
         batch_size=10000,
+        logger_level=logger_level,
         args=common_kwargs,
     )
     history = system.train(
@@ -148,8 +148,9 @@ def main():
     df_all = pd.concat(df_all)
     print(df_all)
 
-    # if save_positions:
-    #    plot_obd("positions_FFNN.h5", nsamples, dim)
+    if save_positions:
+        chain_id = 0
+        plot_obd(f"energies_and_pos_FFNN_ch{chain_id}.h5", nsamples, dim)
 
 
 if __name__ == "__main__":

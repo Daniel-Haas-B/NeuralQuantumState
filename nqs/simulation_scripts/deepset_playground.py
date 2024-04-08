@@ -39,7 +39,6 @@ latent_dimension = 4
 system = NQS(
     nqs_repr="psi",
     backend="jax",
-    log=True,
     logger_level="INFO",
     seed=seed,
 )

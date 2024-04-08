@@ -41,7 +41,6 @@ class NQS:
         self,
         nqs_repr="psi2",
         backend="numpy",
-        log=True,
         logger_level="INFO",
         rng=None,
         seed=None,
@@ -58,8 +57,8 @@ class NQS:
             seed (int, optional): A seed for the random number generator to ensure reproducibility.
         """
 
-        self._check_logger(log, logger_level)
-        self._log = log
+        self.logger_level = logger_level
+        self._check_logger()
 
         self.nqs_type = None
         self.hamiltonian = None
@@ -70,7 +69,7 @@ class NQS:
         self.wf = None
         self._seed = seed
 
-        if self._log:
+        if logger_level != "SILENT":
             self.logger = setup_logger(self.__class__.__name__, level=logger_level)
         else:
             self.logger = None
@@ -115,7 +114,6 @@ class NQS:
             "nparticles": self.N,
             "dim": self.dim,
             "rng": self.rng(self._seed) if self.rng else np.random.default_rng(),
-            "log": self._log,
             "logger": self.logger,
             "logger_level": "INFO",
             "backend": self._backend,
@@ -222,22 +220,18 @@ class NQS:
             msg = "A call to 'sample' must be made in order to access results"
             raise errors.SamplingNotPerformed(msg)
 
-    def _check_logger(self, log, logger_level):
+    def _check_logger(self):
         """
         Check the validity of logging parameters.
 
         Parameters:
-            log (bool): Indicates whether logging is enabled.
             logger_level (str): The logging level.
 
         Raises:
-            TypeError: If 'log' is not a boolean or 'logger_level' is not a string.
+            TypeError: If 'logger_level' is not a string.
         """
 
-        if not isinstance(log, bool):
-            raise TypeError("'log' must be True or False")
-
-        if not isinstance(logger_level, str):
+        if not isinstance(self.logger_level, str):
             raise TypeError("'logger_level' must be passed as str")
 
     def train(self, max_iter, batch_size, **kwargs):
@@ -269,7 +263,7 @@ class NQS:
         self._grad_clip = kwargs.get("grad_clip", False)
         self._agent = kwargs.get("agent", False)
 
-        if self._log:
+        if self.logger_level != "SILENT":
             t_range = tqdm(
                 range(max_iter),
                 desc="[Training progress]",
@@ -318,11 +312,11 @@ class NQS:
                     current_state=self.state,
                     sampler=self._sampler,
                     seed=self._seed,
-                    log=self._log,
                     tune_batch=tune_batch,
                     tune_iter=tune_iter,
                     mode="standard",
                     logger=self.logger,
+                    logger_level=self.logger_level,
                 )
 
                 # then kinda do it again
@@ -349,9 +343,12 @@ class NQS:
             expval_energy = np.mean(energies)
 
             std_energy = np.std(energies)
-            t_range.set_postfix(
-                avg_E_l=f"{expval_energy:.2f}", acc=f"{current_acc:.2f}", refresh=True
-            )
+            if self.logger_level != "SILENT":
+                t_range.set_postfix(
+                    avg_E_l=f"{expval_energy:.2f}",
+                    acc=f"{current_acc:.2f}",
+                    refresh=True,
+                )
 
             for key in param_keys:
                 grad_np = np.array(local_grad_params_dict.get(key))
@@ -409,7 +406,7 @@ class NQS:
             grad_params_dict = {key: [] for key in param_keys}
 
         self._is_trained_ = True
-        if self.logger is not None:
+        if self.logger_level != "SILENT":
             self.logger.info("Training done")
         if self._history:
             return self._history
@@ -489,7 +486,7 @@ class NQS:
 
         return sample_results
 
-    def pretrain(self, model, max_iter, batch_size, args=None):
+    def pretrain(self, model, max_iter, batch_size, args=None, **kwargs):
         """
         Pretrain the wave function using a specified model. This is typically used to initialize the wave function parameters to sensible values before the main training phase.
 
@@ -508,8 +505,7 @@ class NQS:
         """
         if model.lower() == "gaussian":
             pre_system = pretrain.Gaussian(
-                log=True,
-                logger_level="INFO",
+                logger_level=kwargs.get("logger_level", "INFO"),
                 seed=self._seed * 2,
             )
             pre_system.set_wf(

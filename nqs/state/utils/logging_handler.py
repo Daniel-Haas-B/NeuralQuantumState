@@ -4,7 +4,7 @@ import logging
 
 import colorlog
 
-ALLOWED_LEVELS = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+ALLOWED_LEVELS = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL", "SILENT"]
 
 
 def setup_logger(name, level="INFO"):
@@ -43,6 +43,9 @@ def setup_logger(name, level="INFO"):
         logger.setLevel(logging.DEBUG)
     elif level == "CRITICAL":
         logger.setLevel(logging.CRITICAL)
+    elif level == "SILENT":
+        # will be analogous to logger.disabled = True
+        pass
 
     return logger
 

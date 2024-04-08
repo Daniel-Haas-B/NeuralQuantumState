@@ -36,7 +36,6 @@ class RBM(WaveFunction):
             nparticles,
             dim,
             rng=rng,
-            log=log,
             logger=logger,
             logger_level=logger_level,
             backend=backend,
@@ -52,7 +51,7 @@ class RBM(WaveFunction):
         logp = self.logprob(self.r0)
         self.state = State(self.r0, logp, 0, 0)
 
-        if self.log:
+        if self.logger_level != "SILENT":
             neuron_str = "neurons" if self.Nhidden > 1 else "neuron"
             msg = (
                 f"Neural Network Quantum State initialized as RBM with "

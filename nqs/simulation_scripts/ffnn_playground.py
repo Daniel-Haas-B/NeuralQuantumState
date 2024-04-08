@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 from nqs.state import nqs
-from nqs.state.utils import plot_obd
+from nqs.state.utils import plot_obd  # noqa
 
 
 jax.config.update("jax_enable_x64", True)
@@ -18,14 +18,14 @@ nparticles = 2
 dim = 2
 save_positions = True
 
-nsamples = int(2**18)  # 2**18 = 262144,
-nchains = 1
+nsamples = int(2**10)  # 2**18 = 262144,
+nchains = 2
 eta = 0.001 / np.sqrt(nparticles * dim)  # 0.001  / np.sqrt(nparticles * dim)
 
-training_cycles = 1000  # this is cycles for the ansatz
+training_cycles = 10  # this is cycles for the ansatz
 mcmc_alg = "m"  # lmh is shit for ffnn
 optimizer = "sr"
-batch_size = 100  # 2000
+batch_size = 1000  # 2000
 detailed = True
 wf_type = "ffnn"
 seed = 42
@@ -148,8 +148,8 @@ def main():
     df_all = pd.concat(df_all)
     print(df_all)
 
-    if save_positions:
-        plot_obd("positions_FFNN.h5", nsamples, dim)
+    # if save_positions:
+    #    plot_obd("positions_FFNN.h5", nsamples, dim)
 
 
 if __name__ == "__main__":

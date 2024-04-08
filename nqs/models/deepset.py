@@ -30,7 +30,6 @@ class DS(WaveFunction):
             nparticles,
             dim,
             rng=rng,
-            log=log,
             logger=logger,
             logger_level=logger_level,
             backend=backend,
@@ -56,7 +55,7 @@ class DS(WaveFunction):
         logp = self.logprob(self.r0)
         self.state = State(self.r0, logp, 0, 0)
 
-        if self.log:
+        if self.logger_level != "SILENT":
             msg = f"Neural Network Quantum State initialized with symmetry {self.symmetry} as Deepset."  # noqa
             self.logger.info(msg)
 

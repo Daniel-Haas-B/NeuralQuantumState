@@ -27,15 +27,14 @@ import jax.numpy as jnp
 class Gaussian:
     def __init__(
         self,
-        log=True,
         logger_level="INFO",
         rng=None,
         seed=None,
     ):
         """ """
+        self.logger_level = logger_level
+        self._check_logger()
 
-        self._check_logger(log, logger_level)
-        self._log = log
         self.nqs_type = None
         self.hamiltonian = None
         self.backend = jnp
@@ -46,7 +45,7 @@ class Gaussian:
         self.wf = None
         self._seed = seed
 
-        if self._log:
+        if self.logger_level != "SILENT":
             self.logger = setup_logger(self.__class__.__name__, level=logger_level)
         else:
             self.logger = None
@@ -70,7 +69,6 @@ class Gaussian:
             "nparticles": self.N,
             "dim": self.dim,
             "rng": self.rng(self._seed) if self.rng else np.random.default_rng(),
-            "log": self._log,
             "logger": self.logger,
             "logger_level": "INFO",
             "backend": "jax",  # make dynamic
@@ -144,11 +142,9 @@ class Gaussian:
             msg = "A call to 'train' must be made before sampling"
             raise errors.NotTrained(msg)
 
-    def _check_logger(self, log, logger_level):
-        if not isinstance(log, bool):
-            raise TypeError("'log' must be True or False")
+    def _check_logger(self):
 
-        if not isinstance(logger_level, str):
+        if not isinstance(self.logger_level, str):
             raise TypeError("'logger_level' must be passed as str")
 
     def pretrain(self, max_iter, batch_size, **kwargs):
@@ -165,7 +161,7 @@ class Gaussian:
         self._early_stop = kwargs.get("early_stop", False)
         self._grad_clip = kwargs.get("grad_clip", False)
         self.pretrain_sampler = kwargs.get("pretrain_sampler", False)
-        if self._log:
+        if self.logger_level != "SILENT":
             t_range = tqdm(
                 range(max_iter),
                 desc="[Pre-training progress]",
@@ -207,7 +203,7 @@ class Gaussian:
             grad_loss_dict = grad_loss_fn(positions, params)
 
             epoch += 1
-            if self._log:
+            if self.logger_level != "SILENT":
                 t_range.set_postfix(loss=f"{loss:.2E}", refresh=True)
 
             if self._history:
@@ -223,11 +219,11 @@ class Gaussian:
             )  # changes wf params inplace
 
             if loss < 10**-15:
-                if self.logger is not None:
+                if self.logger_level != "SILENT":
                     self.logger.warning("loss is zero, stopping training")
                 break
 
-        if self.logger is not None:
+        if self.logger_level != "SILENT":
             self.logger.info("Pre-training done")
 
         if self._history:

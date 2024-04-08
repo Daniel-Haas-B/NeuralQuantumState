@@ -31,7 +31,7 @@ detailed = True
 wf_type = "ffnn"
 seed = 42
 
-system = pretrain.Gaussian(log=True, logger_level="INFO", seed=seed, symmetry="fermion")
+system = pretrain.Gaussian(logger_level="INFO", seed=seed, symmetry="fermion")
 
 system.set_wf(
     "ffnn",

@@ -61,7 +61,6 @@ class Sampler:
 
     def sample(self, wf, state, nsamples, nchains=1, seed=None, save_positions=False):
         """ """
-        scale = self.scale
         nchains = check_and_set_nchains(nchains, self._logger)
         seeds = generate_seed_sequence(seed, nchains)
         if nchains == 1:
@@ -70,17 +69,14 @@ class Sampler:
             results, self._energies = self._sample(
                 wf, nsamples, state, seeds[0], chain_id, save_positions
             )
-
             self._results = pd.DataFrame([results])
         else:
-            multi_sampler = sampler_utils.multiproc
-            results, self._energies = multi_sampler(
+            results, self._energies = sampler_utils.multiproc(
                 self._sample,
                 wf,
                 nchains,
                 nsamples,
                 state,
-                scale,
                 seeds,
                 save_positions,
             )
@@ -96,11 +92,11 @@ class Sampler:
     def _sample(self, wf, nsamples, state, seed, chain_id, save_positions=False):
         """To be called by process in the big sampler function."""
         batch_size = 2**10
-
+        filename = f"data/energies_and_pos_{wf.__class__.__name__}_ch{chain_id}.h5"
         if self._logger is not None:
             t_range = tqdm(
                 range(0, nsamples // batch_size),
-                desc=f"[Sampling progress] Chain {chain_id+1}",
+                desc=f"[Sampling progress] Chain {chain_id + 1}",
                 position=chain_id,
                 leave=True,
                 colour="green",
@@ -109,42 +105,55 @@ class Sampler:
             t_range = range(0, nsamples // batch_size)
 
         batch_state = state.create_batch_of_states(batch_size=batch_size)
-        energies = np.zeros(nsamples)
-        (
-            os.remove(f"data/positions_{wf.__class__.__name__}.h5")
-            if os.path.exists(f"data/positions_{wf.__class__.__name__}.h5")
-            else None
-        )
+
+        if os.path.exists(filename):
+            os.remove(filename)
         for i in t_range:  # 2**18
             batch_state = self._step(wf, batch_state, seed, batch_size=batch_size)
-            energies[i * batch_size : (i + 1) * batch_size] = (
-                self.hamiltonian.local_energy(wf, batch_state.positions)
-            )
-            if save_positions:
-                f = h5py.File(f"data/positions_{wf.__class__.__name__}.h5", "a")
-                if i == 0:
-                    f.create_dataset(
+            energies = self.hamiltonian.local_energy(wf, batch_state.positions)
+
+            f1 = h5py.File(filename, "a")
+            if i == 0:
+                f1.create_dataset(
+                    "energies",
+                    data=energies,
+                    compression="gzip",
+                    chunks=True,
+                    maxshape=(None,),
+                )
+                if save_positions:
+                    f1.create_dataset(
                         "positions",
                         data=batch_state.positions,
                         compression="gzip",
                         chunks=True,
                         maxshape=(None, batch_state.positions.shape[1]),
                     )
-                else:
-                    f["positions"].resize(
-                        (f["positions"].shape[0] + batch_state.positions.shape[0]),
+            else:
+                f1["energies"].resize(
+                    (f1["energies"].shape[0] + energies.shape[0]),
+                    axis=0,
+                )
+                f1["energies"][-energies.shape[0] :] = energies
+                if save_positions:
+                    f1["positions"].resize(
+                        (f1["positions"].shape[0] + batch_state.positions.shape[0]),
                         axis=0,
                     )
-                    f["positions"][
+                    f1["positions"][
                         -batch_state.positions.shape[0] :
                     ] = batch_state.positions
 
         if self._logger is not None:
             t_range.clear()
 
+        # open energies file
+        f = h5py.File(filename, "r")
+        energies = f["energies"][:]
         assert (
             np.sum(energies == 0) == 0
         ), "There are empty energies which would give wrong statistics"
+
         energy = np.mean(energies)
         error = block(energies)
         variance = np.mean(energies**2) - energy**2

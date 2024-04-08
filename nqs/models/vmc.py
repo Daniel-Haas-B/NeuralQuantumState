@@ -25,7 +25,6 @@ class VMC(WaveFunction):
             nparticles,
             dim,
             rng=rng,
-            log=log,
             logger=logger,
             logger_level=logger_level,
             backend=backend,
@@ -41,10 +40,10 @@ class VMC(WaveFunction):
         logp = self.logprob(self.r0)  # log of the (absolute) wavefunction squared
         self.state = State(self.r0, logp, 0, 0)
 
-        if self.log:
+        if self.logger_level != "SILENT":
             msg = f"""VMC initialized with {self.N} particles in {self.dim} dimensions with {
-                    self.params.get("alpha").size
-                    } parameters"""
+                self.params.get("alpha").size
+            } parameters"""
             self.logger.info(msg)
 
     # @WaveFunction.symmetry

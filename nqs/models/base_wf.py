@@ -45,7 +45,6 @@ class WaveFunction:
         nparticles,
         dim,
         rng=None,
-        log=False,
         logger=None,
         logger_level="INFO",
         backend="numpy",
@@ -54,9 +53,8 @@ class WaveFunction:
         self.params = None
         self.N = nparticles
         self.dim = dim
-        self._log = log
         self.logger = logger
-        self._logger_level = logger_level
+        self.logger_level = logger_level
         self.backend = backend
         self._seed = seed
         self.symmetry = None
@@ -75,7 +73,6 @@ class WaveFunction:
 
             self.logger = logging.getLogger(__name__)
 
-        self.log = log
         self.rng = rng
         self.r0 = self.rng.standard_normal(size=self.N * self.dim)
 
@@ -147,7 +144,7 @@ class WaveFunction:
             self.log_wf = self.log_wf_slater_det
         else:
             self.log_wf = self.log_wf0
-        if self.logger is not None:
+        if self.logger_level != "SILENT":
             self.logger.info(f"Using symmetry {symmetry}")
 
     def configure_correlation(self, correlation):
@@ -185,7 +182,7 @@ class WaveFunction:
             else:
                 self.log_wf = self.log_wf0
 
-        if self.logger is not None:
+        if self.logger_level != "SILENT":
             self.logger.info(f"Using correlation factor {correlation}")
 
     def log_wf_slater_det(self, r, params):

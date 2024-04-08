@@ -1,5 +1,6 @@
 import jax
 import numpy as np
+
 from nqs import nqs
 
 # import matplotlib.pyplot as plt
@@ -39,7 +40,6 @@ start = time.time()
 system = nqs.NQS(
     nqs_repr="psi",
     backend="jax",
-    log=True,
     logger_level="INFO",
     seed=seed,
 )

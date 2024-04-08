@@ -36,7 +36,6 @@ for wf_type in wf_types:
     system = nqs.NQS(
         nqs_repr="psi",
         backend=backend,
-        log=True,
         logger_level="INFO",
         seed=seed,
     )

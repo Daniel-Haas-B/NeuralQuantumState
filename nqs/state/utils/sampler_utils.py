@@ -34,9 +34,7 @@ def early_stopping(new_value, old_value, tolerance=1e-5):
     return dist < tolerance
 
 
-def multiproc(
-    proc_sample, wf, nchains, nsamples, state, scale, seeds, save_positions=False
-):
+def multiproc(proc_sample, wf, nchains, nsamples, state, seeds, save_positions=False):
     params = wf.params
 
     # Handle iterable
@@ -44,13 +42,13 @@ def multiproc(
     nsamples = [nsamples] * nchains
     state = [state] * nchains
     params = [params] * nchains
-    scale = [scale] * nchains
     chain_ids = list(range(nchains))
+    save_positions = [save_positions] * nchains
 
     # Define a helper function to package the delayed computation
     def compute(i):
         return proc_sample(
-            wf[i], nsamples[i], state[i], scale[i], seeds[i], chain_ids[i]
+            wf[i], nsamples[i], state[i], seeds[i], chain_ids[i], save_positions[i]
         )
 
     results = Parallel(n_jobs=-1)(delayed(compute)(i) for i in range(nchains))
@@ -80,7 +78,7 @@ def tune_sampler(
     """
     Tune proposal scale so that the acceptance rate is around 0.7.
     """
-    seed = seed + 1 if seed is not None else None
+    # seed = seed + 1 if seed is not None else None
     seed_seq = generate_seed_sequence(seed, 1)[0]
 
     # Reset n_accepted

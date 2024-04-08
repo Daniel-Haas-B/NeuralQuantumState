@@ -9,7 +9,7 @@ from nqs.state import nqs
 from nqs.state.utils import plot_obd
 
 
-# jax.config.update("jax_enable_x64", True)
+jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
 
 # Config
@@ -18,14 +18,14 @@ nparticles = 2
 dim = 2
 save_positions = True
 
-nsamples = int(2**17)  # 2**18 = 262144,
+nsamples = int(2**18)  # 2**18 = 262144,
 nchains = 1
 eta = 0.001 / np.sqrt(nparticles * dim)  # 0.001  / np.sqrt(nparticles * dim)
 
-training_cycles = 500  # this is cycles for the ansatz
+training_cycles = 1000  # this is cycles for the ansatz
 mcmc_alg = "m"  # lmh is shit for ffnn
 optimizer = "sr"
-batch_size = 200  # 2000
+batch_size = 100  # 2000
 detailed = True
 wf_type = "ffnn"
 seed = 42
@@ -60,7 +60,11 @@ system.set_wf("ffnn", nparticles, dim, **common_kwargs)  # all after this is kwa
 
 system.set_sampler(mcmc_alg=mcmc_alg, scale=1 / np.sqrt(nparticles * dim))
 system.set_hamiltonian(
-    type_="ho", int_type="none", omega=1.0, r0_reg=1, training_cycles=training_cycles
+    type_="ho",
+    int_type="coulomb_gradual",
+    omega=1.0,
+    r0_reg=10,
+    training_cycles=training_cycles,
 )
 
 system.set_optimizer(

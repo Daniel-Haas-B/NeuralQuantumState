@@ -67,7 +67,7 @@ class HarmonicOscillator(Hamiltonian):
         self.reg_decay = (1 / (3 * self.kwargs.get("r0_reg"))) ** (
             2 / self.kwargs.get("training_cycles")
         )
-        self.fr_arr = []
+        # self.fr_arr = []
 
     def regularized_potential(self, r):
         """Regularize the potential
@@ -108,8 +108,7 @@ class HarmonicOscillator(Hamiltonian):
 
                 # Apply tanh regularization
                 f_r = self.regularized_potential(r_dist)
-                self.fr_arr.append(f_r)
-                # save to file
+                # self.fr_arr.append(f_r)
 
                 v_int = self.backend.sum(
                     self.backend.triu(f_r / r_dist, k=1), axis=(-2, -1)
@@ -167,8 +166,7 @@ class HarmonicOscillator(Hamiltonian):
         return pe + ke
 
     def turn_reg_off(self):
-        # overwrite the regularized potential
-        np.save("fr_arr.npy", self.fr_arr)
+        # np.save("fr_arr.npy", self.fr_arr)
 
         def regularized_potential(r):
             """Regularize the potential"""

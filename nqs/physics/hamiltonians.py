@@ -63,16 +63,20 @@ class HarmonicOscillator(Hamiltonian):
         # self.potential = jax.jit(self.potential) # if we regularize we cannot jit
 
         self.kwargs = kwargs
-
-        self.reg_decay = 0.9
-
-        # (1**-10 / self.kwargs.get("r0_reg", 1.0)) ** (
-        #    1 / self.kwargs.get("training_cycles", 1.0)
-        # )
+        # r0 starts at 10
+        self.reg_decay = (1 / (3 * self.kwargs.get("r0_reg"))) ** (
+            2 / self.kwargs.get("training_cycles")
+        )
+        # self.fr_arr = []
 
     def regularized_potential(self, r):
-        """Regularize the potential"""
-        r0 = self.kwargs.get("r0_reg", 1.0)
+        """Regularize the potential
+        we want this to slowly go to 1, but starting from 0
+        so every training cycle we multiply r_0 by a decay factor, but it shall start from 1
+        Ideally, I want the tanh(r/r_0) to be around one at the middle of the training process. so
+        r/r0(decay_rate)^k = 3 so considering r0 starts at 1, decay_rate = 3^(1/k)
+        """
+        r0 = self.kwargs.get("r0_reg")
         return self.backend.tanh(r / r0)
 
     def potential(self, r):
@@ -82,11 +86,6 @@ class HarmonicOscillator(Hamiltonian):
         # HO trap
 
         v_trap = 0.5 * self.backend.sum(r * r, axis=-1) * self.kwargs["omega"]
-        # self.kwargs["r0_reg"] = self.kwargs["r0_reg"] * self.reg_decay
-        # print("r0_reg", self.kwargs["r0_reg"])
-        # with open("decay.csv", "a") as f:
-        #    f.write(str(self.kwargs["r0_reg"]) + "\n")
-        # f.close()
 
         # Interaction
         v_int = 0.0
@@ -97,12 +96,23 @@ class HarmonicOscillator(Hamiltonian):
                 noise = 1e-10
                 r_dist = self.la.norm(r_diff + noise, axis=-1)
 
+                v_int = self.backend.sum(
+                    self.backend.triu(1 / r_dist, k=1), axis=(-2, -1)
+                )  # the axis=(-2, -1) is to sum over the last two axes, so that we get a (nbatch, ) array
+            case "coulomb_gradual":
+                self.kwargs["r0_reg"] *= self.reg_decay
+                r_cpy = r.reshape(-1, self.N, self.dim)  # (nbatch, N, dim)
+                r_diff = r_cpy[:, None, :, :] - r_cpy[:, :, None, :]
+                noise = 0  # 1e-10
+                r_dist = self.la.norm(r_diff + noise, axis=-1)
+
                 # Apply tanh regularization
-                f_r = 1  # self.regularized_potential(r_dist)
+                f_r = self.regularized_potential(r_dist)
+                # self.fr_arr.append(f_r)
+
                 v_int = self.backend.sum(
                     self.backend.triu(f_r / r_dist, k=1), axis=(-2, -1)
                 )  # the axis=(-2, -1) is to sum over the last two axes, so that we get a (nbatch, ) array
-
             case "gaussian":
                 """
                 # WIP
@@ -156,13 +166,13 @@ class HarmonicOscillator(Hamiltonian):
         return pe + ke
 
     def turn_reg_off(self):
-        # overwrite the regularized potential
+        # np.save("fr_arr.npy", self.fr_arr)
+
         def regularized_potential(r):
             """Regularize the potential"""
             return 1
 
         self.reg_decay = 1
-
         self.regularized_potential = regularized_potential
 
     def drift_force(self, wf, r):

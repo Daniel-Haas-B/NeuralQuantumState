@@ -302,10 +302,12 @@ class NQS:
             # states = self.state.create_batch_of_states(batch_size=batch_size)
 
             # print("states", states[-1].positions.type)
+            # reset the acceptance rate
+            states.n_accepted = np.zeros(batch_size)
             states = self._sampler.step(
                 self.wf, states, seed_seq, batch_size=batch_size
             )
-            current_acc = states[-1].n_accepted / batch_size
+            current_acc = states.n_accepted[-1] / batch_size
 
             tune_batch = 1000  # int(batch_size*0.1) # needs to be big else does not stabilize the acceptance rate
             tune_iter = 100
@@ -328,7 +330,7 @@ class NQS:
                 states = self._sampler.step(
                     self.wf, states, seed_seq, batch_size=batch_size
                 )
-                current_acc = states[-1].n_accepted / batch_size
+                current_acc = states.n_accepted[-1] / batch_size
 
             energies = self.hamiltonian.local_energy(self.wf, states.positions)
             local_grad_params_dict = self.wf.grad_params(states.positions)

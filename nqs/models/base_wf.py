@@ -91,7 +91,7 @@ class WaveFunction:
         JIT compile the wave function methods for performance using JAX, if available.
         """
         functions_to_jit = [
-            "log_wf",  # cant jit this with lapjax
+            "log_wf",
             # "log_wf0", # dont use this with deepset at least
             "log_wfc_jastrow",
             "logprob_closure",

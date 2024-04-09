@@ -176,7 +176,6 @@ class RBM(WaveFunction):
         """
         grad of the wave function w.r.t. the coordinates
         """
-
         return self.grad_wf_closure(r, self.params)
 
     def laplacian_closure(self, r, params):

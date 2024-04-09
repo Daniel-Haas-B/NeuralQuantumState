@@ -6,3 +6,8 @@ Models Documentation
    :undoc-members:
    :show-inheritance:
 
+.. automodule:: nqs.models.ffnn
+   :members:
+   :undoc-members:
+   :show-inheritance:
+

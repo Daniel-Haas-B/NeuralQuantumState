@@ -338,7 +338,6 @@ class WaveFunction:
         which in our case is a Hermite polynomial:
 
         .. math::
-
             D = \\begin{vmatrix}
             \\phi_1(r_1) & \\phi_2(r_1) & \\cdots & \\phi_n(r_1) \\\\
             \\phi_1(r_2) & \\phi_2(r_2) & \\cdots & \\phi_n(r_2) \\\\
@@ -575,21 +574,32 @@ class WaveFunction:
         "v_bias", "h_bias", "kernel" in the case of RBM. In the case of FFNN,
         we have "weights" and "biases", and "kernel" is not present.
 
-        The expression here is for kernel element W_ij:
-        S_ij,kl = < (d/dW_ij log(psi)) (d/dW_kl log(psi)) > - < d/dW_ij log(psi) > < d/dW_kl log(psi) >
+        The expression here is for kernel element :math:`W_{ij}`:
+
+        .. math::
+            S_{ij,kl} = \\left\\langle \\left( \\frac{\\partial}{\\partial W_{ij}} \\log(\\psi) \\right)
+            \\left( \\frac{\\partial}{\\partial W_{kl}} \\log(\\psi) \\right) \\right\\rangle
+            - \\left\\langle \\frac{\\partial}{\\partial W_{ij}} \\log(\\psi) \\right\\rangle
+            \\left\\langle \\frac{\\partial}{\\partial W_{kl}} \\log(\\psi) \\right\\rangle
 
         For bias (V or H) we have:
-        S_i,j = < (d/dV_i log(psi)) (d/dV_j log(psi)) > - < d/dV_i log(psi) > < d/dV_j log(psi) >
+
+        .. math::
+            :nowrap:
+
+            S_{i,j} = \\left\\langle \\left( \\frac{\\partial}{\\partial V_{i}} \\log(\\psi) \\right) \\left( \\frac{\\partial}{\\partial V_{j}} \\log(\\psi) \\right) \\right\\rangle - \\left\\langle \\frac{\\partial}{\\partial V_{i}} \\log(\\psi) \\right\\rangle \\left\\langle \\frac{\\partial}{\\partial V_{j}} \\log(\\psi) \\right\\rangle
 
         Steps:
-            1. Compute the gradient ∂_W log(ψ) using the _grad_kernel function.
-            2. Compute the outer product of the gradient with itself: ∂_W log(ψ) ⊗ ∂_W log(ψ)
-            3. Compute the expectation value of the outer product over all the samples
-            4. Compute the expectation value of the gradient ∂_W log(ψ) over all the samples
-            5. Compute the outer product of the expectation value of the gradient with itself: <∂_W log(ψ)> ⊗ <∂_W log(ψ)>
+
+        1. Compute the gradient :math:`\\frac{\\partial}{\\partial W} \\log(\\psi)` using the ``_grad_kernel`` function.
+        2. Compute the outer product of the gradient with itself: :math:`\\frac{\\partial}{\\partial W} \\log(\\psi) \\otimes \\frac{\\partial}{\\partial W} \\log(\\psi)`
+        3. Compute the expectation value of the outer product over all the samples.
+        4. Compute the expectation value of the gradient :math:`\\frac{\\partial}{\\partial W} \\log(\\psi)` over all the samples.
+        5. Compute the outer product of the expectation value of the gradient with itself: :math:`\\langle \\frac{\\partial}{\\partial W} \\log(\\psi) \\rangle \\otimes \\langle \\frac{\\partial}{\\partial W} \\log(\\psi) \\rangle`
 
         Observation:
-            < d/dW_ij log(psi) > is already done inside train of the WF class but we need still the < (d/dW_ij log(psi)) (d/dW_kl log(psi)) >.
+
+        :math:`\\langle \\frac{\\partial}{\\partial W_{ij}} \\log(\\psi) \\rangle` is already computed inside the training of the WF class, but we still need :math:`\\left\\langle \\left( \\frac{\\partial}{\\partial W_{ij}} \\log(\\psi) \\right) \\left( \\frac{\\partial}{\\partial W_{kl}} \\log(\\psi) \\right) \\right\\rangle`.
 
         Parameters:
             expval_grad_params (dict): Expected values of the gradients.

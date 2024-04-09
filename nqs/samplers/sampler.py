@@ -13,7 +13,51 @@ from nqs.state.utils import sampler_utils
 
 
 class Sampler:
+    """
+    A sampler for quantum wavefunctions.
+
+    This class is designed to sample from a given wavefunction (wf) across different quantum states.
+    It supports both single-chain and parallel sampling modes. The sampler can be extended by subclasses
+    to implement specific sampling strategies (e.g., Markov Chain Monte Carlo methods).
+
+    Attributes:
+        _rng (RandomState): A numpy RandomState object for generating random numbers.
+        _scale (float): A scale parameter to adjust the sampling resolution. This parameter should be set by child classes.
+        _logger (Logger, optional): An optional logging.Logger object for logging messages. Defaults to None.
+
+    Methods:
+        sample_obd(wf, state, nsamples, nchains=1, seed=None, lim_inf=-5, lim_sup=5, method="histogram", points=80):
+            Samples the one-body density (OBD) of the wavefunction over a range of positions.
+
+        sample(wf, state, nsamples, nchains=1, seed=None, save_positions=False):
+            Samples from the wavefunction, optionally saving the positions and energies to disk.
+
+        _sample(wf, nsamples, state, seed, chain_id, save_positions=False):
+            Private method to perform the actual sampling. Intended to be called internally.
+
+        _marginal_sample(wf, nsamples, state, scale, seed=None, chain_id=0):
+            Performs fixed-position sampling to calculate the one-body density of the wavefunction.
+
+        step(wf, state, seed):
+            Abstract method to perform a single sampling step. This must be implemented by subclasses.
+
+        set_hamiltonian(hamiltonian):
+            Sets the Hamiltonian for the sampler. The Hamiltonian is used to calculate local energies during sampling.
+
+        scale:
+            Property to get or set the scale parameter.
+    """
+
     def __init__(self, rng, scale, logger=None):
+        """
+        Initializes the Sampler object.
+
+        Parameters:
+            rng (RandomState): A numpy RandomState object for generating random numbers.
+            scale (float): A scale parameter to adjust the sampling resolution.
+            logger (Logger, optional): An optional logging.Logger object for logging messages. Defaults to None.
+        """
+
         self._rng = rng
         self._scale = scale  # to be set by child class
         self._logger = logger
@@ -30,6 +74,23 @@ class Sampler:
         method="histogram",
         points=80,
     ):
+        """
+        Samples the one-body density (OBD) of the wavefunction over a specified range of positions.
+
+        Parameters:
+            wf (Wavefunction): The wavefunction to sample from.
+            state (QuantumState): The initial quantum state.
+            nsamples (int): The number of samples to draw.
+            nchains (int, optional): The number of parallel chains for sampling. Currently, only single-chain sampling is implemented.
+            seed (int, optional): An optional seed for random number generation. If None, a random seed is used.
+            lim_inf (float, optional): The lower bound of the position range for sampling.
+            lim_sup (float, optional): The upper bound of the position range for sampling.
+            method (str, optional): The method to use for sampling. Currently supports 'histogram' and 'integrate'.
+            points (int, optional): The number of points to sample between `lim_inf` and `lim_sup`.
+
+        Returns:
+            tuple: A tuple containing the positions and the sampled one-body densities at those positions.
+        """
         if nchains != 1:
             raise NotImplementedError("OBD is not implemented for parallel sampling")
         scale = self.scale
@@ -60,7 +121,20 @@ class Sampler:
             return positions, one_body_densities
 
     def sample(self, wf, state, nsamples, nchains=1, seed=None, save_positions=False):
-        """ """
+        """
+        Samples from the wavefunction, optionally saving the positions and energies to disk.
+
+        Parameters:
+            wf (Wavefunction): The wavefunction to sample from.
+            state (QuantumState): The quantum state to start sampling from.
+            nsamples (int): The number of samples to draw.
+            nchains (int, optional): The number of parallel chains for sampling. Supports both single and multi-chain modes.
+            seed (int, optional): An optional seed for random number generation. If None, a random seed is used.
+            save_positions (bool, optional): If True, saves the positions of the sampled states to disk.
+
+        Returns:
+            DataFrame: A pandas DataFrame containing the results of the sampling.
+        """
         nchains = check_and_set_nchains(nchains, self._logger)
         seeds = generate_seed_sequence(seed, nchains)
         if nchains == 1:
@@ -90,7 +164,20 @@ class Sampler:
         return self._results
 
     def _sample(self, wf, nsamples, state, seed, chain_id, save_positions=False):
-        """To be called by process in the big sampler function."""
+        """
+        Private method to perform the actual sampling. Intended to be called internally.
+
+        Parameters:
+            wf (Wavefunction): The wavefunction to sample from.
+            nsamples (int): The number of samples to draw.
+            state (QuantumState): The quantum state to start sampling from.
+            seed (int): A seed for random number generation.
+            chain_id (int): The ID of the current chain.
+            save_positions (bool): If True, saves the positions of the sampled states to disk.
+
+        Returns:
+            tuple: A tuple containing the sampling results and energies.
+        """
         batch_size = 2**10
         filename = f"data/energies_and_pos_{wf.__class__.__name__}_ch{chain_id}.h5"
         if self._logger is not None:
@@ -173,15 +260,18 @@ class Sampler:
 
     def _marginal_sample(self, wf, nsamples, state, scale, seed=None, chain_id=0):
         """
-        Fix-position sampling to be used in the calculation of the
-        one-body density. Of the wave function.
-        Mathematicaly what we are doind is
-        ρ(r)=∫∣Ψ(r,R)∣^2dR
-         - r represents the position of one particle (in two dimensions, this is (x, y))
-        - R represents the position of all particles (in two dimensions, this is (x1, y1, x2, y2, ...))
-        - ∣Ψ(r,R)∣^2 is the probability density of finding the particles at position r. In our case this is pdf
+        Performs fixed-position sampling to calculate the one-body density of the wavefunction.
 
-        ρ(r) is of shape (ndimensions)
+        Parameters:
+            wf (Wavefunction): The wavefunction to sample from.
+            nsamples (int): The number of samples to draw.
+            state (QuantumState): The quantum state, with one particle's position being fixed.
+            scale (float): A scale parameter to adjust the sampling resolution.
+            seed (int, optional): A seed for random number generation. If None, a random seed is used.
+            chain_id (int, optional): The ID of the current chain. Defaults to 0.
+
+        Returns:
+            np.ndarray: The one-body density sampled at the fixed position.
         """
         # TODO: CHECK THIS DIMENSIONALITY
         one_body_density = np.zeros_like(
@@ -204,7 +294,12 @@ class Sampler:
 
     def step(self, wf, state, seed):
         """
-        To be implemented by subclasses
+        Sets the Hamiltonian for the sampler.
+
+        The Hamiltonian is used to calculate local energies during sampling.
+
+        Parameters:
+            hamiltonian (Hamiltonian): The Hamiltonian to use for energy calculations.
         """
         raise NotImplementedError("Subclasses must implement this method.")
 

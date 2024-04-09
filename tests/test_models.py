@@ -41,7 +41,7 @@ def system(config):
         type_="ho",
         int_type="Coulomb",
         omega=1.0,
-        r0_reg=1,
+        r0_reg=10,
         training_cycles=config["training_cycles"],
     )
     system.set_optimizer(

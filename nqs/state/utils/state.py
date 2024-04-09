@@ -30,14 +30,6 @@ class State:
         self.n_accepted = n_accepted
         self.delta = delta
 
-    # def create_batch_of_states(self, batch_size):
-
-    #     batched_state = BatchedState([
-    #         self  # Assuming the sharing of state is acceptable; otherwise, adjust accordingly.
-    #         for _ in range(batch_size)
-    #     ])
-    #     return batched_state
-
     def create_batch_of_states(self, batch_size):
         batch_states = [
             State(self.positions.copy(), self.logp, self.n_accepted, self.delta)

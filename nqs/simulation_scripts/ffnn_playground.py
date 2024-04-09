@@ -14,22 +14,22 @@ jax.config.update("jax_platform_name", "cpu")
 
 # Config
 output_filename = "/Users/haas/Documents/Masters/NQS/data/playground.csv"
-nparticles = 2
+nparticles = 6
 dim = 2
 save_positions = True
 
-nsamples = int(2**10)  # 2**18 = 262144,
+nsamples = int(2**20)  # 2**18 = 262144,
 nchains = 1
 eta = 0.001 / np.sqrt(nparticles * dim)  # 0.001  / np.sqrt(nparticles * dim)
 
-training_cycles = 10  # this is cycles for the ansatz
-mcmc_alg = "m"  # lmh is shit for ffnn
+training_cycles = 1000  # this is cycles for the ansatz
+mcmc_alg = "lmh"  # lmh
 optimizer = "sr"
 batch_size = 1000  # 2000
 detailed = True
 wf_type = "ffnn"
 seed = 42
-logger_level = "SILENT"
+logger_level = "info"
 
 save_positions = True
 
@@ -51,8 +51,8 @@ activations = ["elu", "gelu", "elu", "gelu", "elu", "linear"]
 common_kwargs = {
     "layer_sizes": layer_sizes,
     "activations": activations,
-    "correlation": None,  # or just j or None (default)
-    "symmetry": "none",  # why does this change the pretrain? and should it?
+    "correlation": "pj",  # or just j or None (default)
+    "symmetry": "fermion",  # why does this change the pretrain? and should it?
 }
 
 system.set_wf("ffnn", nparticles, dim, **common_kwargs)  # all after this is kwargs.
@@ -60,7 +60,7 @@ system.set_wf("ffnn", nparticles, dim, **common_kwargs)  # all after this is kwa
 system.set_sampler(mcmc_alg=mcmc_alg, scale=1 / np.sqrt(nparticles * dim))
 system.set_hamiltonian(
     type_="ho",
-    int_type="coulomb_gradual",
+    int_type="coulomb",
     omega=1.0,
     r0_reg=10,
     training_cycles=training_cycles,
@@ -83,8 +83,8 @@ def main():
     df_all = []
     system.pretrain(
         model="Gaussian",
-        max_iter=100,
-        batch_size=10000,
+        max_iter=1000,
+        batch_size=2000,
         logger_level=logger_level,
         args=common_kwargs,
     )
@@ -149,7 +149,7 @@ def main():
     print(df_all)
 
     if save_positions:
-        chain_id = 0
+        chain_id = 0  # TODO: make this general to get other chains
         plot_obd(f"energies_and_pos_FFNN_ch{chain_id}.h5", nsamples, dim)
 
 

@@ -6,10 +6,10 @@ import seaborn as sns
 
 from nqs.state import nqs
 from nqs.state.utils import plot_obd
-from nqs.state.utils import plot_tbd
+from nqs.state.utils import plot_tbd  # noqa
 
 
-jax.config.update("jax_enable_x64", True)
+# jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
 
 # Config
@@ -18,18 +18,20 @@ nparticles = 2
 dim = 2
 nsamples = int(2**19)  # 2**18 = 262144
 nchains = 1
-eta = 0.1 / np.sqrt(nparticles * dim)  # 0.001  / np.sqrt(nparticles * dim)
+eta = 0.1  # / np.sqrt(nparticles * dim)  # 0.001  / np.sqrt(nparticles * dim)
 
-training_cycles = 1000  # this is cycles for the ansatz
+training_cycles = 10  # this is cycles for the ansatz
 mcmc_alg = "m"
 backend = "jax"
-optimizer = "adam"
-batch_size = 1000
+optimizer = "adam"  # reminder: for adam, use bigger learning rate
+batch_size = 100
 detailed = True
 wf_type = "vmc"
 seed = 42
 save_positions = True
-
+scale = (
+    1.0 / np.sqrt(nparticles * dim) if mcmc_alg == "m" else 0.1 / np.sqrt(nparticles)
+)
 dfs_mean = []
 df = []
 df_all = []
@@ -48,20 +50,20 @@ system.set_wf(
     wf_type,
     nparticles,
     dim,
-    symmetry=None,
-    correlation="none",
+    symmetry="pj",
+    correlation="fermion",
 )
 
-system.set_sampler(mcmc_alg=mcmc_alg, scale=1.0 / np.sqrt(nparticles * dim))
+system.set_sampler(mcmc_alg=mcmc_alg, scale=scale)
 system.set_hamiltonian(
-    type_="ho", int_type="none", omega=1.0, r0_reg=3, training_cycles=training_cycles
+    type_="ho", int_type="none", omega=1.0, r0_reg=10, training_cycles=training_cycles
 )
 system.set_optimizer(
     optimizer=optimizer,
     eta=eta,
-    beta1=0.9,
-    beta2=0.999,
-    epsilon=1e-8,
+    # beta1=0.9,
+    # beta2=0.999,
+    # epsilon=1e-8,
 )
 
 history = system.train(
@@ -127,8 +129,8 @@ df_all = pd.concat(df_all)
 print(df_all)
 # energy with sr
 if save_positions:
-    plot_obd("positions_VMC.h5", nsamples, dim)
-    plot_tbd("positions_VMC.h5", nsamples, nparticles, dim)
+    chain_id = 0  # TODO: make this general to get other chains
+    plot_obd(f"energies_and_pos_VMC_ch{chain_id}.h5", nsamples, dim)
 
 
 if nchains > 1:

@@ -6,7 +6,6 @@ import seaborn as sns
 
 from nqs.state import nqs
 from nqs.state.utils import plot_obd
-from nqs.state.utils import plot_tbd
 
 
 jax.config.update("jax_enable_x64", True)
@@ -22,11 +21,11 @@ nsamples = int(2**18)
 nchains = 1
 eta = 0.001 / np.sqrt(nparticles * dim)
 
-training_cycles = 1000  # this is cycles for the NN
-mcmc_alg = "m"
-backend = "numpy"
-optimizer = "sr"
-batch_size = 2000
+training_cycles = 10  # this is cycles for the NN
+mcmc_alg = "lmh"
+backend = "jax"
+optimizer = "adam"
+batch_size = 20
 detailed = True
 wf_type = "rbm"
 seed = 42
@@ -64,7 +63,7 @@ system.set_hamiltonian(
     type_="ho",
     int_type=int_type,
     omega=1.0,
-    r0_reg=5,
+    r0_reg=10,
     training_cycles=training_cycles,
 )
 system.set_optimizer(
@@ -143,8 +142,8 @@ df_all = pd.concat(df_all)
 print(df_all)
 
 if save_positions:
-    plot_obd("positions_RBM.h5", nsamples, dim)
-    plot_tbd("positions_RBM.h5", nsamples, nparticles, dim)
+    chain_id = 0  # TODO: make this general to get other chains
+    plot_obd(f"energies_and_pos_RBM_ch{chain_id}.h5", nsamples, dim)
 
 if nchains > 1:
     sns.lineplot(data=df_all, x="chain_id", y="energy")

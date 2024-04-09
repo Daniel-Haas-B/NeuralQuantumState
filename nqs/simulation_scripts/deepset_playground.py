@@ -13,28 +13,28 @@ from nqs.state.utils import plot_obd
 # from nqs.utils import plot_psi2
 
 
-jax.config.update("jax_enable_x64", True)
+# jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
 
 # Config
 output_filename = "/Users/haas/Documents/Masters/NQS/data/playground.csv"
-nparticles = 2
+nparticles = 6
 dim = 2
 save_positions = True
 
 
-nsamples = int(2**17)  # 2**18 = 262144
+nsamples = int(2**20)  # 2**18 = 262144
 nchains = 1
 eta = 0.001 / np.sqrt(nparticles * dim)  # 0.001  / np.sqrt(nparticles * dim)
 
-training_cycles = 200  # this is cycles for the ansatz
+training_cycles = 1000  # this is cycles for the ansatz
 mcmc_alg = "m"  # lmh is shit for ffnn
-optimizer = "adam"
+optimizer = "sr"
 batch_size = 1000
 detailed = True
 wf_type = "ds"
 seed = 42
-latent_dimension = 4
+latent_dimension = 10
 
 system = NQS(
     nqs_repr="psi",
@@ -43,8 +43,8 @@ system = NQS(
     seed=seed,
 )
 
-common_layers_S0 = [9, 7, 5, 3]
-common_activations_S0 = ["elu", "elu", "elu", "elu", "elu"]
+common_layers_S0 = [14, 9, 7, 5, 3]
+common_activations_S0 = ["gelu", "elu", "gelu", "elu", "gelu", "elu"]
 
 layer_sizes = {
     "S0": [dim] + common_layers_S0 + [latent_dimension],
@@ -53,15 +53,15 @@ layer_sizes = {
 
 activations = {
     "S0": common_activations_S0,
-    "S1": ["elu", "elu", "elu", "linear"],
+    "S1": ["elu", "gelu", "elu", "linear"],
 }
 
 # Common kwargs for multiple function calls
 common_kwargs = {
     "layer_sizes": layer_sizes,
     "activations": activations,
-    "correlation": "j",  # or just j or None (default)
-    "symmetry": "none",
+    "correlation": "pj",  # or just j or None (default)
+    "symmetry": "fermion",
 }
 
 # Initial function call with specific kwargs
@@ -69,7 +69,11 @@ system.set_wf("ds", nparticles, dim, **common_kwargs)
 
 system.set_sampler(mcmc_alg=mcmc_alg, scale=1 / np.sqrt(nparticles * dim))
 system.set_hamiltonian(
-    type_="ho", int_type="Coulomb", omega=1.0, r0_reg=1, training_cycles=training_cycles
+    type_="ho",
+    int_type="Coulomb_gradual",
+    omega=1.0,
+    r0_reg=10,
+    training_cycles=training_cycles,
 )
 
 system.set_optimizer(
@@ -86,7 +90,9 @@ def main():
     dfs_mean = []
     df = []
     df_all = []
-    system.pretrain(model="Gaussian", max_iter=200, batch_size=2000, args=common_kwargs)
+    system.pretrain(
+        model="Gaussian", max_iter=1000, batch_size=1000, args=common_kwargs
+    )
     history = system.train(
         max_iter=training_cycles,
         batch_size=batch_size,
@@ -150,7 +156,7 @@ def main():
     print(df_all)
 
     if save_positions:
-        plot_obd("positions_DS.h5", nsamples, dim)
+        plot_obd("energies_and_pos_DS_ch0.h5", nsamples, dim)
 
     # energy with sr
     # if nchains > 1:

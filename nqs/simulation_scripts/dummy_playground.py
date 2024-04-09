@@ -54,7 +54,11 @@ system.set_wf(
 
 system.set_sampler(mcmc_alg=mcmc_alg, scale=1.0)
 system.set_hamiltonian(
-    type_="ho", int_type="Coulomb", omega=1.0, r0_reg=3, training_cycles=training_cycles
+    type_="ho",
+    int_type="Coulomb",
+    omega=1.0,
+    r0_reg=10,
+    training_cycles=training_cycles,
 )
 system.set_optimizer(
     optimizer=optimizer,

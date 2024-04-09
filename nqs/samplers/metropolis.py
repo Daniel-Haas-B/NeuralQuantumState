@@ -9,30 +9,49 @@ from nqs.state.utils import State
 
 
 class Metropolis(Sampler):
-    def __init__(self, rng, scale, logger=None):
+    """
+    Implements the Metropolis sampling algorithm for quantum wavefunctions.
 
+    This class extends the `Sampler` class to perform Metropolis-Hastings sampling. It provides
+    methods for both standard NumPy-based sampling and JAX-based sampling for efficient, vectorized
+    operations on accelerators like GPUs.
+
+    Attributes:
+        Inherits all attributes from the `Sampler` class.
+
+    Methods:
+        _step: Performs a single step of the Metropolis algorithm using NumPy.
+        jax_step: Performs a single step of the Metropolis algorithm using JAX.
+        _fixed_step: Samples a new state with one particle position fixed.
+        step: Public method to perform a sampling step.
+        reset_scale: Resets the scale parameter to a new value.
+        tune_scale: Dynamically adjusts the scale based on acceptance rate to optimize sampling efficiency.
+    """
+
+    def __init__(self, rng, scale, logger=None):
+        """
+        Initializes the Metropolis sampler with a given random number generator, scale, and optional logger.
+
+        Parameters:
+            rng: A random number generator state.
+            scale (float): The scale of the proposal distribution.
+            logger (optional): An optional logger for logging messages.
+        """
         super().__init__(rng, scale, logger)
 
     def _step(self, wf, state_batch, seed, batch_size):
-        """One step of the random walk Metropolis algorithm
-
-        Parameters
-        ----------
-        state : nqs.State
-            Current state of the system. See state.py
-
-        scale : float
-            Scale of proposal distribution. Default: 0.5
-
-        Returns
-        -------
-        new_state : nqs.State
-            The updated state of the system.
-
         """
+        One step of the random walk Metropolis algorithm using NumPy.
 
-        # Advance RNG batch_size times
-        # create empty array of states of size batch_size
+        Parameters:
+            wf: The wavefunction object to sample from.
+            state_batch: A batch of states representing the current states of the system.
+            seed: Seed for the random number generator.
+            batch_size: The number of samples to generate in this step.
+
+        Returns:
+            state_batch: The updated batch of states after one Metropolis step.
+        """
 
         for i in range(batch_size):
             state = state_batch[i - 1]
@@ -42,6 +61,7 @@ class Metropolis(Sampler):
 
             prev_pos = state.positions
             proposals_pos = rng.normal(loc=prev_pos, scale=self.scale)
+            print("proposals_shape mh: ", proposals_pos.shape)
             log_unif = np.log(rng.uniform())
 
             # Compute proposal log density
@@ -69,7 +89,16 @@ class Metropolis(Sampler):
 
     def jax_step(self, wf, state_batch, seed, batch_size):
         """
-        use jax rng to generate random numbers
+        One step of the random walk Metropolis algorithm using JAX.
+
+        Parameters:
+            wf: The wavefunction object to sample from.
+            state_batch: A batch of states representing the current states of the system.
+            seed: Seed for the random number generator.
+            batch_size: The number of samples to generate in this step.
+
+        Returns:
+            state_batch: The updated batch of states after one Metropolis step.
         """
         self.seed += 1
         # print("seed: ", self.seed)
@@ -104,6 +133,18 @@ class Metropolis(Sampler):
         return state_batch
 
     def _fixed_step(self, wf, state, seed, fixed_index=0):
+        """
+        Samples a new state with one particle position fixed, using the Metropolis criterion.
+
+        Parameters:
+            wf: The wavefunction object to sample from.
+            state: The current state of the system.
+            seed: Seed for the random number generator.
+            fixed_index (int, optional): The index of the particle to keep fixed. Defaults to 0.
+
+        Returns:
+            new_state: The new state after the Metropolis step.
+        """
         # Advance RNG
         next_gen = advance_PRNG_state(seed, state.delta)
         rng = self._rng(next_gen)
@@ -133,10 +174,31 @@ class Metropolis(Sampler):
         return new_state
 
     def step(self, wf, state, seed, batch_size=1):
+        """
+        Public method to perform a sampling step. Can be overridden by subclasses.
 
+        Parameters:
+            wf: The wavefunction object to sample from.
+            state: The current state or a batch of states of the system.
+            seed: Seed for the random number generator.
+            batch_size (int, optional): The number of samples to generate in this step. Defaults to 1.
+
+        Returns:
+            The new state or batch of states after the Metropolis step.
+        """
         return self._step(wf, state, seed, batch_size)
 
     def reset_scale(self, scale):
+        """
+        Resets the scale parameter to a new value.
+
+        Parameters:
+            scale (float): The new scale of the proposal distribution.
+
+        Returns:
+            float: The updated scale parameter.
+        """
+
         self.scale = scale
         print("scale reset to: ", scale)
         return scale

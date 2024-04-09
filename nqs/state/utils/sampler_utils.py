@@ -71,9 +71,9 @@ def tune_sampler(
     tune_iter=500,
     tune_batch=500,
     seed=None,
-    log=False,
     mode="standard",
     logger=None,
+    logger_level="INFO",
 ):
     """
     Tune proposal scale so that the acceptance rate is around 0.7.
@@ -88,7 +88,7 @@ def tune_sampler(
     )  # get positions but Reset n_accepted
     states = state.create_batch_of_states(batch_size=tune_batch)
 
-    if log:
+    if logger_level != "SILENT":
         t_range = tqdm(
             range(tune_iter),
             desc="[Tuning progress]",
@@ -135,7 +135,7 @@ def tune_sampler(
                     0.1
                 )  # this hopefully makes the predictions be more around 0 because the weights are smaller
                 # reset scale
-                sampler.reset_scale(1 / np.sqrt(wf._N * wf._dim))
+                sampler.reset_scale(1 / np.sqrt(wf.N * wf.dim))
                 return  # start over
 
             sampler.tune_scale(old_scale, accept_rate)

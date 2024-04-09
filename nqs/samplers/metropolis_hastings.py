@@ -31,8 +31,6 @@ class MetropolisHastings(Sampler):
         for i in range(batch_size):
             state = state_batch[i - 1]
 
-            sys_size = state.positions.shape
-
             # Advance RNG
             next_gen = advance_PRNG_state(seed, state.delta)
             rng = self._rng(next_gen)
@@ -40,13 +38,7 @@ class MetropolisHastings(Sampler):
             # Compute drift force at current positions
             F = self.hamiltonian.drift_force(wf, state.positions)
 
-            # Sample proposal positions, i.e., move walkers
-            proposals = (
-                state.positions
-                + F * Ddt
-                + rng.normal(loc=0, scale=self.scale, size=sys_size)
-            )
-
+            proposals = rng.normal(loc=state.positions, scale=self.scale) + F * Ddt
             # Compute proposal log density
             logp_proposal = wf.logprob(proposals)
 

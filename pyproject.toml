@@ -29,6 +29,8 @@ line-profiler = "^4.1.2"
 sphinx = "^7.2.6"
 jaxlib = "^0.4.26"
 h5py = "^3.10.0"
+sphinxawesome-theme = "^5.1.1"
+furo = "^2024.1.29"
 
 
 [tool.poetry.group.dev.dependencies]

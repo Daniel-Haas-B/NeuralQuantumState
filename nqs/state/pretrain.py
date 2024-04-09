@@ -206,6 +206,10 @@ class Gaussian:
             if self.logger_level != "SILENT":
                 t_range.set_postfix(loss=f"{loss:.2E}", refresh=True)
 
+            # if self._early_stop and loss < 10 ** -1:
+            #     self.logger.info("loss is reasonably good, stopping training")
+            #     return self.wf.params
+
             if self._history:
                 grad_norms = [
                     self.backend.mean(grad_loss_dict.get(key)) for key in param_keys
@@ -221,7 +225,7 @@ class Gaussian:
             if loss < 10**-15:
                 if self.logger_level != "SILENT":
                     self.logger.warning("loss is zero, stopping training")
-                break
+                return self.wf.params
 
         if self.logger_level != "SILENT":
             self.logger.info("Pre-training done")

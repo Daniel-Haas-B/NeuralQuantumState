@@ -543,6 +543,7 @@ class NQS:
             history=False,
             pretrain_sampler=False,  # there is no true for now
             pretrain_jastrow=False,  # there is no true for now
+            early_stop=True,
         )
         self.wf.params = params
         if str(args["correlation"]).lower() == "j":

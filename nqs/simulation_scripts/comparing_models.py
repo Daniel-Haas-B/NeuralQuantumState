@@ -64,7 +64,7 @@ for wf_type in wf_types:
         type_="ho",
         int_type="Coulomb",
         omega=1.0,
-        r0_reg=3,
+        r0_reg=10,
         training_cycles=training_cycles,
     )
     if wf_type == "ffnn":

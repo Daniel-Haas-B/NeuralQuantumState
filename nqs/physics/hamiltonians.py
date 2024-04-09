@@ -147,7 +147,7 @@ class HarmonicOscillator(Hamiltonian):
         """Evaluate the local kinetic energy of the system"""
 
         _laplace = wf.laplacian(r)
-        # print("laplace", _laplace.shape)
+        # print("shape of r in local energy", r.shape)
         _grad = wf.grad_wf(r)
         # print("grad", _grad)
 
@@ -177,10 +177,10 @@ class HarmonicOscillator(Hamiltonian):
 
     def drift_force(self, wf, r):
         """Drift force at each particle's location"""
-        # reashape r to be (1, rshape)
+        # needs to be (1, rshape)
+        # create copy of r and reshape it to (1, rshape)
 
-        r = r.reshape(1, -1)
-
+        r = r.reshape(1, -1)  # check this for VMC
         F = 2 * wf.grad_wf(r)
 
-        return F
+        return F.squeeze()  # remove the first axis

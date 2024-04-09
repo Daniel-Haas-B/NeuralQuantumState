@@ -11,7 +11,7 @@ Welcome to Neural Quantum State's documentation!
    :caption: Contents:
 
    models
-
+   samplers
 
 
 

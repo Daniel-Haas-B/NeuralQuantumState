@@ -32,8 +32,8 @@ class State:
 
     def create_batch_of_states(self, batch_size):
         batch_states = [
-            State(self.positions.copy(), self.logp, self.n_accepted, self.delta)
-            for _ in range(batch_size)
+            State(self.positions.copy(), self.logp, self.n_accepted, self.delta + i)
+            for i in range(batch_size)
         ]
         return BatchedStates(batch_states)
 

@@ -178,7 +178,7 @@ class Sampler:
         Returns:
             tuple: A tuple containing the sampling results and energies.
         """
-        batch_size = 2**10
+        batch_size = 2**2  # 2**10
         filename = f"data/energies_and_pos_{wf.__class__.__name__}_ch{chain_id}.h5"
         if self._logger is not None:
             t_range = tqdm(
@@ -191,6 +191,7 @@ class Sampler:
         else:
             t_range = range(0, nsamples // batch_size)
 
+        state.delta = 0
         batch_state = state.create_batch_of_states(batch_size=batch_size)
 
         if os.path.exists(filename):

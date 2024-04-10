@@ -19,17 +19,17 @@ nhidden = 4
 
 nsamples = int(2**18)
 nchains = 1
-eta = 0.001 / np.sqrt(nparticles * dim)
+eta = 0.1  # / np.sqrt(nparticles * dim)
 
-training_cycles = 10  # this is cycles for the NN
+training_cycles = 100  # this is cycles for the NN
 mcmc_alg = "lmh"
 backend = "jax"
 optimizer = "adam"
-batch_size = 20
+batch_size = 200
 detailed = True
 wf_type = "rbm"
 seed = 42
-int_type = "None"  # "None"
+int_type = "Coulomb"  # "None"
 save_positions = True
 
 dfs_mean = []

@@ -9,22 +9,22 @@ from nqs.state.utils import plot_obd
 from nqs.state.utils import plot_tbd  # noqa
 
 
-# jax.config.update("jax_enable_x64", True)
+jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
 
 # Config
 output_filename = "/Users/haas/Documents/Masters/NQS/data/playground.csv"
 nparticles = 2
 dim = 2
-nsamples = int(2**19)  # 2**18 = 262144
+nsamples = int(2**18)  # 2**18 = 262144
 nchains = 1
 eta = 0.1  # / np.sqrt(nparticles * dim)  # 0.001  / np.sqrt(nparticles * dim)
 
-training_cycles = 10  # this is cycles for the ansatz
+training_cycles = 500  # this is cycles for the ansatz
 mcmc_alg = "m"
-backend = "jax"
+backend = "numpy"
 optimizer = "adam"  # reminder: for adam, use bigger learning rate
-batch_size = 100
+batch_size = 500
 detailed = True
 wf_type = "vmc"
 seed = 42

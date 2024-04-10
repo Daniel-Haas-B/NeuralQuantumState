@@ -28,12 +28,12 @@ class MetropolisHastings(Sampler):
         Ddt = 0.5 * dt
         quarterDdt = 1 / (4 * Ddt)
 
+        next_gens = [advance_PRNG_state(seed, state.delta) for state in state_batch]
+        rngs = [self._rng(next_gen) for next_gen in next_gens]
+
         for i in range(batch_size):
             state = state_batch[i - 1]
-
-            # Advance RNG
-            next_gen = advance_PRNG_state(seed, state.delta)
-            rng = self._rng(next_gen)
+            rng = rngs[i]
 
             # Compute drift force at current positions
             F = self.hamiltonian.drift_force(wf, state.positions)

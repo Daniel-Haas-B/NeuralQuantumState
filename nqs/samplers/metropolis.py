@@ -53,15 +53,16 @@ class Metropolis(Sampler):
             state_batch: The updated batch of states after one Metropolis step.
         """
 
+        # advance RNG in a vectorized way
+        next_gens = [advance_PRNG_state(seed, state.delta) for state in state_batch]
+        rngs = [self._rng(next_gen) for next_gen in next_gens]
+
         for i in range(batch_size):
             state = state_batch[i - 1]
-
-            next_gen = advance_PRNG_state(seed, state.delta)
-            rng = self._rng(next_gen)
+            rng = rngs[i]
 
             prev_pos = state.positions
             proposals_pos = rng.normal(loc=prev_pos, scale=self.scale)
-            print("proposals_shape mh: ", proposals_pos.shape)
             log_unif = np.log(rng.uniform())
 
             # Compute proposal log density

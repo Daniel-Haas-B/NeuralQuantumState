@@ -21,7 +21,7 @@ class VMC(WaveFunction):
         symmetry=None,
         correlation=None,
     ):
-        super().__init__(  # i know this looks weird
+        super().__init__(
             nparticles,
             dim,
             rng=rng,
@@ -70,26 +70,15 @@ class VMC(WaveFunction):
         """
         return self.logprob_closure(r, self.params)
 
-    def grad_wf_closure(self, r, alpha):
-        """
-            Return a function that computes the gradient of the wavefunction
-        # TODO: check if this is correct CHECK DIMS
-        """
+    def grad_wf_closure(self, r, params):
+        """ """
 
-        return -2 * alpha * r  # again, element-wise multiplication
+        return -2 * r * params.get("alpha")
 
-    def grad_wf_closure_jax(self, r, alpha):
-        """
-        Returns a function that computes the gradient of the wavefunction with respect to r
-        for each configuration in the batch.
-        r: (batch_size, N*dim) array where each row is a flattened array of all particle positions.
-        alpha: (N*dim) array for the parameters.
-        self.wf output is of size (batch_size, )
-        """
-
-        return vmap(jax.grad(self.log_wf, argnums=0), in_axes=(0, None))(
-            r, alpha
-        )  # 0, none will broadcast alpha to the batch size
+    def grad_wf_closure_jax(self, r, params):
+        """ """
+        grad_wf_closure = jax.grad(self.log_wf, argnums=0)
+        return vmap(grad_wf_closure, in_axes=(0, None))(r, params)
 
     def grad_wf(self, r):
         """
@@ -99,14 +88,18 @@ class VMC(WaveFunction):
         return self.grad_wf_closure(r, self.params)
 
     def grad_params(self, r):
-
         return self.grad_params_closure(r, self.params)
 
     def grad_params_closure(self, r, alpha):
         """
         Return a function that computes the gradient of the log of the wavefunction squared
         """
-        return -r * r  # element-wise multiplication
+        # this needs to be a parameter type, so that we can update the parameters
+
+        grad = -r * r
+        param_type_grad = Parameter()
+        param_type_grad.set("alpha", grad)
+        return param_type_grad
 
     def grad_params_closure_jax(self, r, alpha):
         """
@@ -137,7 +130,6 @@ class VMC(WaveFunction):
         """
 
         laplacian = self.laplacian_closure(r, self.params)
-
         return laplacian
 
     def laplacian_closure(self, r, params):
@@ -149,9 +141,8 @@ class VMC(WaveFunction):
         # check if this is correct!
         alpha = params.get("alpha")
         lap = -2 * alpha.sum()
-        lap_batch = self.backend.ones(r.shape[0]) * lap
 
-        return lap_batch
+        return self.backend.ones(r.shape[0]) * lap
 
     def laplacian_closure_jax(self, r, params):
         """
@@ -159,7 +150,6 @@ class VMC(WaveFunction):
         """
 
         hessian_wf = vmap(jax.hessian(self.log_wf), in_axes=(0, None))
-
         trace_hessian = vmap(jnp.trace)
 
         return trace_hessian(hessian_wf(r, params))

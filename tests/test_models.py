@@ -5,13 +5,14 @@ import numpy as np
 import pandas as pd
 import pytest
 
+print(jax.devices())
 from . import test_utils
 from nqs.state.nqs import NQS
 
 # import test_utils
 
 # jax.config.update("jax_enable_x64", True)
-jax.config.update("jax_platform_name", "cpu")
+# jax.config.update("jax_platform_name", "cpu")
 
 
 @pytest.fixture(params=["vmc", "rbm", "ffnn", "ds"])

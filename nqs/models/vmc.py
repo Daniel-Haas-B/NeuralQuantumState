@@ -62,7 +62,7 @@ class VMC(WaveFunction):
         """
         Return a function that computes the log of the wavefunction squared
         """
-        return 2 * self.log_wf(r, alpha)  # .sum()
+        return 2 * self.log_wf(r, alpha)
 
     def logprob(self, r):
         """

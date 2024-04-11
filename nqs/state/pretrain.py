@@ -1,16 +1,6 @@
 import warnings
 
 import jax
-
-from nqs.state.utils import advance_PRNG_state
-from nqs.state.utils import errors
-from nqs.state.utils import setup_logger
-from nqs.state.utils import wf_factory
-
-# jax.config.update("jax_enable_x64", True)
-jax.config.update("jax_platform_name", "cpu")
-
-
 import numpy as np
 from numpy.random import default_rng
 from tqdm.auto import tqdm
@@ -18,6 +8,13 @@ from tqdm.auto import tqdm
 import nqs.optimizers as opt
 from nqs.samplers import Metropolis as Metro
 from nqs.samplers import MetropolisHastings as MetroHastings
+from nqs.state.utils import advance_PRNG_state
+from nqs.state.utils import errors
+from nqs.state.utils import setup_logger
+from nqs.state.utils import wf_factory
+
+# jax.config.update("jax_enable_x64", True)
+# jax.config.update("jax_platform_name", "cpu")
 
 
 warnings.filterwarnings("ignore", message="divide by zero encountered")

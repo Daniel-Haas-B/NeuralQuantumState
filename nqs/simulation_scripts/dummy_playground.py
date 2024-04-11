@@ -4,13 +4,14 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
+print(jax.devices())
 from nqs.state import nqs
 
 # from nqs.utils import plot_psi2
 
 
 # jax.config.update("jax_enable_x64", True)
-jax.config.update("jax_platform_name", "cpu")
+# jax.config.update("jax_platform_name", "cpu")
 
 # Config
 output_filename = "../data/vmc_playground.csv"

@@ -1,9 +1,10 @@
-import jax
+import jax  # noqa
 import matplotlib.pyplot as plt
 import numpy as np
 
 from nqs.state import pretrain
 
+print(jax.devices())
 # import seaborn as sns
 # import matplotlib.pyplot as plt
 
@@ -12,8 +13,8 @@ from nqs.state import pretrain
 # Import nqs package
 
 
-jax.config.update("jax_enable_x64", True)
-jax.config.update("jax_platform_name", "cpu")
+# jax.config.update("jax_enable_x64", True)
+# jax.config.update("jax_platform_name", "cpu")
 
 # Config
 output_filename = "../data/playground.csv"

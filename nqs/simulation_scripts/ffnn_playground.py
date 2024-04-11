@@ -8,9 +8,11 @@ import pandas as pd
 from nqs.state import nqs
 from nqs.state.utils import plot_obd  # noqa
 
+# print the device
+print(jax.devices())
 
-jax.config.update("jax_enable_x64", True)
-jax.config.update("jax_platform_name", "cpu")
+# jax.config.update("jax_enable_x64", True)
+# jax.config.update("jax_platform_name", "cpu")
 
 # Config
 output_filename = "/Users/haas/Documents/Masters/NQS/data/playground.csv"

@@ -8,8 +8,8 @@ from nqs import nqs
 # Import nqs package
 
 # jax.config.update("jax_enable_x64", True)
-jax.config.update("jax_platform_name", "cpu")
-
+# jax.config.update("jax_platform_name", "cpu")
+print(jax.devices())
 # Config
 output_filename = "../data/playground.csv"
 nparticles = 2

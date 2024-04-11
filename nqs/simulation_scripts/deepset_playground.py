@@ -6,7 +6,7 @@ import pandas as pd
 from nqs.state.nqs import NQS
 from nqs.state.utils import plot_obd
 
-
+print(jax.devices())
 # import seaborn as sns
 # import matplotlib.pyplot as plt
 
@@ -14,7 +14,7 @@ from nqs.state.utils import plot_obd
 
 
 # jax.config.update("jax_enable_x64", True)
-jax.config.update("jax_platform_name", "cpu")
+# jax.config.update("jax_platform_name", "cpu")
 
 # Config
 output_filename = "/Users/haas/Documents/Masters/NQS/data/playground.csv"

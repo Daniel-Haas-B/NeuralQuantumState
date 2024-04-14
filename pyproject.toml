@@ -32,6 +32,7 @@ h5py = "^3.10.0"
 sphinxawesome-theme = "^5.1.1"
 furo = "^2024.1.29"
 jax-metal = "^0.0.6"
+latex = "^0.7.0"
 
 
 [tool.poetry.group.dev.dependencies]

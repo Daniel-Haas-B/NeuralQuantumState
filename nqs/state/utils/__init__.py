@@ -3,6 +3,7 @@ from .logging_handler import *  # noqa
 from .optimizer_factory import *  # noqa
 from .parameter import Parameter  # noqa
 from .plots import plot_obd  # noqa
+from .plots import plot_pair_correlation  # noqa
 from .plots import plot_psi2  # noqa
 from .plots import plot_tbd  # noqa
 from .pool_tools import *  # noqa

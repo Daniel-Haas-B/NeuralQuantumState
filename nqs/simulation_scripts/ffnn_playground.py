@@ -7,7 +7,8 @@ import pandas as pd
 
 from nqs.state import nqs
 from nqs.state.utils import plot_obd  # noqa
-from nqs.state.utils import plot_pair_correlation  # noqa
+
+# from nqs.state.utils import plot_pair_correlation  # noqa
 
 # print the device
 
@@ -16,8 +17,10 @@ from nqs.state.utils import plot_pair_correlation  # noqa
 jax.config.update("jax_platform_name", "cpu")
 print(jax.devices())
 # Config
-output_filename = "/Users/orpheus/Documents/Masters/NeuralQuantumState/data/playground.csv"
-nparticles = 6
+output_filename = (
+    "/Users/orpheus/Documents/Masters/NeuralQuantumState/data/playground.csv"
+)
+nparticles = 2
 dim = 2
 save_positions = True
 
@@ -25,10 +28,10 @@ nsamples = int(2**10)  # 2**18 = 262144,
 nchains = 1
 eta = 0.001 / np.sqrt(nparticles * dim)  # 0.001  / np.sqrt(nparticles * dim)
 
-training_cycles = 1000  # this is cycles for the ansatz
+training_cycles = 100  # this is cycles for the ansatz
 mcmc_alg = "m"  # lmh
-optimizer = "sr"
-batch_size = 1000  # 2000
+optimizer = "adam"
+batch_size = 500  # 2000
 detailed = True
 wf_type = "ffnn"
 seed = 42
@@ -54,8 +57,8 @@ activations = ["relu", "relu", "relu", "relu", "relu", "linear"]
 common_kwargs = {
     "layer_sizes": layer_sizes,
     "activations": activations,
-    "correlation": "pj",  # or just j or None (default)
-    "symmetry": "fermion",  # why does this change the pretrain? and should it?
+    "correlation": "none",  # or just j or None (default)
+    "symmetry": "none",  # why does this change the pretrain? and should it?
 }
 
 system.set_wf("ffnn", nparticles, dim, **common_kwargs)  # all after this is kwargs.
@@ -81,6 +84,7 @@ system.set_optimizer(
 
 def main():
     import os
+
     file_name = "data/energies_and_pos_FFNN_ch0.h5"
     file_exists = os.path.isfile(file_name)
     overwrite = False
@@ -119,13 +123,19 @@ def main():
         #     plt.show()
 
         df = system.sample(
-            nsamples, nchains, seed, one_body_density=False, save_positions=save_positions
+            nsamples,
+            nchains,
+            seed,
+            one_body_density=False,
+            save_positions=save_positions,
         )
 
         df_all.append(df)
 
         sem_factor = 1 / np.sqrt(len(df))  # sem = standard error of the mean
-        mean_data = df[["energy", "std_error", "variance", "accept_rate"]].mean().to_dict()
+        mean_data = (
+            df[["energy", "std_error", "variance", "accept_rate"]].mean().to_dict()
+        )
         mean_data["sem_energy"] = df["energy"].std() * sem_factor
         mean_data["sem_std_error"] = df["std_error"].std() * sem_factor
         mean_data["sem_variance"] = df["variance"].std() * sem_factor
@@ -166,7 +176,7 @@ def main():
         chain_id = 0  # TODO: make this general to get other chains
         file_name = f"energies_and_pos_FFNN_ch{chain_id}.h5"
         plot_obd(file_name, nsamples, dim, method="gaussian")
-        plot_pair_correlation(file_name, nsamples, dr=0.1, max_range=5, dim=2)
+        # plot_pair_correlation(file_name, nsamples, dr=0.1, max_range=5, dim=2)
 
 
 if __name__ == "__main__":

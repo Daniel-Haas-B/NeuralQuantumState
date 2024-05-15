@@ -9,12 +9,12 @@ from cycler import cycler
 def make_figs_path(filename):
     cur_path = pl.Path(__file__)
     root_path = cur_path
-
     while root_path.name != "NeuralQuantumState" and root_path.parent.name != "NQS":
         root_path = root_path.parent
 
-    figs_path = root_path / pl.Path("analysis/figs")
+    root_path = root_path.parent
 
+    figs_path = root_path / pl.Path("analysis/figs")
     if not figs_path.exists():
         return None
     if not filename.endswith(".pdf"):
@@ -28,6 +28,7 @@ def make_figs_path(filename):
 def save(filename):
     if filename:
         filename = make_figs_path(filename)
+        print(f"Saving figure to {filename}")
         plt.savefig(filename)
 
 

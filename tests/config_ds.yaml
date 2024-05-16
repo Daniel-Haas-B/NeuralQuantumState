@@ -30,4 +30,4 @@ common_kwargs:
     S0: ["gelu", "elu", "gelu", "elu"]
     S1: ["gelu", "elu", "gelu", "elu", "linear"]
   correlation: "pj"
-  symmetry: "fermion"
+  particle: "fermion"

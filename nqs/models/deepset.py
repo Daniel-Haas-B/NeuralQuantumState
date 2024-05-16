@@ -23,7 +23,7 @@ class DS(WaveFunction):
         logger=None,
         logger_level="INFO",
         backend="jax",
-        symmetry=None,
+        particle=None,
         correlation=None,
     ):
         super().__init__(
@@ -46,7 +46,7 @@ class DS(WaveFunction):
         ...
         """
         self._initialize_vars(nparticles, dim, layer_sizes, activations, factor)
-        self.configure_symmetry(symmetry)  # need to be before correlation
+        self.configure_particle(particle)  # need to be before correlation
         self.configure_correlation(correlation)  # NEED TO BE BEFORE CONFIGURE_BACKEND
         self.configure_backend(backend)
 
@@ -56,7 +56,7 @@ class DS(WaveFunction):
         self.state = State(self.r0, logp, 0, 0)
 
         if self.logger_level != "SILENT":
-            msg = f"Neural Network Quantum State initialized with symmetry {self.symmetry} as Deepset."  # noqa
+            msg = f"Neural Network Quantum State initialized with particle {self.particle} as Deepset."  # noqa
             self.logger.info(msg)
 
     def ds(self, r):

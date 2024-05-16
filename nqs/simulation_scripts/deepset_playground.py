@@ -61,7 +61,7 @@ common_kwargs = {
     "layer_sizes": layer_sizes,
     "activations": activations,
     "correlation": "pj",  # or just j or None (default)
-    "symmetry": "fermion",
+    "particle": "fermion",
 }
 
 # Initial function call with specific kwargs

@@ -23,7 +23,7 @@ class WaveFunction:
         _logger_level (str): Level of the logger, defaults to 'INFO'.
         backend (str): Backend used for calculations, 'numpy' or 'jax'.
         _seed (int or None): Seed for random number generation.
-        symmetry (str or None): Symmetry of the wave function, 'boson', 'fermion', or 'none'.
+        particle (str or None): particle of the wave function, 'boson', 'fermion', or 'none'.
         jastrow (bool): Whether to use Jastrow factors.
         pade_jastrow (bool): Whether to use Pade-Jastrow factors.
         sqrt_omega (float): Square root of the oscillator frequency.
@@ -57,7 +57,7 @@ class WaveFunction:
         self.logger_level = logger_level
         self.backend = backend
         self._seed = seed
-        self.symmetry = None
+        self.particle = None
         self.jastrow = False
         self.pade_jastrow = False
         self.sqrt_omega = 1  # will be reset in the set_hamiltonian
@@ -132,20 +132,21 @@ class WaveFunction:
         else:
             raise ValueError("Invalid backend:", backend)
 
-    def configure_symmetry(self, symmetry):
+    def configure_particle(self, particle):
         """
-        Configure the symmetry of the wave function.
+        Configure the particle of the wave function.
 
         Parameters:
-            symmetry (str): The symmetry to configure, 'boson', 'fermion', or 'none'.
+            particle (str): The particle to configure, 'boson', 'fermion', or 'none'.
         """
-        self.symmetry = symmetry  # boson, fermion, none
-        if self.symmetry == "fermion":  # then uses slater determinant
+
+        self.particle = particle  # boson, fermion, none
+        if self.particle == "fermion":  # then uses slater determinant
             self.log_wf = self.log_wf_slater_det
         else:
             self.log_wf = self.log_wf0
         if self.logger_level != "SILENT":
-            self.logger.info(f"Using symmetry {symmetry}")
+            self.logger.info(f"Using particle {particle}")
 
     def configure_correlation(self, correlation):
         """
@@ -155,7 +156,7 @@ class WaveFunction:
             correlation (str): The correlation factor to use, 'pj' for Pade-Jastrow, 'j' for Jastrow, or 'none'.
 
         Notes:
-            Will be called after configure_symmetry.
+            Will be called after configure_particle.
         """
         if correlation == "pj":
             self.pade_jastrow = True
@@ -175,9 +176,9 @@ class WaveFunction:
 
         elif correlation == "j":
             self.jastrow = True
-            if self.symmetry == "fermion":
+            if self.particle == "fermion":
                 self.log_wf = self.log_wf_slater_jastrow
-            elif self.symmetry != "fermion":
+            elif self.particle != "fermion":
                 self.log_wf = self.log_wf_jastrow
             else:
                 self.log_wf = self.log_wf0
@@ -324,6 +325,7 @@ class WaveFunction:
         return np.array(combinations)
 
     def log_slater(self, r):
+        print("log slater")
         """
         Compute the logarithm of the Slater determinant for a system of particles, considering
         the spin decomposition in the ground state.
@@ -371,8 +373,13 @@ class WaveFunction:
         # print("D_down", D_down)
 
         # Compute the Slater determinant for the spin down particles
-        log_slater_up = jnp.linalg.slogdet(D_up)[1].squeeze(-1)
-        log_slater_down = jnp.linalg.slogdet(D_down)[1].squeeze(-1)
+        slogdet_up = jnp.linalg.slogdet(D_up)[1]
+        slogdet_down = jnp.linalg.slogdet(D_down)[1]
+
+        # slater_sign = slogdet_up[0] * slogdet_down[0]
+
+        log_slater_up = slogdet_up.squeeze(-1)
+        log_slater_down = slogdet_down.squeeze(-1)
 
         return (
             log_slater_up + log_slater_down - 0.5 * self.slater_fact
@@ -406,7 +413,7 @@ class WaveFunction:
         return hermite_product
 
     # @staticmethod
-    # def symmetry(func):
+    # def particle(func):
     #     """
     #     #TODO: ensure that receiving args are size (bacth, nparticles, dim)
     #     """
@@ -452,10 +459,10 @@ class WaveFunction:
     #                 total += sign * func(self, permuted_r, *args, **kwargs)
     #             return total / math.factorial(n)
 
-    #         if self.symmetry == "boson":
+    #         if self.particle == "boson":
     #             return symmetrize_r(r)
 
-    #         elif self.symmetry == "fermion":
+    #         elif self.particle == "fermion":
     #             return antisymmetrize(func, *args)
     #         else:
     #             return func(self, r, *args, **kwargs)
@@ -532,13 +539,16 @@ class WaveFunction:
         """
         pass
 
-    @abstractmethod
+    def sign(self, r):
+        """ """
+        return 1
+
     def wf(self, r):
         """
         Ouputs the wavefunction.
         to be overwritten by the inheriting class
         """
-        pass
+        return self.backend.exp(self.log_wf(r, self.params)) * self.sign(r)
 
     def activation(self, activation_str):
         match activation_str:

@@ -109,7 +109,7 @@ class NQS:
         """
         self.N = nparticles
         self.dim = dim
-        self._symmetry = kwargs.get("symmetry", "none")
+        self._particle = kwargs.get("particle", "none")
         common_args = {
             "nparticles": self.N,
             "dim": self.dim,
@@ -449,7 +449,7 @@ class NQS:
             "training_cycles": self._training_cycles,
             "training_batch": self._training_batch,
             "Opti": self._optimizer.__class__.__name__,
-            "symmetry": self._symmetry,
+            "particle": self._particle,
         }
 
         system_info = pd.DataFrame(system_info, index=[0])

@@ -14,4 +14,4 @@ wf_type: "vmc"
 
 common_kwargs:
     correlation: None  # or just j or None (default)
-    symmetry: "fermion" # why does this change the pretrain? and should it?
+    particle: "fermion" # why does this change the pretrain? and should it?

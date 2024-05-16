@@ -58,7 +58,7 @@ common_kwargs = {
     "layer_sizes": layer_sizes,
     "activations": activations,
     "correlation": "none",  # or just j or None (default)
-    "symmetry": "none",  # why does this change the pretrain? and should it?
+    "particle": "none",  # why does this change the pretrain? and should it?
 }
 
 system.set_wf("ffnn", nparticles, dim, **common_kwargs)  # all after this is kwargs.

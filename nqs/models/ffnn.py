@@ -23,7 +23,7 @@ class FFNN(WaveFunction):
         logger=None,
         logger_level="INFO",
         backend="jax",
-        symmetry=None,
+        particle=None,
         correlation=None,
     ):
         """
@@ -79,13 +79,13 @@ class FFNN(WaveFunction):
             logger (Logger, optional): Logger instance for logging information about the network initialization and training.
             logger_level (str, optional): Logging level. Defaults to "INFO".
             backend (str, optional): Specifies the computational backend to use. Currently, only "jax" is supported.
-            symmetry (optional): Configures the network to use a particular symmetry. Not implemented in this snippet.
+            particle (optional): Configures the network to use a particular particle. Not implemented in this snippet.
             correlation (optional): Configures the network to use correlations between particles. Not implemented in this snippet.
 
         Initializes network parameters, sets up the architecture, and prepares the initial state.
         """
         self._initialize_vars(nparticles, dim, layer_sizes, activations, factor)
-        self.configure_symmetry(symmetry)  # need to be before correlation
+        self.configure_particle(particle)  # need to be before correlation
         self.configure_correlation(correlation)  # NEED TO BE BEFORE CONFIGURE_BACKEND
         self.configure_backend(backend)
 
@@ -95,7 +95,7 @@ class FFNN(WaveFunction):
         self.state = State(self.r0, logp, 0, 0)
 
         if self.logger_level != "SILENT":
-            msg = f"Neural Network Quantum State initialized with symmetry {self.symmetry} as FFNN with {self.__str__()}."  # noqa
+            msg = f"Neural Network Quantum State initialized with particle {self.particle} as FFNN with {self.__str__()}."  # noqa
             self.logger.info(msg)
 
     def reinit_positions(self):
@@ -167,7 +167,7 @@ class FFNN(WaveFunction):
         output = self.log_wf0(x, params)
         return output
 
-    # @WaveFunction.symmetry
+    # @WaveFunction.particle
     # @partial(jax.jit, static_argnums=(0,))
     def log_wf0(self, x, params):
         """

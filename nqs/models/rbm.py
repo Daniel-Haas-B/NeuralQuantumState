@@ -21,7 +21,7 @@ class RBM(WaveFunction):
         logger=None,
         logger_level="INFO",
         backend="numpy",
-        symmetry=None,
+        particle=None,
         correlation=None,
     ):
         """
@@ -42,7 +42,7 @@ class RBM(WaveFunction):
         )
 
         self._initialize_vars(nparticles, dim, nhidden, factor, sigma2)
-        self.configure_symmetry(symmetry)  # need to be before correlation
+        self.configure_particle(particle)  # need to be before correlation
         self.configure_correlation(correlation)  # NEED TO BE BEFORE CONFIGURE_BACKEND
         self.configure_backend(backend)
 

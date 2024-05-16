@@ -32,7 +32,7 @@ detailed = True
 wf_type = "ffnn"
 seed = 42
 
-system = pretrain.Gaussian(logger_level="INFO", seed=seed, symmetry="fermion")
+system = pretrain.Gaussian(logger_level="INFO", seed=seed, particle="fermion")
 
 system.set_wf(
     "ffnn",
@@ -46,7 +46,7 @@ system.set_wf(
         1,  # should always be this
     ],
     activations=["gelu", "gelu", "gelu", "linear"],
-    symmetry="none",
+    particle="none",
 )
 
 system.set_sampler(mcmc_alg=mcmc_alg, scale=1)

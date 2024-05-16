@@ -7,30 +7,29 @@ import seaborn as sns
 from nqs.state import nqs
 from nqs.state.utils import plot_obd
 
-print(jax.devices())
 
 # jax.config.update("jax_enable_x64", True)
-# jax.config.update("jax_platform_name", "cpu")
-
+jax.config.update("jax_platform_name", "cpu")
+print(jax.devices())
 # Config
 output_filename = "/Users/haas/Documents/Masters/NQS/data/playground.csv"
 nparticles = 2
-dim = 2
+dim = 1
 nhidden = 4
 
-nsamples = int(2**18)
+nsamples = int(2**15)
 nchains = 1
 eta = 0.1  # / np.sqrt(nparticles * dim)
 
 training_cycles = 100  # this is cycles for the NN
-mcmc_alg = "lmh"
+mcmc_alg = "m"
 backend = "jax"
 optimizer = "adam"
 batch_size = 200
 detailed = True
 wf_type = "rbm"
 seed = 42
-int_type = "Coulomb"  # "None"
+int_type = "None"  # "None"
 save_positions = True
 
 dfs_mean = []
@@ -55,7 +54,7 @@ system.set_wf(
     dim,
     nhidden=nhidden,  # all after this is kwargs. In this example it is RBM dependent
     sigma2=1.0,
-    symmetry="none",
+    symmetry="fermion",
     correlation="none",
 )
 
@@ -142,7 +141,7 @@ df_final.to_csv(output_filename, index=False)
 df_all = pd.concat(df_all)
 print(df_all)
 
-if save_positions:
+if save_positions and dim == 2:
     chain_id = 0  # TODO: make this general to get other chains
     plot_obd(f"energies_and_pos_RBM_ch{chain_id}.h5", nsamples, dim)
 
@@ -154,3 +153,28 @@ else:
 plt.xlabel("Chain")
 plt.ylabel("Energy")
 plt.show()
+
+# plot the wave function evaluated at multiple points
+if dim == 1:
+
+    # for 2 particles, 1 dim
+    xpoints = 100
+    r1 = np.linspace(-3, 3, xpoints)
+    r2 = np.linspace(-3, 3, xpoints)
+    R1 = np.zeros((xpoints, xpoints))
+    R2 = np.zeros((xpoints, xpoints))
+    psi = np.zeros((xpoints, xpoints))
+    for i in range(xpoints):
+        for j in range(xpoints):
+            # print("system.wf(np.array([r1[i], r2[j]]))", system.wf(np.array([r1[i], r2[j]])))
+            psi[i, j] = system.wf(np.array([r1[i], r2[j]]))
+            R1[i, j] = r1[i]
+            R2[i, j] = r2[j]
+
+    plt.contourf(R1, R2, psi, levels=10, cmap="viridis")
+    # fix square aspect ratio
+    plt.gca().set_aspect("equal", adjustable="box")
+
+    # plt.imshow(psi, extent=(-3, 3, -3, 3))
+    # plt.colorbar()
+    plt.show()

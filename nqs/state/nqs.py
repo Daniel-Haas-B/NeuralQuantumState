@@ -94,6 +94,10 @@ class NQS:
         self._is_tuned_ = False
         self._sampling_performed
 
+    # callable that outputs self.wf
+    def __call__(self, r):
+        return self.wf(r)
+
     def set_wf(self, wf_type, nparticles, dim, **kwargs):
         """
         Set and initialize the wave function for the NQS simulation.

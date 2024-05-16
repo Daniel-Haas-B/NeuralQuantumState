@@ -61,6 +61,7 @@ class WaveFunction:
         self.jastrow = False
         self.pade_jastrow = False
         self.sqrt_omega = 1  # will be reset in the set_hamiltonian
+        self.sign = 1
 
         self.slater_fact = np.log(
             ss.factorial(self.N)
@@ -88,7 +89,7 @@ class WaveFunction:
         JIT compile the wave function methods for performance using JAX, if available.
         """
         functions_to_jit = [
-            "log_wf",
+            # "log_wf",
             # "log_wf0", # dont use this with deepset at least
             "log_wfc_jastrow",
             "logprob_closure",
@@ -171,7 +172,10 @@ class WaveFunction:
                     else:
                         self.pade_aij = self.pade_aij.at[i, j].set(1 / (self.dim - 1))
 
-            self.log_wf = self.log_wf_pade_jastrow
+            if self.symmetry == "fermion":
+                self.log_wf = self.log_wf_pade_slater_jastrow
+            else:
+                self.log_wf = self.log_wf_pade_jastrow
 
         elif correlation == "j":
             self.jastrow = True
@@ -197,7 +201,9 @@ class WaveFunction:
         Returns:
             ndarray: Logarithm of the Slater determinant component of the wave function.
         """
-        return self.log_wf0(r, params) + self.log_slater(r)
+        slog_slater = self.slog_slater(r)
+        self.sign = slog_slater[0]
+        return self.log_wf0(r, params) + slog_slater[1]
 
     def log_wf_jastrow(self, r, params):
         """
@@ -223,10 +229,10 @@ class WaveFunction:
         Returns:
             ndarray: Logarithm of the combined Slater and Jastrow wave function.
         """
+        slog_slater = self.slog_slater(r)
+        self.sign = slog_slater[0]
 
-        return (
-            self.log_wf0(r, params) + self.log_slater(r) + self.log_jastrow(r, params)
-        )
+        return self.log_wf0(r, params) + slog_slater[1] + self.log_jastrow(r, params)
 
     def log_wf_pade_jastrow(self, r, params):
         """
@@ -239,10 +245,23 @@ class WaveFunction:
         Returns:
             ndarray: Logarithm of the combined Slater and Pade-Jastrow wave function.
         """
+        return self.log_wf0(r, params) + self.log_pade_jastrow(r, params)
+
+    def log_wf_pade_slater_jastrow(self, r, params):
+        """
+        Calculate the log of the wave function value using both the Slater determinant and Pade-Jastrow factor.
+
+        Parameters:
+            r (ndarray): An array of particle positions.
+            params (dict): Parameters of the wave function, including Pade-Jastrow factor parameters.
+
+        Returns:
+            ndarray: Logarithm of the combined Slater and Pade-Jastrow wave function.
+        """
+        slog_slater = self.slog_slater(r)
+        self.sign = slog_slater[0]
         return (
-            self.log_wf0(r, params)
-            + self.log_slater(r)
-            + self.log_pade_jastrow(r, params)
+            self.log_wf0(r, params) + slog_slater[1] + self.log_pade_jastrow(r, params)
         )
 
     def log_jastrow(self, r, params):
@@ -286,23 +305,30 @@ class WaveFunction:
         r_dist = self.la.norm(r_diff + epsilon, axis=-1)  # Add epsilon to avoid nan
 
         rij = jnp.triu(r_dist, k=1)
+        fraction = (
+            self.pade_aij * rij / (1 + params["CPJ"] * rij)
+        )  # elementwise addition
+        # Create a mask for the upper triangular part, excluding the diagona
 
-        num = self.pade_aij * rij  # elemntwise multiplication
-        den = 1 + params["CPJ"] * rij  # elementwise addition
+        result = jnp.sum(fraction, axis=(1, 2))
 
-        x = jnp.einsum("nij,nij->n", num, 1 / den)
+        return result.squeeze(-1)
 
-        return x.squeeze(-1)
-
-    def generate_degrees(self):
+    def generate_degrees(self, mode="dots"):
         """
         Generate all possible combinations of degrees for the single-particle wave functions
         used in the Slater determinant.
 
+        mode (str): The mode to generate the degrees, 'antiparallel', parallels, or full.
+
         Returns:
             ndarray: Array of combinations of degrees with the shape (N//2, dim).
+
         """
-        max_comb = self.N // 2
+        if mode == "dots":
+            max_comb = self.N // 2
+        elif mode == "full":
+            max_comb = self.N
         combinations = [[0] * self.dim]
         seen = {tuple(combinations[0])}
 
@@ -323,7 +349,7 @@ class WaveFunction:
 
         return np.array(combinations)
 
-    def log_slater(self, r):
+    def slog_slater_dots(self, r):
         """
         Compute the logarithm of the Slater determinant for a system of particles, considering
         the spin decomposition in the ground state.
@@ -355,7 +381,7 @@ class WaveFunction:
         D_up = self.backend.zeros((r.shape[0], A, A))
         D_down = self.backend.zeros((r.shape[0], A, A))
 
-        degree_combs = self.generate_degrees()
+        degree_combs = self.generate_degrees(mode="full")
         # print("r in log_slater", r)
         for part in range(A):
             for j in range(A):
@@ -369,14 +395,61 @@ class WaveFunction:
 
         # print("D_up", D_up)
         # print("D_down", D_down)
+        slog_det_up = jnp.linalg.slogdet(D_up)
+        slog_det_down = jnp.linalg.slogdet(D_down)
+        sign_det = slog_det_up[0] * slog_det_down[0]
 
         # Compute the Slater determinant for the spin down particles
-        log_slater_up = jnp.linalg.slogdet(D_up)[1].squeeze(-1)
-        log_slater_down = jnp.linalg.slogdet(D_down)[1].squeeze(-1)
+        log_slater_up = slog_det_up[1].squeeze(-1)
+        log_slater_down = slog_det_down[1].squeeze(-1)
 
-        return (
-            log_slater_up + log_slater_down - 0.5 * self.slater_fact
-        )  # the factor does not matter for energy but maybe important for the gradient?
+        return sign_det, log_slater_up + log_slater_down  # the factor does not matter
+
+    def slog_slater(self, r):
+        """
+        Compute the logarithm of the Slater determinant for a system of particles, considering
+        the spin decomposition in the ground state.
+
+        Parameters:
+            r (ndarray): An array of particle positions reshaped into (-1, N, dim) dimensions.
+
+        Returns:
+            ndarray: Computed logarithm of the Slater determinant for the given positions.
+
+        The determinant D is calculated as follows, where phi_i is the i-th single particle wavefunction,
+        which in our case is a Hermite polynomial:
+
+        .. math::
+            D = \\begin{vmatrix}
+            \\phi_1(r_1) & \\phi_2(r_1) & \\cdots & \\phi_n(r_1) \\\\
+            \\phi_1(r_2) & \\phi_2(r_2) & \\cdots & \\phi_n(r_2) \\\\
+            \\vdots      & \\vdots      & \\ddots & \\vdots      \\\\
+            \\phi_1(r_n) & \\phi_2(r_n) & \\cdots & \\phi_n(r_n)
+            \\end{vmatrix}
+        """
+        A = self.N
+        r = r.reshape(-1, self.N, self.dim)
+
+        # Compute the Slater determinant for the spin up particles
+        D = self.backend.zeros((r.shape[0], A, A))
+        degree_combs = self.generate_degrees(mode="full")
+        # print("r in log_slater", r)
+        for part in range(A):
+            for j in range(A):
+                degrees = degree_combs[j]
+                # print("degrees", degrees)
+                # TODO: breaks here because hermite is giving an array
+                D = D.at[:, part, j].set(self.hermite(r[:, part, :], degrees))
+
+        # print("D_up", D_up)
+        # print("D_down", D_down)
+        slog_det = jnp.linalg.slogdet(D)
+        sign_det = slog_det[0]
+
+        # Compute the Slater determinant for the spin down particles
+        log_slater = slog_det[1].squeeze(-1)
+
+        return sign_det, log_slater  # the factor does not matter
 
     def hermite(self, r, degs):
         """
@@ -634,3 +707,6 @@ class WaveFunction:
             sr_matrices[key] = sr_mat + shift * self.backend.eye(sr_mat.shape[0])
 
         return sr_matrices
+
+    def __call__(self, r):
+        return self.backend.exp(self.log_wf(r, self.params)) * self.sign.squeeze(-1)

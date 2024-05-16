@@ -59,13 +59,13 @@ class RBM(WaveFunction):
             )
             self.logger.info(msg)
 
-    def __call__(self, r):
-        return self.wf(
-            r,
-            self.params.get("v_bias"),
-            self.params.get("h_bias"),
-            self.params.get("W_kernel"),
-        )
+    # def __call__(self, r):
+    #     return self.wf(
+    #         r,
+    #         self.params.get("v_bias"),
+    #         self.params.get("h_bias"),
+    #         self.params.get("W_kernel"),
+    #     )
 
     def _initialize_bias_and_kernel(self, rng):
         v_bias = rng.standard_normal(size=self.Nvisible) * 0.01
@@ -82,7 +82,7 @@ class RBM(WaveFunction):
             )
         if self.pade_jastrow:
             assert not self.jastrow, "Pade Jastrow requires Jastrow to be false"
-            self.params.set("CPJ", np.array(rng.uniform(-limit, limit, 1)))
+            self.params.set("CPJ", np.array(rng.uniform(-1, 1, 1)))
 
     def _initialize_vars(self, nparticles, dim, nhidden, factor, sigma2):
         self._sigma2 = sigma2

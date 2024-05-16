@@ -25,7 +25,7 @@ eta = 0.1  # / np.sqrt(nparticles * dim)  # 0.001  / np.sqrt(nparticles * dim)
 
 training_cycles = 500  # this is cycles for the ansatz
 mcmc_alg = "m"
-backend = "numpy"
+backend = "jax"
 optimizer = "adam"  # reminder: for adam, use bigger learning rate
 batch_size = 500
 detailed = True
@@ -53,8 +53,8 @@ system.set_wf(
     wf_type,
     nparticles,
     dim,
-    symmetry="pj",
-    correlation="fermion",
+    symmetry="fermion",
+    correlation="pj",
 )
 
 system.set_sampler(mcmc_alg=mcmc_alg, scale=scale)

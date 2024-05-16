@@ -89,22 +89,18 @@ class HarmonicOscillator(Hamiltonian):
 
         # Interaction
         v_int = 0.0
+        r_cpy = r.reshape(-1, self.N, self.dim)  # (nbatch, N, dim)
+        r_diff = r_cpy[:, None, :, :] - r_cpy[:, :, None, :]
+        noise =  1e-10
+        r_dist = self.la.norm(r_diff + noise, axis=-1)
+
         match self._int_type.lower():
             case "coulomb":
-                r_cpy = r.reshape(-1, self.N, self.dim)  # (nbatch, N, dim)
-                r_diff = r_cpy[:, None, :, :] - r_cpy[:, :, None, :]
-                noise = 1e-10
-                r_dist = self.la.norm(r_diff + noise, axis=-1)
-
                 v_int = self.backend.sum(
                     self.backend.triu(1 / r_dist, k=1), axis=(-2, -1)
                 )  # the axis=(-2, -1) is to sum over the last two axes, so that we get a (nbatch, ) array
             case "coulomb_gradual":
                 self.kwargs["r0_reg"] *= self.reg_decay
-                r_cpy = r.reshape(-1, self.N, self.dim)  # (nbatch, N, dim)
-                r_diff = r_cpy[:, None, :, :] - r_cpy[:, :, None, :]
-                noise = 0  # 1e-10
-                r_dist = self.la.norm(r_diff + noise, axis=-1)
 
                 # Apply tanh regularization
                 f_r = self.regularized_potential(r_dist)
@@ -115,17 +111,19 @@ class HarmonicOscillator(Hamiltonian):
                 )  # the axis=(-2, -1) is to sum over the last two axes, so that we get a (nbatch, ) array
             case "gaussian":
                 """
-                # WIP
                 Finite range Gaussian interaction
                 alpha = 1 / 2sigma_0^2
                 coupling = V_0/(sqrt(2pi) sigma_0)
                 """
+                sigma_0 = 0.5
+                alpha = 1 / (2 * sigma_0**2)
+                V_0 = 0
+                coupling = V_0 / (self.backend.sqrt(2 * self.backend.pi) * sigma_0) 
                 v_int = (
-                    0.5
-                    * self.kwargs["coupling"]
+                    coupling#self.kwargs["coupling"]
                     * self.backend.sum(
                         self.backend.triu(
-                            self.backend.exp(-self.kwargs["alpha"] * r_dist**2), k=1
+                            self.backend.exp(-alpha * r_dist**2), k=1
                         )
                     )
                 )

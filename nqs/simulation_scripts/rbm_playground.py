@@ -5,31 +5,32 @@ import pandas as pd
 import seaborn as sns
 
 from nqs.state import nqs
-from nqs.state.utils import plot_obd
+from nqs.state.utils import plot_2dobd, plot_3dobd, plot_psi, plot_density_profile
 
 
 # jax.config.update("jax_enable_x64", True)
 jax.config.update("jax_platform_name", "cpu")
 print(jax.devices())
 # Config
-output_filename = "/Users/haas/Documents/Masters/NQS/data/playground.csv"
+#output_filename = "/Users/haas/Documents/Masters/NQS/data/playground.csv"
+output_filename = "/Users/orpheus/Documents/Masters/NeuralQuantumState/data/playground.csv"
 nparticles = 2
 dim = 1
 nhidden = 4
 
-nsamples = int(2**15)
+nsamples = int(2**18)
 nchains = 1
 eta = 0.1  # / np.sqrt(nparticles * dim)
 
-training_cycles = 100  # this is cycles for the NN
+training_cycles = 200  # this is cycles for the NN
 mcmc_alg = "m"
 backend = "jax"
 optimizer = "adam"
-batch_size = 200
+batch_size = 1000
 detailed = True
 wf_type = "rbm"
 seed = 42
-int_type = "None"  # "None"
+int_type = "gaussian"  # "None" "gaussian", "coulomb"
 save_positions = True
 
 dfs_mean = []
@@ -141,9 +142,14 @@ df_final.to_csv(output_filename, index=False)
 df_all = pd.concat(df_all)
 print(df_all)
 
-if save_positions and dim == 2:
+if save_positions:
     chain_id = 0  # TODO: make this general to get other chains
-    plot_obd(f"energies_and_pos_RBM_ch{chain_id}.h5", nsamples, dim)
+    filename = f"energies_and_pos_RBM_ch{chain_id}.h5"
+    if dim == 2:
+        plot_3dobd(filename, nsamples, dim)
+    elif dim == 1:
+        plot_2dobd(filename, nsamples, dim)
+        plot_density_profile(filename, nsamples, dim)
 
 if nchains > 1:
     sns.lineplot(data=df_all, x="chain_id", y="energy")
@@ -154,27 +160,5 @@ plt.xlabel("Chain")
 plt.ylabel("Energy")
 plt.show()
 
-# plot the wave function evaluated at multiple points
-if dim == 1:
+plot_psi(system, nparticles, dim)
 
-    # for 2 particles, 1 dim
-    xpoints = 100
-    r1 = np.linspace(-3, 3, xpoints)
-    r2 = np.linspace(-3, 3, xpoints)
-    R1 = np.zeros((xpoints, xpoints))
-    R2 = np.zeros((xpoints, xpoints))
-    psi = np.zeros((xpoints, xpoints))
-    for i in range(xpoints):
-        for j in range(xpoints):
-            # print("system.wf(np.array([r1[i], r2[j]]))", system.wf(np.array([r1[i], r2[j]])))
-            psi[i, j] = system.wf(np.array([r1[i], r2[j]]))
-            R1[i, j] = r1[i]
-            R2[i, j] = r2[j]
-
-    plt.contourf(R1, R2, psi, levels=10, cmap="viridis")
-    # fix square aspect ratio
-    plt.gca().set_aspect("equal", adjustable="box")
-
-    # plt.imshow(psi, extent=(-3, 3, -3, 3))
-    # plt.colorbar()
-    plt.show()

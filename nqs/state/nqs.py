@@ -462,7 +462,6 @@ class NQS:
             sample_results = self._sampler.sample(
                 self.wf, self.state, nsamples, nchains, seed, save_positions
             )
-            print("sample_results", sample_results)
             sample_results["accept_rate"] = float(sample_results["accept_rate"].iloc[0])
 
             # convert to numpy array

@@ -44,6 +44,7 @@ system = nqs.NQS(
     seed=seed,
 )
 
+
 def test_wf(particle, r, r_ex):
     print(f"\nReinitializing wave function with {particle} particle")
     latent_dimension = 3
@@ -94,7 +95,7 @@ print("Fake input:", r)
 print("Exchanged r:", r_ex)
 
 
-# # Test with boson 
+# # Test with boson
 # test_wf("boson", r, r_ex)
 
 # # Test with fermion

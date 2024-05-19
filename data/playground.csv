@@ -1,2 +1,2 @@
-energy,std_error,variance,accept_rate,sem_energy,sem_std_error,sem_variance,sem_accept_rate,nparticles,dim,eta,scale,mcmc_alg,nqs_type,nsamples,training_cycles,training_batch,Opti
-1.0759389400482178,0.0021370925398553463,0.38824584776551774,0.7230186462402344,,,,,2,2,0.1,0.5,m,rbm,262144,200,1000,Sr
+energy,std_error,variance,accept_rate,energy(error),nqs_type,n_particles,dim,batch_size,eta,training_cycles,nsamples,Opti,particle
+1.0153131101110375,0.0011587540467865088,0.04745072375032722,0.5737838745117188,1.015(1),ffnn,2,1,300,0.0007071067811865475,100,262144,sr,fermion_dots

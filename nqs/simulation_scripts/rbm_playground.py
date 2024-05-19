@@ -15,7 +15,7 @@ print(jax.devices())
 #output_filename = "/Users/haas/Documents/Masters/NQS/data/playground.csv"
 output_filename = "/Users/orpheus/Documents/Masters/NeuralQuantumState/data/playground.csv"
 nparticles = 2
-dim = 1
+dim = 2
 nhidden = 4
 
 nsamples = int(2**18)
@@ -30,7 +30,7 @@ batch_size = 1000
 detailed = True
 wf_type = "rbm"
 seed = 42
-int_type = "gaussian"  # "None" "gaussian", "coulomb"
+int_type = "coulomb"  # "None" "gaussian", "coulomb"
 save_positions = True
 
 dfs_mean = []
@@ -55,7 +55,7 @@ system.set_wf(
     dim,
     nhidden=nhidden,  # all after this is kwargs. In this example it is RBM dependent
     sigma2=1.0,
-    symmetry="fermion",
+    particle="boson",
     correlation="none",
 )
 
@@ -63,9 +63,11 @@ system.set_sampler(mcmc_alg=mcmc_alg, scale=1 / np.sqrt(nparticles * dim))
 system.set_hamiltonian(
     type_="ho",
     int_type=int_type,
-    omega=1.0,
+    omega=0.28,
     r0_reg=10,
     training_cycles=training_cycles,
+    sigma_0=0.5,
+    v0=0,
 )
 system.set_optimizer(
     optimizer=optimizer,

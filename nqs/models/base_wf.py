@@ -23,7 +23,7 @@ class WaveFunction:
         _logger_level (str): Level of the logger, defaults to 'INFO'.
         backend (str): Backend used for calculations, 'numpy' or 'jax'.
         _seed (int or None): Seed for random number generation.
-        symmetry (str or None): Symmetry of the wave function, 'boson', 'fermion', or 'none'.
+        particle (str or None): particle of the wave function, 'boson', 'fermion', or 'none'.
         jastrow (bool): Whether to use Jastrow factors.
         pade_jastrow (bool): Whether to use Pade-Jastrow factors.
         sqrt_omega (float): Square root of the oscillator frequency.
@@ -49,6 +49,7 @@ class WaveFunction:
         logger_level="INFO",
         backend="numpy",
         seed=None,
+        slater_mode="dots",
     ):
         self.params = None
         self.N = nparticles
@@ -57,11 +58,13 @@ class WaveFunction:
         self.logger_level = logger_level
         self.backend = backend
         self._seed = seed
-        self.symmetry = None
+        self.particle = None
         self.jastrow = False
         self.pade_jastrow = False
         self.sqrt_omega = 1  # will be reset in the set_hamiltonian
         self.sign = 1
+        self.slater_mode = slater_mode  # Add this attribute
+
 
         self.slater_fact = np.log(
             ss.factorial(self.N)
@@ -133,20 +136,26 @@ class WaveFunction:
         else:
             raise ValueError("Invalid backend:", backend)
 
-    def configure_symmetry(self, symmetry):
+    def configure_particle(self, particle):
         """
-        Configure the symmetry of the wave function.
+        Configure the particle of the wave function.
 
         Parameters:
-            symmetry (str): The symmetry to configure, 'boson', 'fermion', or 'none'.
+            symmeparticletry (str): The particle to configure, 'boson', 'fermion'
         """
-        self.symmetry = symmetry  # boson, fermion, none
-        if self.symmetry == "fermion":  # then uses slater determinant
+        self.particle = particle
+        if "fermion" in self.particle:
+            if "dots" in self.particle:
+                self.slog_slater = self.slog_slater_dots
+            elif "polarized" in self.particle:
+                self.slog_slater = self.slog_slater_full
+            else:
+                raise ValueError("Insert regime (polarized or dots) in fermion name.")
             self.log_wf = self.log_wf_slater_det
-        else:
+        elif self.particle == "boson":
             self.log_wf = self.log_wf0
         if self.logger_level != "SILENT":
-            self.logger.info(f"Using symmetry {symmetry}")
+            self.logger.info(f"Using particle {particle}")
 
     def configure_correlation(self, correlation):
         """
@@ -156,7 +165,7 @@ class WaveFunction:
             correlation (str): The correlation factor to use, 'pj' for Pade-Jastrow, 'j' for Jastrow, or 'none'.
 
         Notes:
-            Will be called after configure_symmetry.
+            Will be called after configure_particle.
         """
         if correlation == "pj":
             self.pade_jastrow = True
@@ -172,16 +181,16 @@ class WaveFunction:
                     else:
                         self.pade_aij = self.pade_aij.at[i, j].set(1 / (self.dim - 1))
 
-            if self.symmetry == "fermion":
+            if self.particle == "fermion":
                 self.log_wf = self.log_wf_pade_slater_jastrow
             else:
                 self.log_wf = self.log_wf_pade_jastrow
 
         elif correlation == "j":
             self.jastrow = True
-            if self.symmetry == "fermion":
+            if self.particle == "fermion":
                 self.log_wf = self.log_wf_slater_jastrow
-            elif self.symmetry != "fermion":
+            elif self.particle != "fermion":
                 self.log_wf = self.log_wf_jastrow
             else:
                 self.log_wf = self.log_wf0
@@ -352,7 +361,8 @@ class WaveFunction:
     def slog_slater_dots(self, r):
         """
         Compute the logarithm of the Slater determinant for a system of particles, considering
-        the spin decomposition in the ground state.
+        the spin decomposition in the ground state and that half of the particles have spin up
+        while the other half have spin down.
 
         Parameters:
             r (ndarray): An array of particle positions reshaped into (-1, N, dim) dimensions.
@@ -365,11 +375,11 @@ class WaveFunction:
 
         .. math::
             D = \\begin{vmatrix}
-            \\phi_1(r_1) & \\phi_2(r_1) & \\cdots & \\phi_n(r_1) \\\\
-            \\phi_1(r_2) & \\phi_2(r_2) & \\cdots & \\phi_n(r_2) \\\\
+            \\phi_{1,+}(r_1) & \\phi_{2,+}(r_1) & \\cdots & \\phi_{n,+}(r_1) \\\\
+            \\phi_{1,+}(r_2) & \\phi_{2,+}(r_2) & \\cdots & \\phi_{n,+}(r_2) \\\\
             \\vdots      & \\vdots      & \\ddots & \\vdots      \\\\
-            \\phi_1(r_n) & \\phi_2(r_n) & \\cdots & \\phi_n(r_n)
-            \\end{vmatrix}
+            \\phi_{1,-}(r_n) & \\phi_{2,-}(r_n) & \\cdots & \\phi_{n,-}(r_n)
+            \\end{vmatrix} 
         """
         A = self.N // 2
         r = r.reshape(-1, self.N, self.dim)
@@ -387,14 +397,11 @@ class WaveFunction:
             for j in range(A):
                 degrees = degree_combs[j]
                 # print("degrees", degrees)
-                # TODO: breaks here because hermite is giving an array
                 D_up = D_up.at[:, part, j].set(self.hermite(r_up[:, part, :], degrees))
                 D_down = D_down.at[:, part, j].set(
                     self.hermite(r_down[:, part, :], degrees)
                 )
 
-        # print("D_up", D_up)
-        # print("D_down", D_down)
         slog_det_up = jnp.linalg.slogdet(D_up)
         slog_det_down = jnp.linalg.slogdet(D_down)
         sign_det = slog_det_up[0] * slog_det_down[0]
@@ -405,9 +412,9 @@ class WaveFunction:
 
         return sign_det, log_slater_up + log_slater_down  # the factor does not matter
 
-    def slog_slater(self, r):
+    def slog_slater_full(self, r):
         """
-        Compute the logarithm of the Slater determinant for a system of particles, considering
+        Compute the logarithm of the Slater determinant for a system of fully polarized particles, considering
         the spin decomposition in the ground state.
 
         Parameters:
@@ -437,8 +444,6 @@ class WaveFunction:
         for part in range(A):
             for j in range(A):
                 degrees = degree_combs[j]
-                # print("degrees", degrees)
-                # TODO: breaks here because hermite is giving an array
                 D = D.at[:, part, j].set(self.hermite(r[:, part, :], degrees))
 
         # print("D_up", D_up)
@@ -473,6 +478,7 @@ class WaveFunction:
                 r_ = r[batch][i]
 
                 # print(f"print(P.Hermite([0] * {deg} + [1])({r_}))")
+                #print("sqrt_omega", self.sqrt_omega)
                 hermite_poly = P.Hermite([0] * deg + [1])(r_ * self.sqrt_omega)
                 hermite_product *= hermite_poly
 

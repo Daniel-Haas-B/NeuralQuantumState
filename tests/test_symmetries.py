@@ -44,13 +44,8 @@ system = nqs.NQS(
     seed=seed,
 )
 
-
-# Function to reinitialize and test the wave function under different symmetries
-print("DISCLAIMER: FOR THIS TEST TO WORK, ADD @WaveFunction.symmetry TO ffnn METHOD")
-
-
-def test_wf(symmetry, r, r_ex):
-    print(f"\nReinitializing wave function with {symmetry} symmetry")
+def test_wf(particle, r, r_ex):
+    print(f"\nReinitializing wave function with {particle} particle")
     latent_dimension = 3
     system.set_wf(
         "deepset",
@@ -81,7 +76,7 @@ def test_wf(symmetry, r, r_ex):
     #     dim,
     #     layer_sizes=[nparticles * dim, 5, 3, 1],
     #     activations=["gelu", "elu", "linear"],
-    #     symmetry=symmetry,
+    #     particle=particle,
     # )
 
     # print("Output without particle exchange: ", system.wf.ffnn(r, system.wf.params))
@@ -98,13 +93,11 @@ r_ex = np.array([[1, 2], [3, 4]])
 print("Fake input:", r)
 print("Exchanged r:", r_ex)
 
-# Test with no symmetry
-# test_wf("none", r, r_ex)
 
-# # Test with boson symmetry
+# # Test with boson 
 # test_wf("boson", r, r_ex)
 
-# # Test with fermion symmetry
+# # Test with fermion
 # test_wf("fermion", r, r_ex)
 
 test_wf("deepset", r, r_ex)
@@ -118,8 +111,6 @@ r_ex = np.array([[3, 4, 1, 2], [7, 8, 5, 6]])
 print("Fake input:", r)
 print("Exchanged r:", r_ex)
 
-# Test with no symmetry
-# test_wf("none", r, r_ex)
 
 # # Test with boson symmetry
 # test_wf("boson", r, r_ex)
@@ -141,8 +132,6 @@ print("Fake input:", r)
 print("Exchanged r:", r_ex)
 
 # Repeating tests for three particles
-# Test with no symmetry
-# test_wf("none", r, r_ex)
 
 # # Test with boson symmetry
 # test_wf("boson", r, r_ex)
@@ -165,8 +154,6 @@ print("Fake input:", r)
 print("Exchanged r:", r_ex)
 
 # Repeating tests for three particles
-# Test with no symmetry
-# test_wf("none", r, r_ex)
 
 # # Test with boson symmetry
 # test_wf("boson", r, r_ex)
@@ -189,8 +176,6 @@ print("Fake input:", r)
 print("Exchanged r:", r_ex)
 
 # Repeating tests for three particles
-# Test with no symmetry
-# test_wf("none", r, r_ex)
 
 # # Test with boson symmetry
 # test_wf("boson", r, r_ex)

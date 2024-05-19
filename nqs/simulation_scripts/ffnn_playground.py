@@ -6,7 +6,7 @@ import numpy as np
 import pandas as pd
 
 from nqs.state import nqs
-from nqs.state.utils import plot_obd  # noqa
+from nqs.state.utils import plot_3dobd  # noqa
 
 # from nqs.state.utils import plot_pair_correlation  # noqa
 
@@ -24,14 +24,14 @@ nparticles = 2
 dim = 2
 save_positions = True
 
-nsamples = int(2**10)  # 2**18 = 262144,
+nsamples = int(2**18)  # 2**18 = 262144,
 nchains = 1
 eta = 0.001 / np.sqrt(nparticles * dim)  # 0.001  / np.sqrt(nparticles * dim)
 
 training_cycles = 100  # this is cycles for the ansatz
 mcmc_alg = "m"  # lmh
 optimizer = "adam"
-batch_size = 500  # 2000
+batch_size = 1000  # 2000
 detailed = True
 wf_type = "ffnn"
 seed = 42
@@ -58,7 +58,7 @@ common_kwargs = {
     "layer_sizes": layer_sizes,
     "activations": activations,
     "correlation": "none",  # or just j or None (default)
-    "symmetry": "none",  # why does this change the pretrain? and should it?
+    "particle": "fermion_dots",  # why does this change the pretrain? and should it?
 }
 
 system.set_wf("ffnn", nparticles, dim, **common_kwargs)  # all after this is kwargs.
@@ -66,10 +66,10 @@ system.set_wf("ffnn", nparticles, dim, **common_kwargs)  # all after this is kwa
 system.set_sampler(mcmc_alg=mcmc_alg, scale=1 / np.sqrt(nparticles * dim))
 system.set_hamiltonian(
     type_="ho",
-    int_type="coulomb_gradual",
+    int_type="none",
     omega=1.0,
-    r0_reg=10,
-    training_cycles=training_cycles,
+    #r0_reg=10,
+    #training_cycles=training_cycles,
 )
 
 system.set_optimizer(
@@ -175,7 +175,7 @@ def main():
     if save_positions:
         chain_id = 0  # TODO: make this general to get other chains
         file_name = f"energies_and_pos_FFNN_ch{chain_id}.h5"
-        plot_obd(file_name, nsamples, dim, method="gaussian")
+        plot_3dobd(file_name, nsamples, dim, method="gaussian")
         # plot_pair_correlation(file_name, nsamples, dr=0.1, max_range=5, dim=2)
 
 

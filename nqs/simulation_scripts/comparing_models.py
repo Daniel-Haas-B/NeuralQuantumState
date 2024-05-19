@@ -58,8 +58,7 @@ for wf_type in wf_types:
             "jastrow": False,
         }
 
-    system.set_wf(wf_type, nparticles, dim, symmetry="none", **kwargs)
-
+    system.set_wf(wf_type, nparticles, dim, particle="boson", **kwargs)
     system.set_sampler(mcmc_alg=mcmc_alg, scale=1.0 / np.sqrt(nparticles * dim))
     system.set_hamiltonian(
         type_="ho",

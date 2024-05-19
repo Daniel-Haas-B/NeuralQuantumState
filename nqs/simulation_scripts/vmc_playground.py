@@ -5,12 +5,12 @@ import pandas as pd
 import seaborn as sns
 
 from nqs.state import nqs
-from nqs.state.utils import plot_obd
+from nqs.state.utils import plot_3dobd
 from nqs.state.utils import plot_tbd  # noqa
 
 
 # jax.config.update("jax_enable_x64", True)
-# jax.config.update("jax_platform_name", "cpu")
+jax.config.update("jax_platform_name", "cpu")
 
 # print device
 print(jax.devices())
@@ -21,11 +21,11 @@ nparticles = 2
 dim = 2
 nsamples = int(2**18)  # 2**18 = 262144
 nchains = 1
-eta = 0.1  # / np.sqrt(nparticles * dim)  # 0.001  / np.sqrt(nparticles * dim)
+eta = 0.01  # / np.sqrt(nparticles * dim)  # 0.001  / np.sqrt(nparticles * dim)
 
 training_cycles = 500  # this is cycles for the ansatz
 mcmc_alg = "m"
-backend = "numpy"
+backend = "jax"
 optimizer = "adam"  # reminder: for adam, use bigger learning rate
 batch_size = 500
 detailed = True
@@ -53,13 +53,13 @@ system.set_wf(
     wf_type,
     nparticles,
     dim,
-    symmetry="pj",
-    correlation="fermion",
+    particle="boson",
+    correlation="none",
 )
 
 system.set_sampler(mcmc_alg=mcmc_alg, scale=scale)
 system.set_hamiltonian(
-    type_="ho", int_type="none", omega=1.0, r0_reg=10, training_cycles=training_cycles
+    type_="ho", int_type="coulomb", omega=0.28, r0_reg=10, training_cycles=training_cycles
 )
 system.set_optimizer(
     optimizer=optimizer,
@@ -133,7 +133,7 @@ print(df_all)
 # energy with sr
 if save_positions:
     chain_id = 0  # TODO: make this general to get other chains
-    plot_obd(f"energies_and_pos_VMC_ch{chain_id}.h5", nsamples, dim)
+    plot_3dobd(f"energies_and_pos_VMC_ch{chain_id}.h5", nsamples, dim)
 
 
 if nchains > 1:

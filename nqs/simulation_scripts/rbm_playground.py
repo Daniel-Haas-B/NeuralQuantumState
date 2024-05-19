@@ -5,15 +5,15 @@ import pandas as pd
 import seaborn as sns
 
 from nqs.state import nqs
-from nqs.state.utils import plot_obd
+from nqs.state.utils import plot_2dobd, plot_3dobd, plot_psi, plot_density_profile
 
-print(jax.devices())
 
 # jax.config.update("jax_enable_x64", True)
-# jax.config.update("jax_platform_name", "cpu")
-
+jax.config.update("jax_platform_name", "cpu")
+print(jax.devices())
 # Config
-output_filename = "/Users/haas/Documents/Masters/NQS/data/playground.csv"
+#output_filename = "/Users/haas/Documents/Masters/NQS/data/playground.csv"
+output_filename = "/Users/orpheus/Documents/Masters/NeuralQuantumState/data/playground.csv"
 nparticles = 2
 dim = 2
 nhidden = 4
@@ -22,15 +22,16 @@ nsamples = int(2**18)
 nchains = 1
 eta = 0.1  # / np.sqrt(nparticles * dim)
 
-training_cycles = 100  # this is cycles for the NN
-mcmc_alg = "lmh"
+training_cycles = 200  # this is cycles for the NN
+mcmc_alg = "m"
 backend = "jax"
-optimizer = "adam"
-batch_size = 200
+optimizer = "sr"
+batch_size = 1000
 detailed = True
 wf_type = "rbm"
+trap_freq = 0.28
 seed = 42
-int_type = "Coulomb"  # "None"
+int_type = "coulomb"  # "None" "gaussian", "coulomb"
 save_positions = True
 
 dfs_mean = []
@@ -54,8 +55,8 @@ system.set_wf(
     nparticles,
     dim,
     nhidden=nhidden,  # all after this is kwargs. In this example it is RBM dependent
-    sigma2=1.0,
-    symmetry="none",
+    sigma2=1.0/np.sqrt(trap_freq),
+    particle="boson",
     correlation="none",
 )
 
@@ -63,9 +64,11 @@ system.set_sampler(mcmc_alg=mcmc_alg, scale=1 / np.sqrt(nparticles * dim))
 system.set_hamiltonian(
     type_="ho",
     int_type=int_type,
-    omega=1.0,
+    omega=trap_freq,
     r0_reg=10,
     training_cycles=training_cycles,
+    sigma_0=0.5,
+    v0=0,
 )
 system.set_optimizer(
     optimizer=optimizer,
@@ -144,7 +147,12 @@ print(df_all)
 
 if save_positions:
     chain_id = 0  # TODO: make this general to get other chains
-    plot_obd(f"energies_and_pos_RBM_ch{chain_id}.h5", nsamples, dim)
+    filename = f"energies_and_pos_RBM_ch{chain_id}.h5"
+    if dim == 2:
+        plot_3dobd(filename, nsamples, dim)
+    elif dim == 1:
+        plot_2dobd(filename, nsamples, dim)
+        plot_density_profile(filename, nsamples, dim)
 
 if nchains > 1:
     sns.lineplot(data=df_all, x="chain_id", y="energy")
@@ -154,3 +162,6 @@ else:
 plt.xlabel("Chain")
 plt.ylabel("Energy")
 plt.show()
+
+plot_psi(system, nparticles, dim)
+

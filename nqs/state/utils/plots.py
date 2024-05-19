@@ -56,8 +56,95 @@ def plot_psi2(wf, r_min=-2, r_max=2, num_points=1000):
         )
 
     plt.show()
+def plot_2dobd(file_name, nsamples, dim):
+    """
+    2d one body density matrix
+    """
+    assert dim == 1
+    with h5py.File(f"data/{file_name}", "r") as f:
+        positions = f["positions"][:]
 
-def plot_obd(file_name, nsamples, dim, method="gaussian"):
+        assert (
+            positions.shape[0] == nsamples
+        ), f"Expected {nsamples} samples, got {positions.shape[0]}"
+
+
+    x_min, y_min = -4.5, -4.5
+    x_max, y_max = 4.5, 4.5
+
+    x_min_abs, x_max_abs = np.abs(x_min), np.abs(x_max)
+    y_min_abs, y_max_abs = np.abs(y_min), np.abs(y_max)
+
+    # to make the plot symmetric
+    x_min, x_max = -max(x_min_abs, x_max_abs), max(x_min_abs, x_max_abs)
+    y_min, y_max = -max(y_min_abs, y_max_abs), max(y_min_abs, y_max_abs)
+
+    bins = 1000 # Increase number of bins for finer resolution
+    x_edges = np.linspace(x_min, x_max, bins + 1)
+    y_edges = np.linspace(y_min, y_max, bins + 1)
+
+    # Create 2D histogram
+    hist, x_edges, y_edges = np.histogram2d(positions[:, 0], positions[:, 1], bins=(x_edges, y_edges))
+
+    # Apply Gaussian smoothing
+    sigma = [10, 10]  # Increase sigma for a smoother result
+    Z = gaussian_filter(hist, sigma)
+
+    # Prepare meshgrid for plotting
+    X, Y = np.meshgrid(x_edges[:-1], y_edges[:-1])
+    X, Y = X.T, Y.T  # Transpose to align with histogram array
+
+    # Plot 2d one body density with colorbar, NOT A 3D PLOT
+    plt.figure()
+    plt.imshow(Z, extent=[x_min, x_max, y_min, y_max], origin="lower", cmap="BuPu_r")
+    plt.colorbar()
+    plt.xlabel("X")
+    plt.ylabel("Y")
+    plt.title("One-body Density")
+    # add contour lines with steps of 0.1
+    plt.contour(X, Y, Z, levels=np.arange(0, Z.max(), 0.1), colors="black", alpha=0.5)
+
+
+
+    file_name = file_name.split(".")[0]
+    plot_style.save(f"{file_name}_obdm_plot")
+    plt.show()
+
+def plot_density_profile(file_name, nsamples, dim):
+    """
+    Plot the density profile of the system.
+    """
+    assert dim == 1, "Only implemented for 1D"
+
+    # get the .h5 file
+    with h5py.File(f"data/{file_name}", "r") as f:
+        positions = f["positions"][:]
+
+        assert (
+            positions.shape[0] == nsamples
+        ), f"Expected {nsamples} samples, got {positions.shape[0]}"
+
+    # Calculate the density profile
+    density, bins = np.histogram(positions, bins=500, density=True)
+    bin_centers = (bins[1:] + bins[:-1]) / 2
+    # use a gaussian filter to smooth the density profile
+    density = gaussian_filter(density, sigma=5)
+    
+    # Plot the density profile
+    plt.plot(bin_centers, density, color="steelblue")
+    plt.fill_between(bin_centers, density, color=(0.5, 0.5, 0.74), alpha=0.5)
+    plt.title("Density Profile")
+    plt.xlabel("Position")
+    plt.ylabel("Density")
+    plt.grid(True)
+
+    # Save the plot
+    file_name = file_name.split(".")[0]
+    plot_style.save(f"{file_name}_density_profile")
+    plt.show()
+
+
+def plot_3dobd(file_name, nsamples, dim, method="gaussian"):
     """
     in two dimentions this is the rho(x, y) of one particle
     """
@@ -280,3 +367,34 @@ def plot_tbd(file_name, nsamples, nparticles, dim):
     file_name = file_name.split(".")[0]
     plot_style.save(f"{file_name}_two_body_density_plot.pdf")
     plt.show()
+
+# plot the wave function evaluated at multiple points
+def plot_psi(system, N, dim):
+    """
+    Plot the wave function evaluated at multiple points.
+    """
+
+    assert dim == 1, "Only implemented for 2D"
+    assert N == 2, "Only implemented for 2 particles"
+
+    # for 2 particles, 2 dim
+    xpoints = 100
+    r1 = np.linspace(-3, 3, xpoints)
+    r2 = np.linspace(-3, 3, xpoints)
+    X, Y = np.meshgrid(r1, r2)
+    
+    psi = np.zeros((xpoints, xpoints))
+    for i in range(xpoints):
+        for j in range(xpoints):
+            # print("system.wf(np.array([r1[i], r2[j]]))", system.wf(np.array([r1[i], r2[j]])))
+
+            psi[i, j] = system.wf(np.array([r1[i], r2[j]]))
+
+    plt.contourf(X, Y, psi, cmap="BuPu")
+    # fix square aspect ratio
+    plt.gca().set_aspect("equal", adjustable="box")
+
+    plt.colorbar()
+    plot_style.save("1D2P_wave_function")
+    plt.show()
+

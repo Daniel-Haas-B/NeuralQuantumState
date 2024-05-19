@@ -17,11 +17,10 @@ class RBM(WaveFunction):
         factor=1.0,
         sigma2=1.0,
         rng=None,
-        log=False,
         logger=None,
         logger_level="INFO",
         backend="numpy",
-        symmetry=None,
+        particle=None,
         correlation=None,
     ):
         """
@@ -42,7 +41,7 @@ class RBM(WaveFunction):
         )
 
         self._initialize_vars(nparticles, dim, nhidden, factor, sigma2)
-        self.configure_symmetry(symmetry)  # need to be before correlation
+        self.configure_particle(particle)  # need to be before correlation
         self.configure_correlation(correlation)  # NEED TO BE BEFORE CONFIGURE_BACKEND
         self.configure_backend(backend)
 
@@ -59,13 +58,13 @@ class RBM(WaveFunction):
             )
             self.logger.info(msg)
 
-    def __call__(self, r):
-        return self.wf(
-            r,
-            self.params.get("v_bias"),
-            self.params.get("h_bias"),
-            self.params.get("W_kernel"),
-        )
+    # def __call__(self, r):
+    #     return self.wf(
+    #         r,
+    #         self.params.get("v_bias"),
+    #         self.params.get("h_bias"),
+    #         self.params.get("W_kernel"),
+    #     )
 
     def _initialize_bias_and_kernel(self, rng):
         v_bias = rng.standard_normal(size=self.Nvisible) * 0.01
@@ -82,7 +81,7 @@ class RBM(WaveFunction):
             )
         if self.pade_jastrow:
             assert not self.jastrow, "Pade Jastrow requires Jastrow to be false"
-            self.params.set("CPJ", np.array(rng.uniform(-limit, limit, 1)))
+            self.params.set("CPJ", np.array(rng.uniform(-1, 1, 1)))
 
     def _initialize_vars(self, nparticles, dim, nhidden, factor, sigma2):
         self._sigma2 = sigma2

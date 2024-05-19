@@ -4,9 +4,9 @@ import numpy as np
 import pandas as pd
 
 from nqs.state.nqs import NQS
-from nqs.state.utils import plot_obd
+from nqs.state.utils import plot_3dobd
 
-print(jax.devices())
+#print(jax.devices())
 # import seaborn as sns
 # import matplotlib.pyplot as plt
 
@@ -14,11 +14,11 @@ print(jax.devices())
 
 
 # jax.config.update("jax_enable_x64", True)
-# jax.config.update("jax_platform_name", "cpu")
+jax.config.update("jax_platform_name", "cpu")
 
 # Config
 output_filename = "/Users/haas/Documents/Masters/NQS/data/playground.csv"
-nparticles = 6
+nparticles = 2
 dim = 2
 save_positions = True
 
@@ -60,8 +60,8 @@ activations = {
 common_kwargs = {
     "layer_sizes": layer_sizes,
     "activations": activations,
-    "correlation": "pj",  # or just j or None (default)
-    "symmetry": "fermion",
+    "correlation": "none",  # or just j or None (default)
+    "particle": "fermion_dots",
 }
 
 # Initial function call with specific kwargs
@@ -70,8 +70,8 @@ system.set_wf("ds", nparticles, dim, **common_kwargs)
 system.set_sampler(mcmc_alg=mcmc_alg, scale=1 / np.sqrt(nparticles * dim))
 system.set_hamiltonian(
     type_="ho",
-    int_type="Coulomb_gradual",
-    omega=1.0,
+    int_type="coulomb",
+    omega=0.1,
     r0_reg=10,
     training_cycles=training_cycles,
 )
@@ -156,7 +156,7 @@ def main():
     print(df_all)
 
     if save_positions:
-        plot_obd("energies_and_pos_DS_ch0.h5", nsamples, dim)
+        plot_3dobd("energies_and_pos_DS_ch0.h5", nsamples, dim)
 
     # energy with sr
     # if nchains > 1:

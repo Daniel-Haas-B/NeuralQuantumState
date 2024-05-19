@@ -63,10 +63,32 @@ class HarmonicOscillator(Hamiltonian):
         # self.potential = jax.jit(self.potential) # if we regularize we cannot jit
 
         self.kwargs = kwargs
-        # r0 starts at 10
-        self.reg_decay = (1 / (3 * self.kwargs.get("r0_reg"))) ** (
-            2 / self.kwargs.get("training_cycles")
-        )
+        # check if the kwargs are valid
+        if "gaussian" in self._int_type:
+            if "sigma_0" not in self.kwargs:
+                raise ValueError("sigma_0 is not in the kwargs")
+            if "v0" not in self.kwargs:
+                raise ValueError("v0 is not in the kwargs")
+            
+            self.v0 = self.kwargs.get("v0")
+            if "gradual" in self._int_type:
+                self.v0 = 0
+            
+            self.alpha = 1 / (2 * self.kwargs.get("sigma_0")**2)
+            self.coupling_deno = 2 * np.pi * self.kwargs.get("sigma_0")**2
+            self.coupling = self.kwargs.get("v0") / self.coupling_deno            
+            self.coupling_inc = self.kwargs.get("v0") / (self.kwargs.get("training_cycles"))
+
+        if "coulomb" in self._int_type:
+            if "omega" not in self.kwargs:
+                raise ValueError("omega is not in the kwargs")
+            if "gradual" in self._int_type:
+                if "training_cycles" not in self.kwargs:
+                    raise ValueError("training_cycles is not in the kwargs")
+                # r0 starts at 10
+                self.reg_decay = (1 / (3 * self.kwargs.get("r0_reg"))) ** (
+                    2 / self.kwargs.get("training_cycles")
+                )
         # self.fr_arr = []
 
     def regularized_potential(self, r):
@@ -85,26 +107,22 @@ class HarmonicOscillator(Hamiltonian):
         """
         # HO trap
 
-        v_trap = 0.5 * self.backend.sum(r * r, axis=-1) * self.kwargs["omega"]
+        v_trap = 0.5 * self.backend.sum(r * r, axis=-1) * self.kwargs["omega"]**2
 
         # Interaction
         v_int = 0.0
+        r_cpy = r.reshape(-1, self.N, self.dim)  # (nbatch, N, dim)
+        r_diff = r_cpy[:, None, :, :] - r_cpy[:, :, None, :]
+        noise =  1e-10
+        r_dist = self.la.norm(r_diff + noise, axis=-1)
+
         match self._int_type.lower():
             case "coulomb":
-                r_cpy = r.reshape(-1, self.N, self.dim)  # (nbatch, N, dim)
-                r_diff = r_cpy[:, None, :, :] - r_cpy[:, :, None, :]
-                noise = 1e-10
-                r_dist = self.la.norm(r_diff + noise, axis=-1)
-
                 v_int = self.backend.sum(
                     self.backend.triu(1 / r_dist, k=1), axis=(-2, -1)
                 )  # the axis=(-2, -1) is to sum over the last two axes, so that we get a (nbatch, ) array
             case "coulomb_gradual":
                 self.kwargs["r0_reg"] *= self.reg_decay
-                r_cpy = r.reshape(-1, self.N, self.dim)  # (nbatch, N, dim)
-                r_diff = r_cpy[:, None, :, :] - r_cpy[:, :, None, :]
-                noise = 0  # 1e-10
-                r_dist = self.la.norm(r_diff + noise, axis=-1)
 
                 # Apply tanh regularization
                 f_r = self.regularized_potential(r_dist)
@@ -115,27 +133,40 @@ class HarmonicOscillator(Hamiltonian):
                 )  # the axis=(-2, -1) is to sum over the last two axes, so that we get a (nbatch, ) array
             case "gaussian":
                 """
-                # WIP
                 Finite range Gaussian interaction
                 alpha = 1 / 2sigma_0^2
                 coupling = V_0/(sqrt(2pi) sigma_0)
                 """
+        
                 v_int = (
-                    0.5
-                    * self.kwargs["coupling"]
+                    self.coupling#self.kwargs["coupling"]
                     * self.backend.sum(
                         self.backend.triu(
-                            self.backend.exp(-self.kwargs["alpha"] * r_dist**2), k=1
-                        )
+                            self.backend.exp(-self.alpha * r_dist**2), k=1
+                        ),
+                        axis=(-2, -1)
                     )
                 )
-            case "calogero":
-                r_cpy = copy.deepcopy(r).reshape(self.N, self.dim)
-                r_dist = self.la.norm(r_cpy[None, ...] - r_cpy[:, None], axis=-1)
-                v_int = self.backend.sum(
-                    self.backend.triu(1 / r_dist**2, k=1)
-                )  # k=1 to remove diagonal, since we don't want self-interaction
-                v_int *= self.kwargs["coupling"] * (self.kwargs["coupling"] - 1)
+            case "gaussian_gradual":
+                """
+                Finite range Gaussian interaction
+                alpha = 1 / 2sigma_0^2
+                coupling = V_0/(sqrt(2pi) sigma_0)
+                """
+    
+                self.v0 += self.coupling_inc
+                #print("v0", self.v0)
+                self.coupling = self.v0 / self.coupling_deno
+                v_int = (
+                    self.coupling
+                    * self.backend.sum(
+                        self.backend.triu(
+                            self.backend.exp(-self.alpha * r_dist**2), k=1
+                        ),
+                        axis=(-2, -1)
+                    )
+                )
+                
             case "none":
                 pass
             case _:
@@ -172,6 +203,7 @@ class HarmonicOscillator(Hamiltonian):
             return 1
 
         self.reg_decay = 1
+        self.coupling_inc = 0
         self.regularized_potential = regularized_potential
 
     def drift_force(self, wf, r):

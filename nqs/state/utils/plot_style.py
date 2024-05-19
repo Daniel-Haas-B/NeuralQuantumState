@@ -12,9 +12,10 @@ def make_figs_path(filename):
     while root_path.name != "NeuralQuantumState" and root_path.parent.name != "NQS":
         root_path = root_path.parent
 
-    root_path = root_path.parent
-
+    #root_path = root_path.parent
+    print(f"Root path: {root_path}")
     figs_path = root_path / pl.Path("analysis/figs")
+    print(f"Figs path: {figs_path}")
     if not figs_path.exists():
         return None
     if not filename.endswith(".pdf"):

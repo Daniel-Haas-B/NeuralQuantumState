@@ -14,11 +14,10 @@ class VMC(WaveFunction):
         nparticles,
         dim,
         rng=None,
-        log=False,
         logger=None,
         logger_level="INFO",
         backend="numpy",
-        symmetry=None,
+        particle=None,
         correlation=None,
     ):
         super().__init__(
@@ -30,7 +29,7 @@ class VMC(WaveFunction):
             backend=backend,
         )
 
-        self.configure_symmetry(symmetry)  # need to be before correlation
+        self.configure_particle(particle)  # need to be before correlation
         self.configure_correlation(correlation)  # NEED TO BE BEFORE CONFIGURE_BACKEND
         self.configure_backend(backend)
         self._initialize_variational_params(rng)
@@ -46,7 +45,7 @@ class VMC(WaveFunction):
             } parameters"""
             self.logger.info(msg)
 
-    # @WaveFunction.symmetry
+    # @WaveFunction.particle
     def log_wf0(self, r, params):
         """
         Ψ(r)=exp(- ∑_{i=1}^{N*DIM} alpha_i r_i * r_i) but in log domain
@@ -121,8 +120,9 @@ class VMC(WaveFunction):
                 "WJ", np.array(rng.uniform(-limit, limit, (self.N, self.N)))
             )
         if self.pade_jastrow:
+            limit
             assert not self.jastrow, "Pade Jastrow requires Jastrow to be false"
-            self.params.set("CPJ", np.array(rng.uniform(-limit, limit, 1)))
+            self.params.set("CPJ", np.array(rng.uniform(-1, 1, 1)))
 
     def laplacian(self, r):
         """

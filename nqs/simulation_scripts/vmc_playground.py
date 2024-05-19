@@ -17,11 +17,11 @@ print(jax.devices())
 
 # Config
 output_filename = "/Users/haas/Documents/Masters/NQS/data/playground.csv"
-nparticles = 1
-dim = 1
+nparticles = 2
+dim = 2
 nsamples = int(2**18)  # 2**18 = 262144
 nchains = 1
-eta = 0.1  # / np.sqrt(nparticles * dim)  # 0.001  / np.sqrt(nparticles * dim)
+eta = 0.01  # / np.sqrt(nparticles * dim)  # 0.001  / np.sqrt(nparticles * dim)
 
 training_cycles = 500  # this is cycles for the ansatz
 mcmc_alg = "m"
@@ -59,7 +59,7 @@ system.set_wf(
 
 system.set_sampler(mcmc_alg=mcmc_alg, scale=scale)
 system.set_hamiltonian(
-    type_="ho", int_type="none", omega=0.28, r0_reg=10, training_cycles=training_cycles
+    type_="ho", int_type="coulomb", omega=0.28, r0_reg=10, training_cycles=training_cycles
 )
 system.set_optimizer(
     optimizer=optimizer,

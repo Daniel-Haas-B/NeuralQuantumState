@@ -25,10 +25,11 @@ eta = 0.1  # / np.sqrt(nparticles * dim)
 training_cycles = 200  # this is cycles for the NN
 mcmc_alg = "m"
 backend = "jax"
-optimizer = "adam"
+optimizer = "sr"
 batch_size = 1000
 detailed = True
 wf_type = "rbm"
+trap_freq = 0.28
 seed = 42
 int_type = "coulomb"  # "None" "gaussian", "coulomb"
 save_positions = True
@@ -54,7 +55,7 @@ system.set_wf(
     nparticles,
     dim,
     nhidden=nhidden,  # all after this is kwargs. In this example it is RBM dependent
-    sigma2=1.0,
+    sigma2=1.0/np.sqrt(trap_freq),
     particle="boson",
     correlation="none",
 )
@@ -63,7 +64,7 @@ system.set_sampler(mcmc_alg=mcmc_alg, scale=1 / np.sqrt(nparticles * dim))
 system.set_hamiltonian(
     type_="ho",
     int_type=int_type,
-    omega=0.28,
+    omega=trap_freq,
     r0_reg=10,
     training_cycles=training_cycles,
     sigma_0=0.5,

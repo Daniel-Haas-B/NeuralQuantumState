@@ -107,7 +107,7 @@ class HarmonicOscillator(Hamiltonian):
         """
         # HO trap
 
-        v_trap = 0.5 * self.backend.sum(r * r, axis=-1) * self.kwargs["omega"]
+        v_trap = 0.5 * self.backend.sum(r * r, axis=-1) * self.kwargs["omega"]**2
 
         # Interaction
         v_int = 0.0

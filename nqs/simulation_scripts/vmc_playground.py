@@ -23,19 +23,19 @@ output_filename = (
 
 nparticles = 2
 dim = 2
-nsamples = int(2**12)  # 2**18 = 262144
+nsamples = 4194304  # int(2**19)  # 2**18 = 262144
 nchains = 1
 eta = 0.1  # / np.sqrt(nparticles * dim)  # 0.001  / np.sqrt(nparticles * dim)
 
 training_cycles = 100  # this is cycles for the ansatz
-mcmc_alg = "lmh"
-backend = "numpy"
+mcmc_alg = "m"
+backend = "jax"
 optimizer = "adam"  # reminder: for adam, use bigger learning rate
 batch_size = 500
 detailed = True
 nqs_type = "vmc"
 seed = 42
-save_positions = True
+save_positions = False
 particle = "boson"
 scale = (
     1.0 / np.sqrt(nparticles * dim) if mcmc_alg == "m" else 0.1 / np.sqrt(nparticles)
@@ -92,19 +92,32 @@ df_all = system.sample(
 )
 
 # Mean values
-energy_mean = df_all["energy"].mean()
+print(df_all)
+
 accept_rate_mean = df_all["accept_rate"].mean()
 
-# Combined standard error of the mean for energy
-# https://stats.stackexchange.com/questions/231027/combining-samples-based-off-mean-and-standard-error
-# i think we should instead block the combined chains
-combined_std_error = np.mean(df_all["std_error"]) / np.sqrt(
-    nchains
-)  # this might be wrong
+# Extract means and standard errors
+means = df_all["energy"]
+std_errors = df_all["std_error"]
 
+# Calculate variances from standard errors
+variances = std_errors**2
+
+# Calculate weights based on variances
+weights = 1 / variances
+weights /= np.sum(weights)
+
+# Compute combined mean
+combined_mean = np.sum(weights * means)
+
+# Compute combined variance
+combined_variance = 1 / np.sum(1 / variances)
+
+# Compute combined standard error
+combined_std_error = np.sqrt(combined_variance)
 # Construct the combined DataFrame
 combined_data = {
-    "energy": [energy_mean],
+    "energy": [combined_mean],
     "std_error": [combined_std_error],
     "variance": [
         np.mean(df_all["variance"])

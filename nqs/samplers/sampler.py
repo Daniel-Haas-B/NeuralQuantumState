@@ -208,7 +208,6 @@ class Sampler:
             ke = self.hamiltonian.local_kinetic_energy(wf, positions)
             pe_trap, pe_int = map(ensure_array, self.hamiltonian.potential(positions))
             energies = {"ke": ke, "pe_trap": pe_trap, "pe_int": pe_int}
-
             with h5py.File(filename, "a") as f1:
                 if i == 0:
                     for energy_type, data in energies.items():
@@ -219,7 +218,6 @@ class Sampler:
                             chunks=True,
                             maxshape=(None,),
                         )
-
                     if save_positions:
                         f1.create_dataset(
                             "positions",

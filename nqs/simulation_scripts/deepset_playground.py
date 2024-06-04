@@ -117,19 +117,30 @@ def main():
     )
 
     # Mean values
-    energy_mean = df_all["energy"].mean()
     accept_rate_mean = df_all["accept_rate"].mean()
 
-    # Combined standard error of the mean for energy
-    # https://stats.stackexchange.com/questions/231027/combining-samples-based-off-mean-and-standard-error
-    # i think we should instead block the combined chains
-    combined_std_error = np.mean(df_all["std_error"]) / np.sqrt(
-        nchains
-    )  # this might be wrong
+    # Extract means and standard errors
+    means = df_all["energy"]
+    std_errors = df_all["std_error"]
 
+    # Calculate variances from standard errors
+    variances = std_errors**2
+
+    # Calculate weights based on variances
+    weights = 1 / variances
+    weights /= np.sum(weights)
+
+    # Compute combined mean
+    combined_mean = np.sum(weights * means)
+
+    # Compute combined variance
+    combined_variance = 1 / np.sum(1 / variances)
+
+    # Compute combined standard error
+    combined_std_error = np.sqrt(combined_variance)
     # Construct the combined DataFrame
     combined_data = {
-        "energy": [energy_mean],
+        "energy": [combined_mean],
         "std_error": [combined_std_error],
         "variance": [
             np.mean(df_all["variance"])

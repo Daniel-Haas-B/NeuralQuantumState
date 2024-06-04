@@ -180,19 +180,17 @@ class WaveFunction:
                     else:
                         self.pade_aij = self.pade_aij.at[i, j].set(1 / (self.dim - 1))
 
-            if self.particle == "fermion":
+            if "fermion" in self.particle:
                 self.log_wf = self.log_wf_pade_slater_jastrow
             else:
                 self.log_wf = self.log_wf_pade_jastrow
 
         elif correlation == "j":
             self.jastrow = True
-            if self.particle == "fermion":
+            if "fermion" in self.particle:
                 self.log_wf = self.log_wf_slater_jastrow
-            elif self.particle != "fermion":
-                self.log_wf = self.log_wf_jastrow
             else:
-                self.log_wf = self.log_wf0
+                self.log_wf = self.log_wf_jastrow
 
         if self.logger_level != "SILENT":
             self.logger.info(f"Using correlation factor {correlation}")

@@ -14,7 +14,7 @@ backend: "jax"
 seed: 42
 save_positions: true
 particle: "fermion_dots"
-correlation: "none"
+correlation: "j"
 interaction_type: "none"
 latent_dim: 10
 omega: 1.0

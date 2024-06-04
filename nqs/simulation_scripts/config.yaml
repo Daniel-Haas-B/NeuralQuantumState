@@ -9,18 +9,23 @@ mcmc_alg: "m"
 optimizer: "sr"
 batch_size: 300
 detailed: true
-nqs_type: "ffnn"
+nqs_type: "ds"
 backend: "jax"
 seed: 42
 save_positions: true
 particle: "fermion_dots"
 correlation: "none"
 interaction_type: "none"
+latent_dim: 10
 omega: 1.0
 base_layer_sizes:
   ffnn: [9, 7, 3, 1]
-  deepset: [14, 9, 7, 5, 3, 10]
+  ds: 
+    S0: [14, 9, 7, 5, 3]
+    S1: [7, 5, 3, 1] # first node is latent dim, last node always 1
 activations:
   ffnn: ["gelu", "elu", "gelu", "linear"]
-  deepset: ["gelu", "elu", "gelu", "elu", "gelu", "elu"]
+  ds: 
+    S0: ["gelu", "elu", "gelu", "elu", "gelu", "elu"]
+    S1: ["gelu", "elu", "gelu", "linear"]
 nhidden: 6

@@ -35,7 +35,7 @@ def initialize_system(config):
         seed=config["seed"],
     )
 
-    if config["nqs_type"] in config["base_layer_sizes"]:
+    if config["nqs_type"] == "ffnn":
         base_layer_sizes = config["base_layer_sizes"][config["nqs_type"]]
         layer_sizes = [config["nparticles"] * config["dim"]] + base_layer_sizes
         activations = config["activations"].get(config["nqs_type"], [])
@@ -45,6 +45,27 @@ def initialize_system(config):
             "correlation": config["correlation"],
             "particle": config["particle"],
         }
+        system.set_wf(
+            config["nqs_type"], config["nparticles"], config["dim"], **common_kwargs
+        )
+    elif config["nqs_type"] == "ds":
+        common_kwargs = {
+            "layer_sizes": {
+                "S0": [config["dim"]]
+                + config["base_layer_sizes"][config["nqs_type"]]["S0"]
+                + [config["latent_dim"]],
+                "S1": [config["latent_dim"]]
+                + config["base_layer_sizes"][config["nqs_type"]]["S1"],
+            },
+            "activations": {
+                "S0": config["activations"].get(config["nqs_type"], [])["S0"],
+                "S1": config["activations"].get(config["nqs_type"], [])["S1"],
+            },
+            "correlation": config["correlation"],
+            "particle": config["particle"],
+        }
+        print("layer_sizes", common_kwargs["layer_sizes"])
+        print("activations", common_kwargs["activations"])
         system.set_wf(
             config["nqs_type"], config["nparticles"], config["dim"], **common_kwargs
         )
@@ -99,6 +120,30 @@ def run_experiment(config):
             "layer_sizes": [config["nparticles"] * config["dim"]]
             + config["base_layer_sizes"][config["nqs_type"]],
             "activations": config["activations"].get(config["nqs_type"], []),
+            "correlation": config["correlation"],
+            "particle": config["particle"],
+        }
+        system.pretrain(
+            model="Gaussian",
+            max_iter=1000,
+            batch_size=2000,
+            logger_level="INFO",
+            args=common_kwargs,
+        )
+
+    if config["nqs_type"] == "ds":
+        common_kwargs = {
+            "layer_sizes": {
+                "S0": [config["dim"]]
+                + config["base_layer_sizes"][config["nqs_type"]]["S0"]
+                + [config["latent_dim"]],
+                "S1": [config["latent_dim"]]
+                + config["base_layer_sizes"][config["nqs_type"]]["S1"],
+            },
+            "activations": {
+                "S0": config["activations"].get(config["nqs_type"], [])["S0"],
+                "S1": config["activations"].get(config["nqs_type"], [])["S1"],
+            },
             "correlation": config["correlation"],
             "particle": config["particle"],
         }

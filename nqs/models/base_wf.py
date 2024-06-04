@@ -65,7 +65,6 @@ class WaveFunction:
         self.sign = 1
         self.slater_mode = slater_mode  # Add this attribute
 
-
         self.slater_fact = np.log(
             ss.factorial(self.N)
         )  # move this to be after backend is set later
@@ -379,7 +378,7 @@ class WaveFunction:
             \\phi_{1,+}(r_2) & \\phi_{2,+}(r_2) & \\cdots & \\phi_{n,+}(r_2) \\\\
             \\vdots      & \\vdots      & \\ddots & \\vdots      \\\\
             \\phi_{1,-}(r_n) & \\phi_{2,-}(r_n) & \\cdots & \\phi_{n,-}(r_n)
-            \\end{vmatrix} 
+            \\end{vmatrix}
         """
         A = self.N // 2
         r = r.reshape(-1, self.N, self.dim)
@@ -478,7 +477,7 @@ class WaveFunction:
                 r_ = r[batch][i]
 
                 # print(f"print(P.Hermite([0] * {deg} + [1])({r_}))")
-                #print("sqrt_omega", self.sqrt_omega)
+                # print("sqrt_omega", self.sqrt_omega)
                 hermite_poly = P.Hermite([0] * deg + [1])(r_ * self.sqrt_omega)
                 hermite_product *= hermite_poly
 
@@ -691,7 +690,6 @@ class WaveFunction:
         sr_matrices = {}
 
         for key, grad_value in grad_params.items():
-
             if "W" in key:  # means it is a matrix
                 grad_params_outer = self.backend.einsum(
                     "nij,nkl->nijkl", grad_value, grad_value

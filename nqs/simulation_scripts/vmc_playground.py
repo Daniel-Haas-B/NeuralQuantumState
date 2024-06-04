@@ -16,22 +16,27 @@ jax.config.update("jax_platform_name", "cpu")
 print(jax.devices())
 
 # Config
-output_filename = "/Users/haas/Documents/Masters/NQS/data/playground.csv"
+# output_filename = "/Users/haas/Documents/Masters/NQS/data/playground.csv"
+output_filename = (
+    "/Users/orpheus/Documents/Masters/NeuralQuantumState/data/playground.csv"
+)
+
 nparticles = 2
 dim = 2
-nsamples = int(2**18)  # 2**18 = 262144
+nsamples = int(2**12)  # 2**18 = 262144
 nchains = 1
-eta = 0.01  # / np.sqrt(nparticles * dim)  # 0.001  / np.sqrt(nparticles * dim)
+eta = 0.1  # / np.sqrt(nparticles * dim)  # 0.001  / np.sqrt(nparticles * dim)
 
-training_cycles = 500  # this is cycles for the ansatz
-mcmc_alg = "m"
-backend = "jax"
+training_cycles = 100  # this is cycles for the ansatz
+mcmc_alg = "lmh"
+backend = "numpy"
 optimizer = "adam"  # reminder: for adam, use bigger learning rate
 batch_size = 500
 detailed = True
-wf_type = "vmc"
+nqs_type = "vmc"
 seed = 42
 save_positions = True
+particle = "boson"
 scale = (
     1.0 / np.sqrt(nparticles * dim) if mcmc_alg == "m" else 0.1 / np.sqrt(nparticles)
 )
@@ -50,16 +55,20 @@ system = nqs.NQS(
 )
 
 system.set_wf(
-    wf_type,
+    nqs_type,
     nparticles,
     dim,
-    particle="boson",
+    particle=particle,
     correlation="none",
 )
 
 system.set_sampler(mcmc_alg=mcmc_alg, scale=scale)
 system.set_hamiltonian(
-    type_="ho", int_type="coulomb", omega=0.28, r0_reg=10, training_cycles=training_cycles
+    type_="ho",
+    int_type="coulomb",
+    omega=1.0,
+    r0_reg=10,
+    training_cycles=training_cycles,
 )
 system.set_optimizer(
     optimizer=optimizer,
@@ -78,41 +87,85 @@ history = system.train(
     tune=False,
 )
 
-df = system.sample(
+df_all = system.sample(
     nsamples, nchains, seed, one_body_density=False, save_positions=save_positions
 )
-df_all.append(df)
 
-sem_factor = 1 / np.sqrt(len(df))  # sem = standard error of the mean
-mean_data = df[["energy", "std_error", "variance", "accept_rate"]].mean().to_dict()
-mean_data["sem_energy"] = df["energy"].std() * sem_factor
-mean_data["sem_std_error"] = df["std_error"].std() * sem_factor
-mean_data["sem_variance"] = df["variance"].std() * sem_factor
-mean_data["sem_accept_rate"] = df["accept_rate"].std() * sem_factor
-info_data = (
-    df[
-        [
-            "nparticles",
-            "dim",
-            "eta",
-            "scale",
-            "mcmc_alg",
-            "nqs_type",
-            "nsamples",
-            "training_cycles",
-            "training_batch",
-            "Opti",
-        ]
+# Mean values
+energy_mean = df_all["energy"].mean()
+accept_rate_mean = df_all["accept_rate"].mean()
+
+# Combined standard error of the mean for energy
+# https://stats.stackexchange.com/questions/231027/combining-samples-based-off-mean-and-standard-error
+# i think we should instead block the combined chains
+combined_std_error = np.mean(df_all["std_error"]) / np.sqrt(
+    nchains
+)  # this might be wrong
+
+# Construct the combined DataFrame
+combined_data = {
+    "energy": [energy_mean],
+    "std_error": [combined_std_error],
+    "variance": [
+        np.mean(df_all["variance"])
+    ],  # Keeping variance calculation for consistency
+    "accept_rate": [accept_rate_mean],
+}
+
+df_mean = pd.DataFrame(combined_data)
+final_energy = df_mean["energy"].values[0]
+final_error = df_mean["std_error"].values[0]
+error_str = f"{final_error:.0e}"
+error_scale = int(error_str.split("e")[-1])  # Extract exponent to determine error scale
+energy_decimal_places = -error_scale
+
+# Format energy to match the precision required by the error
+if energy_decimal_places > 0:
+    energy_str = f"{final_energy:.{energy_decimal_places}f}"
+else:
+    energy_str = (
+        f"{int(final_energy)}"  # Convert to integer if no decimal places needed
+    )
+
+# Get the first digit of the error for the parenthesis notation
+error_first_digit = error_str[0]
+
+# Remove trailing decimal point if it exists after formatting
+if energy_str[-1] == ".":
+    energy_str = energy_str[:-1]
+
+formatted_energy = f"{energy_str}({error_first_digit})"
+df_mean["energy(error)"] = formatted_energy
+
+df_mean[
+    [
+        "nqs_type",
+        "n_particles",
+        "dim",
+        "batch_size",
+        "eta",
+        "training_cycles",
+        "nsamples",
+        "Opti",
+        "particle",
     ]
-    .iloc[0]
-    .to_dict()
-)
+] = [
+    nqs_type,
+    nparticles,
+    dim,
+    batch_size,
+    eta,
+    training_cycles,
+    nchains * nsamples,
+    optimizer,
+    particle,
+]
+# # pretty display of df mean
+# dfs_mean.append(df_mean)
+print(df_mean)
 
-data = {**mean_data, **info_data}  # ** unpacks the dictionary
-df_mean = pd.DataFrame([data])
-dfs_mean.append(df_mean)
 end = time.time()
-print((end - start))
+# print((end - start))
 epochs = np.arange(training_cycles)
 
 for key, value in history.items():
@@ -121,15 +174,10 @@ for key, value in history.items():
     plt.show()
 
 
-df_final = pd.concat(dfs_mean)
-
 # Save results
-df_final.to_csv(output_filename, index=False)
+df_mean.to_csv(output_filename, index=False)
 
 # plot energy convergence curve
-# energy withour sr
-df_all = pd.concat(df_all)
-print(df_all)
 # energy with sr
 if save_positions:
     chain_id = 0  # TODO: make this general to get other chains

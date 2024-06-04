@@ -1,0 +1,26 @@
+output_filename: "data/playground.csv"
+nparticles: 2
+dim: 1
+nsamples: 262144 # 2^12
+nchains: 1
+eta: 0.001
+training_cycles: 100
+mcmc_alg: "m"
+optimizer: "sr"
+batch_size: 300
+detailed: true
+nqs_type: "ffnn"
+backend: "jax"
+seed: 42
+save_positions: true
+particle: "fermion_dots"
+correlation: "none"
+interaction_type: "none"
+omega: 1.0
+base_layer_sizes:
+  ffnn: [9, 7, 3, 1]
+  deepset: [14, 9, 7, 5, 3, 10]
+activations:
+  ffnn: ["gelu", "elu", "gelu", "linear"]
+  deepset: ["gelu", "elu", "gelu", "elu", "gelu", "elu"]
+nhidden: 6

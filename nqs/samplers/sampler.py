@@ -178,7 +178,12 @@ class Sampler:
         Returns:
             tuple: A tuple containing the sampling results and energies.
         """
-        batch_size = 2**4
+        batch_size = 2**10
+
+        # Function to ensure data has correct shape
+        def ensure_array(data):
+            return np.atleast_1d(data)
+
         filename = f"data/energies_and_pos_{wf.__class__.__name__}_ch{chain_id}.h5"
         if self._logger is not None:
             t_range = tqdm(
@@ -198,46 +203,59 @@ class Sampler:
             os.remove(filename)
         for i in t_range:  # 2**18
             batch_state = self._step(wf, batch_state, seed, batch_size=batch_size)
-            energies = self.hamiltonian.local_energy(wf, batch_state.positions)
+            positions = batch_state.positions
 
-            f1 = h5py.File(filename, "a")
-            if i == 0:
-                f1.create_dataset(
-                    "energies",
-                    data=energies,
-                    compression="gzip",
-                    chunks=True,
-                    maxshape=(None,),
-                )
-                if save_positions:
-                    f1.create_dataset(
-                        "positions",
-                        data=batch_state.positions,
-                        compression="gzip",
-                        chunks=True,
-                        maxshape=(None, batch_state.positions.shape[1]),
-                    )
-            else:
-                f1["energies"].resize(
-                    (f1["energies"].shape[0] + energies.shape[0]),
-                    axis=0,
-                )
-                f1["energies"][-energies.shape[0] :] = energies
-                if save_positions:
-                    f1["positions"].resize(
-                        (f1["positions"].shape[0] + batch_state.positions.shape[0]),
-                        axis=0,
-                    )
-                    f1["positions"][
-                        -batch_state.positions.shape[0] :
-                    ] = batch_state.positions
+            ke = self.hamiltonian.local_kinetic_energy(wf, positions)
+            pe_trap, pe_int = map(ensure_array, self.hamiltonian.potential(positions))
+            energies = {"ke": ke, "pe_trap": pe_trap, "pe_int": pe_int}
+
+            with h5py.File(filename, "a") as f1:
+                if i == 0:
+                    for energy_type, data in energies.items():
+                        f1.create_dataset(
+                            energy_type,
+                            data=data,
+                            compression="gzip",
+                            chunks=True,
+                            maxshape=(None,),
+                        )
+
+                    if save_positions:
+                        f1.create_dataset(
+                            "positions",
+                            data=positions,
+                            compression="gzip",
+                            chunks=True,
+                            maxshape=(None, positions.shape[1]),
+                        )
+                else:
+                    for energy_type, data in energies.items():
+                        f1[energy_type].resize(
+                            (f1[energy_type].shape[0] + data.shape[0]), axis=0
+                        )
+                        f1[energy_type][-data.shape[0] :] = data
+
+                    if save_positions:
+                        f1["positions"].resize(
+                            (f1["positions"].shape[0] + positions.shape[0]), axis=0
+                        )
+                        f1["positions"][-positions.shape[0] :] = positions
 
         if self._logger is not None:
             t_range.clear()
 
         # open energies file
         f = h5py.File(filename, "r")
-        energies = f["energies"][:]
+        ke = f["ke"][:]
+        pe_trap = f["pe_trap"][:]
+        pe_int = f["pe_int"][:]
+
+        # pad pe if it is not the same size as ke
+        if pe_int.shape[0] != ke.shape[0]:
+            pe_int = np.pad(pe_int, (0, ke.shape[0] - pe_int.shape[0]))
+
+        energies = ke + pe_trap + pe_int
+
         assert (
             np.sum(energies == 0) == 0
         ), "There are empty energies which would give wrong statistics"

@@ -1,5 +1,3 @@
-import copy
-
 import jax.numpy as jnp
 import numpy as np
 
@@ -33,7 +31,7 @@ class Hamiltonian:
         """Potential energy function"""
         raise NotImplementedError
 
-    def _local_kinetic_energy(self, wf, r):
+    def local_kinetic_energy(self, wf, r):
         """Evaluate the local kinetic energy of the system"""
         raise NotImplementedError
 
@@ -69,15 +67,17 @@ class HarmonicOscillator(Hamiltonian):
                 raise ValueError("sigma_0 is not in the kwargs")
             if "v0" not in self.kwargs:
                 raise ValueError("v0 is not in the kwargs")
-            
+
             self.v0 = self.kwargs.get("v0")
             if "gradual" in self._int_type:
                 self.v0 = 0
-            
-            self.alpha = 1 / (2 * self.kwargs.get("sigma_0")**2)
-            self.coupling_deno = 2 * np.pi * self.kwargs.get("sigma_0")**2
-            self.coupling = self.kwargs.get("v0") / self.coupling_deno            
-            self.coupling_inc = self.kwargs.get("v0") / (self.kwargs.get("training_cycles"))
+
+            self.alpha = 1 / (2 * self.kwargs.get("sigma_0") ** 2)
+            self.coupling_deno = 2 * np.pi * self.kwargs.get("sigma_0") ** 2
+            self.coupling = self.kwargs.get("v0") / self.coupling_deno
+            self.coupling_inc = self.kwargs.get("v0") / (
+                self.kwargs.get("training_cycles")
+            )
 
         if "coulomb" in self._int_type:
             if "omega" not in self.kwargs:
@@ -107,13 +107,13 @@ class HarmonicOscillator(Hamiltonian):
         """
         # HO trap
 
-        v_trap = 0.5 * self.backend.sum(r * r, axis=-1) * self.kwargs["omega"]**2
+        v_trap = 0.5 * self.backend.sum(r * r, axis=-1) * self.kwargs["omega"] ** 2
 
         # Interaction
         v_int = 0.0
         r_cpy = r.reshape(-1, self.N, self.dim)  # (nbatch, N, dim)
         r_diff = r_cpy[:, None, :, :] - r_cpy[:, :, None, :]
-        noise =  1e-10
+        noise = 1e-10
         r_dist = self.la.norm(r_diff + noise, axis=-1)
 
         match self._int_type.lower():
@@ -137,15 +137,10 @@ class HarmonicOscillator(Hamiltonian):
                 alpha = 1 / 2sigma_0^2
                 coupling = V_0/(sqrt(2pi) sigma_0)
                 """
-        
-                v_int = (
-                    self.coupling#self.kwargs["coupling"]
-                    * self.backend.sum(
-                        self.backend.triu(
-                            self.backend.exp(-self.alpha * r_dist**2), k=1
-                        ),
-                        axis=(-2, -1)
-                    )
+
+                v_int = self.coupling * self.backend.sum(  # self.kwargs["coupling"]
+                    self.backend.triu(self.backend.exp(-self.alpha * r_dist**2), k=1),
+                    axis=(-2, -1),
                 )
             case "gaussian_gradual":
                 """
@@ -153,28 +148,23 @@ class HarmonicOscillator(Hamiltonian):
                 alpha = 1 / 2sigma_0^2
                 coupling = V_0/(sqrt(2pi) sigma_0)
                 """
-    
+
                 self.v0 += self.coupling_inc
-                #print("v0", self.v0)
+                # print("v0", self.v0)
                 self.coupling = self.v0 / self.coupling_deno
-                v_int = (
-                    self.coupling
-                    * self.backend.sum(
-                        self.backend.triu(
-                            self.backend.exp(-self.alpha * r_dist**2), k=1
-                        ),
-                        axis=(-2, -1)
-                    )
+                v_int = self.coupling * self.backend.sum(
+                    self.backend.triu(self.backend.exp(-self.alpha * r_dist**2), k=1),
+                    axis=(-2, -1),
                 )
-                
+
             case "none":
                 pass
             case _:
                 raise ValueError("Invalid interaction type:", self._int_type)
 
-        return v_trap + v_int
+        return v_trap, v_int
 
-    def _local_kinetic_energy(self, wf, r):
+    def local_kinetic_energy(self, wf, r):
         """Evaluate the local kinetic energy of the system"""
 
         _laplace = wf.laplacian(r)
@@ -190,10 +180,10 @@ class HarmonicOscillator(Hamiltonian):
         r can be one set of positions or a batch of positions now
         """
 
-        pe = self.potential(r)
-        ke = self._local_kinetic_energy(wf, r)
+        pe_trap, pe_int = self.potential(r)
+        ke = self.local_kinetic_energy(wf, r)
 
-        return pe + ke
+        return pe_trap + pe_int + ke
 
     def turn_reg_off(self):
         # np.save("fr_arr.npy", self.fr_arr)

@@ -1,10 +1,10 @@
 import h5py
 import matplotlib.pyplot as plt
 import numpy as np
+from scipy.ndimage import gaussian_filter
 from scipy.stats import gaussian_kde
 
 from nqs.state.utils import plot_style
-from scipy.ndimage import gaussian_filter
 
 
 def plot_psi2(wf, r_min=-2, r_max=2, num_points=1000):
@@ -56,6 +56,8 @@ def plot_psi2(wf, r_min=-2, r_max=2, num_points=1000):
         )
 
     plt.show()
+
+
 def plot_2dobd(file_name, nsamples, dim):
     """
     2d one body density matrix
@@ -68,7 +70,6 @@ def plot_2dobd(file_name, nsamples, dim):
             positions.shape[0] == nsamples
         ), f"Expected {nsamples} samples, got {positions.shape[0]}"
 
-
     x_min, y_min = -4.5, -4.5
     x_max, y_max = 4.5, 4.5
 
@@ -79,12 +80,14 @@ def plot_2dobd(file_name, nsamples, dim):
     x_min, x_max = -max(x_min_abs, x_max_abs), max(x_min_abs, x_max_abs)
     y_min, y_max = -max(y_min_abs, y_max_abs), max(y_min_abs, y_max_abs)
 
-    bins = 1000 # Increase number of bins for finer resolution
+    bins = 1000  # Increase number of bins for finer resolution
     x_edges = np.linspace(x_min, x_max, bins + 1)
     y_edges = np.linspace(y_min, y_max, bins + 1)
 
     # Create 2D histogram
-    hist, x_edges, y_edges = np.histogram2d(positions[:, 0], positions[:, 1], bins=(x_edges, y_edges))
+    hist, x_edges, y_edges = np.histogram2d(
+        positions[:, 0], positions[:, 1], bins=(x_edges, y_edges)
+    )
 
     # Apply Gaussian smoothing
     sigma = [10, 10]  # Increase sigma for a smoother result
@@ -104,11 +107,10 @@ def plot_2dobd(file_name, nsamples, dim):
     # add contour lines with steps of 0.1
     plt.contour(X, Y, Z, levels=np.arange(0, Z.max(), 0.1), colors="black", alpha=0.5)
 
-
-
     file_name = file_name.split(".")[0]
     plot_style.save(f"{file_name}_obdm_plot")
     plt.show()
+
 
 def plot_density_profile(file_name, nsamples, dim):
     """
@@ -129,7 +131,7 @@ def plot_density_profile(file_name, nsamples, dim):
     bin_centers = (bins[1:] + bins[:-1]) / 2
     # use a gaussian filter to smooth the density profile
     density = gaussian_filter(density, sigma=5)
-    
+
     # Plot the density profile
     plt.plot(bin_centers, density, color="steelblue")
     plt.fill_between(bin_centers, density, color=(0.5, 0.5, 0.74), alpha=0.5)
@@ -207,12 +209,14 @@ def plot_3dobd(file_name, nsamples, dim, method="gaussian"):
         )  # Project onto yz plane
 
     elif method == "gaussian":
-        bins = 500 # Increase number of bins for finer resolution
+        bins = 500  # Increase number of bins for finer resolution
         x_edges = np.linspace(x_min, x_max, bins + 1)
         y_edges = np.linspace(y_min, y_max, bins + 1)
 
         # Create 2D histogram
-        hist, x_edges, y_edges = np.histogram2d(positions[:, 0], positions[:, 1], bins=(x_edges, y_edges))
+        hist, x_edges, y_edges = np.histogram2d(
+            positions[:, 0], positions[:, 1], bins=(x_edges, y_edges)
+        )
 
         # Apply Gaussian smoothing
         sigma = [5, 5]  # Increase sigma for a smoother result
@@ -224,30 +228,44 @@ def plot_3dobd(file_name, nsamples, dim, method="gaussian"):
 
         # Plot
         fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
-        ax.plot_surface(X, Y, Z, cmap="BuPu", linewidth=0.5, color="grey", alpha=0.7)
+        ax.plot_surface(X, Y, Z, cmap="BuPu", linewidth=0.3, color="grey", alpha=0.7)
 
         # Evaluate and plot projections onto the walls
         y_line = y_edges[:-1]
         z_y_line = Z[Z.shape[0] // 2, :]
         x_line = x_edges[:-1]
         z_x_line = Z[:, Z.shape[1] // 2]
-        ax.plot(x_line, y_max * np.ones_like(x_line), z_x_line, color="grey", linestyle="-", linewidth=1.5)
-        ax.plot(x_min * np.ones_like(y_line), y_line, z_y_line, color="grey", linestyle="-", linewidth=1.5)
+        ax.plot(
+            x_line,
+            y_max * np.ones_like(x_line),
+            z_x_line,
+            color="grey",
+            linestyle="-",
+            linewidth=1.5,
+        )
+        ax.plot(
+            x_min * np.ones_like(y_line),
+            y_line,
+            z_y_line,
+            color="grey",
+            linestyle="-",
+            linewidth=1.5,
+        )
 
-
-    ax.set_xlabel('X')
-    ax.set_ylabel('Y')
-    ax.set_zlabel('Approx. One-body Density')
+    ax.set_xlabel("X")
+    ax.set_ylabel("Y")
+    ax.set_zlabel("Approx. One-body Density")
 
     file_name = file_name.split(".")[0]
     plot_style.save(f"{file_name}_density_plot_{method}")
     plt.show()
 
+
 # WIP
 # def plot_pair_correlation(file_name, nsamples, dr, max_range, dim=2):
 #     """
 #     Calculate the pair correlation function g(r) for a set of 2D positions.
-    
+
 #     :param file_name: The name of the .h5 file containing the positions.
 #     :param nsamples: The number of samples in the file.
 #     :param dr: The width of the bins for the pair correlation function.
@@ -272,7 +290,7 @@ def plot_3dobd(file_name, nsamples, dim, method="gaussian"):
 #     r_edges = np.arange(0, max_range + dr, dr)
 #     r_values = r_edges[:-1] + dr / 2
 #     g_r = np.zeros_like(r_values)
-    
+
 #     num_batches = int(np.ceil(len(positions) / batch_size))
 
 #     for i in range(num_batches):
@@ -281,10 +299,10 @@ def plot_3dobd(file_name, nsamples, dim, method="gaussian"):
 #         for j in range(i, num_batches):  # Use j = i to avoid double counting
 #             start2 = j * batch_size
 #             end2 = start2 + batch_size
-            
+
 #             batch1 = positions[start1:end1]
 #             batch2 = positions[start2:end2]
-            
+
 #             if i == j:
 #                 # Compute within the same batch, exclude self-pairing
 #                 dist_array = cdist(batch1, batch2)
@@ -312,6 +330,7 @@ def plot_3dobd(file_name, nsamples, dim, method="gaussian"):
 
 #     plt.savefig(f"{file_name}_pair_correlation.png")
 #     plt.show()
+
 
 def plot_tbd(file_name, nsamples, nparticles, dim):
     """
@@ -368,6 +387,7 @@ def plot_tbd(file_name, nsamples, nparticles, dim):
     plot_style.save(f"{file_name}_two_body_density_plot.pdf")
     plt.show()
 
+
 # plot the wave function evaluated at multiple points
 def plot_psi(system, N, dim):
     """
@@ -382,7 +402,7 @@ def plot_psi(system, N, dim):
     r1 = np.linspace(-3, 3, xpoints)
     r2 = np.linspace(-3, 3, xpoints)
     X, Y = np.meshgrid(r1, r2)
-    
+
     psi = np.zeros((xpoints, xpoints))
     for i in range(xpoints):
         for j in range(xpoints):
@@ -397,4 +417,3 @@ def plot_psi(system, N, dim):
     plt.colorbar()
     plot_style.save("1D2P_wave_function")
     plt.show()
-

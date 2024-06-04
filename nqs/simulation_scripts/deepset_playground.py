@@ -6,7 +6,7 @@ import pandas as pd
 from nqs.state.nqs import NQS
 from nqs.state.utils import plot_3dobd
 
-#print(jax.devices())
+# print(jax.devices())
 # import seaborn as sns
 # import matplotlib.pyplot as plt
 
@@ -17,24 +17,30 @@ from nqs.state.utils import plot_3dobd
 jax.config.update("jax_platform_name", "cpu")
 
 # Config
-output_filename = "/Users/haas/Documents/Masters/NQS/data/playground.csv"
+
+# output_filename = "/Users/haas/Documents/Masters/NQS/data/playground.csv"
+output_filename = (
+    "/Users/orpheus/Documents/Masters/NeuralQuantumState/data/playground.csv"
+)
+
 nparticles = 2
 dim = 2
 save_positions = True
 
 
-nsamples = int(2**20)  # 2**18 = 262144
+nsamples = int(2**12)  # 2**18 = 262144
 nchains = 1
 eta = 0.001 / np.sqrt(nparticles * dim)  # 0.001  / np.sqrt(nparticles * dim)
 
-training_cycles = 1000  # this is cycles for the ansatz
+training_cycles = 100  # this is cycles for the ansatz
 mcmc_alg = "m"  # lmh is shit for ffnn
 optimizer = "sr"
-batch_size = 1000
+batch_size = 100
 detailed = True
-wf_type = "ds"
+nqs_type = "ds"
 seed = 42
 latent_dimension = 10
+particle = "boson"
 
 system = NQS(
     nqs_repr="psi",
@@ -61,7 +67,7 @@ common_kwargs = {
     "layer_sizes": layer_sizes,
     "activations": activations,
     "correlation": "none",  # or just j or None (default)
-    "particle": "fermion_dots",
+    "particle": particle,
 }
 
 # Initial function call with specific kwargs
@@ -87,9 +93,6 @@ system.set_optimizer(
 
 
 def main():
-    dfs_mean = []
-    df = []
-    df_all = []
     system.pretrain(
         model="Gaussian", max_iter=1000, batch_size=1000, args=common_kwargs
     )
@@ -109,51 +112,86 @@ def main():
     #     plt.legend()
     #     plt.show()
 
-    df = system.sample(
+    df_all = system.sample(
         nsamples, nchains, seed, one_body_density=False, save_positions=save_positions
     )
 
-    df_all.append(df)
+    # Mean values
+    energy_mean = df_all["energy"].mean()
+    accept_rate_mean = df_all["accept_rate"].mean()
 
-    sem_factor = 1 / np.sqrt(len(df))  # sem = standard error of the mean
-    mean_data = df[["energy", "std_error", "variance", "accept_rate"]].mean().to_dict()
-    mean_data["sem_energy"] = df["energy"].std() * sem_factor
-    mean_data["sem_std_error"] = df["std_error"].std() * sem_factor
-    mean_data["sem_variance"] = df["variance"].std() * sem_factor
-    mean_data["sem_accept_rate"] = df["accept_rate"].std() * sem_factor
-    info_data = (
-        df[
-            [
-                "nparticles",
-                "dim",
-                "eta",
-                "scale",
-                # "nvisible",
-                # "nhidden",
-                "mcmc_alg",
-                "nqs_type",
-                "nsamples",
-                "training_cycles",
-                "training_batch",
-                "Opti",
-            ]
+    # Combined standard error of the mean for energy
+    # https://stats.stackexchange.com/questions/231027/combining-samples-based-off-mean-and-standard-error
+    # i think we should instead block the combined chains
+    combined_std_error = np.mean(df_all["std_error"]) / np.sqrt(
+        nchains
+    )  # this might be wrong
+
+    # Construct the combined DataFrame
+    combined_data = {
+        "energy": [energy_mean],
+        "std_error": [combined_std_error],
+        "variance": [
+            np.mean(df_all["variance"])
+        ],  # Keeping variance calculation for consistency
+        "accept_rate": [accept_rate_mean],
+    }
+
+    df_mean = pd.DataFrame(combined_data)
+    final_energy = df_mean["energy"].values[0]
+    final_error = df_mean["std_error"].values[0]
+    error_str = f"{final_error:.0e}"
+    error_scale = int(
+        error_str.split("e")[-1]
+    )  # Extract exponent to determine error scale
+    energy_decimal_places = -error_scale
+
+    # Format energy to match the precision required by the error
+    if energy_decimal_places > 0:
+        energy_str = f"{final_energy:.{energy_decimal_places}f}"
+    else:
+        energy_str = (
+            f"{int(final_energy)}"  # Convert to integer if no decimal places needed
+        )
+
+    # Get the first digit of the error for the parenthesis notation
+    error_first_digit = error_str[0]
+
+    # Remove trailing decimal point if it exists after formatting
+    if energy_str[-1] == ".":
+        energy_str = energy_str[:-1]
+
+    formatted_energy = f"{energy_str}({error_first_digit})"
+    df_mean["energy(error)"] = formatted_energy
+
+    df_mean[
+        [
+            "nqs_type",
+            "n_particles",
+            "dim",
+            "batch_size",
+            "eta",
+            "training_cycles",
+            "nsamples",
+            "Opti",
+            "particle",
         ]
-        .iloc[0]
-        .to_dict()
-    )
-    data = {**mean_data, **info_data}
-    df_mean = pd.DataFrame([data])
-    dfs_mean.append(df_mean)
+    ] = [
+        nqs_type,
+        nparticles,
+        dim,
+        batch_size,
+        eta,
+        training_cycles,
+        nchains * nsamples,
+        optimizer,
+        particle,
+    ]
+    # # pretty display of df mean
+    # dfs_mean.append(df_mean)
+    print(df_mean)
 
-    df_final = pd.concat(dfs_mean)
-
-    # Save results
-    df_final.to_csv(output_filename, index=False)
-
-    # plot energy convergence curve
-    # energy withour sr
-    df_all = pd.concat(df_all)
-    print(df_all)
+    df_mean.to_csv(output_filename, index=False)
 
     if save_positions:
         plot_3dobd("energies_and_pos_DS_ch0.h5", nsamples, dim)

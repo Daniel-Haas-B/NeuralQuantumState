@@ -65,17 +65,17 @@ class HarmonicOscillator(Hamiltonian):
         if "gaussian" in self._int_type:
             if "sigma_0" not in self.kwargs:
                 raise ValueError("sigma_0 is not in the kwargs")
-            if "v0" not in self.kwargs:
-                raise ValueError("v0 is not in the kwargs")
+            if "v_0" not in self.kwargs:
+                raise ValueError("v_0 is not in the kwargs")
 
-            self.v0 = self.kwargs.get("v0")
+            self.v_0 = self.kwargs.get("v_0")
             if "gradual" in self._int_type:
-                self.v0 = 0
+                self.v_0 = 0
 
             self.alpha = 1 / (2 * self.kwargs.get("sigma_0") ** 2)
             self.coupling_deno = 2 * np.pi * self.kwargs.get("sigma_0") ** 2
-            self.coupling = self.kwargs.get("v0") / self.coupling_deno
-            self.coupling_inc = self.kwargs.get("v0") / (
+            self.coupling = self.kwargs.get("v_0") / self.coupling_deno
+            self.coupling_inc = self.kwargs.get("v_0") / (
                 self.kwargs.get("training_cycles")
             )
 
@@ -149,9 +149,8 @@ class HarmonicOscillator(Hamiltonian):
                 coupling = V_0/(sqrt(2pi) sigma_0)
                 """
 
-                self.v0 += self.coupling_inc
-                # print("v0", self.v0)
-                self.coupling = self.v0 / self.coupling_deno
+                self.v_0 += self.coupling_inc
+                self.coupling = self.v_0 / self.coupling_deno
                 v_int = self.coupling * self.backend.sum(
                     self.backend.triu(self.backend.exp(-self.alpha * r_dist**2), k=1),
                     axis=(-2, -1),

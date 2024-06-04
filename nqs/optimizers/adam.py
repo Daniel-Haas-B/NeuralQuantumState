@@ -35,7 +35,6 @@ class Adam(Optimizer):
 
         for key in self._param_keys:
             # Update m and v with the new gradients
-
             m_key = "m_" + key
             v_key = "v_" + key
             self._m_params[m_key] = (
@@ -53,7 +52,6 @@ class Adam(Optimizer):
             v_hat = self._v_params[v_key] / (1 - self.beta2**self.t)
 
             # Update parameters using Adam optimization formula
-
             current_value = params.get(key)
 
             updated_value = current_value - self.eta * m_hat / (

@@ -23,8 +23,8 @@ output_filename = (
 
 nparticles = 2
 dim = 2
-nsamples = 4194304  # int(2**19)  # 2**18 = 262144
-nchains = 1
+nsamples = int(2**19)  # 2**18 = 262144
+nchains = 2
 eta = 0.1  # / np.sqrt(nparticles * dim)  # 0.001  / np.sqrt(nparticles * dim)
 
 training_cycles = 100  # this is cycles for the ansatz
@@ -105,13 +105,12 @@ variances = std_errors**2
 
 # Calculate weights based on variances
 weights = 1 / variances
-weights /= np.sum(weights)
 
 # Compute combined mean
-combined_mean = np.sum(weights * means)
+combined_mean = np.sum(weights * means) / np.sum(weights)
 
 # Compute combined variance
-combined_variance = 1 / np.sum(1 / variances)
+combined_variance = 1 / np.sum(weights)
 
 # Compute combined standard error
 combined_std_error = np.sqrt(combined_variance)

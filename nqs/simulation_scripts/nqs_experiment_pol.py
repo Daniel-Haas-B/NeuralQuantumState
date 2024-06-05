@@ -176,15 +176,27 @@ def run_experiment(config):
     )
 
     # Mean values
-    energy_mean = df_all["energy"].mean()
     accept_rate_mean = df_all["accept_rate"].mean()
 
     # Combined standard error of the mean for energy
-    combined_std_error = np.mean(df_all["std_error"]) / np.sqrt(config["nchains"])
+    means = df_all["energy"]
+    std_errors = df_all["std_error"]
+
+    # Calculate variances from standard errors
+    variances = std_errors**2
+
+    weights = 1 / variances
+    combined_mean = np.sum(weights * means) / np.sum(weights)
+
+    # Compute combined variance
+    combined_variance = 1 / np.sum(weights)
+
+    # Compute combined standard error
+    combined_std_error = np.sqrt(combined_variance)
 
     # Construct the combined DataFrame
     combined_data = {
-        "energy": [energy_mean],
+        "energy": [combined_mean],
         "std_error": [combined_std_error],
         "variance": [np.mean(df_all["variance"])],
         "accept_rate": [accept_rate_mean],

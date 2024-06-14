@@ -20,8 +20,8 @@ class RmsProp(Optimizer):
             "v_" + key: np.zeros_like(params.get(key)[0]) for key in self._param_keys
         }
 
-        self.beta = kwargs["beta"]
-        self.epsilon = kwargs["epsilon"]
+        self.beta = kwargs.get("beta1", 0.9)
+        self.epsilon = kwargs.get("epsilon", 1e-8)
 
     def step(self, params, grad_params_E, sr_matrices=None):
         """Update the parameters"""

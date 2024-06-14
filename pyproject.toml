@@ -6,11 +6,10 @@ authors = ["Daniel <danielhaas.lima@gmail.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = "^3.10"
 matplotlib = "^3.7.2"
 ipykernel = "^6.25.1"
 pre-commit = "^3.3.3"
-jax = "^0.4.28"
 pandas = "^2.0.3"
 tqdm = "^4.66.1"
 pathos = "^0.3.1"
@@ -34,7 +33,9 @@ latex = "^0.7.0"
 flake8 = "^7.0.0"
 click = "^8.1.7"
 black = "^24.4.2"
+jax = "^0.4.28"
 jaxlib = "^0.4.28"
+csv2latex = "^0.11"
 
 
 [tool.poetry.group.dev.dependencies]

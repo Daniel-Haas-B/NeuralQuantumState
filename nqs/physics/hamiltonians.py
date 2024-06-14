@@ -73,7 +73,7 @@ class HarmonicOscillator(Hamiltonian):
                 self.v_0 = 0
 
             self.alpha = 1 / (2 * self.kwargs.get("sigma_0") ** 2)
-            self.coupling_deno = 2 * np.pi * self.kwargs.get("sigma_0") ** 2
+            self.coupling_deno = np.sqrt(2 * np.pi) * self.kwargs.get("sigma_0")
             self.coupling = self.kwargs.get("v_0") / self.coupling_deno
             self.coupling_inc = self.kwargs.get("v_0") / (
                 self.kwargs.get("training_cycles")

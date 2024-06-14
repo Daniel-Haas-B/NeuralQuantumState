@@ -10,7 +10,7 @@ from nqs.state.utils import Parameter
 from nqs.state.utils import State
 
 
-class DS(WaveFunction):
+class DSFFN(WaveFunction):
     def __init__(
         self,
         nparticles,
@@ -59,7 +59,7 @@ class DS(WaveFunction):
             msg = f"Neural Network Quantum State initialized with particle {self.particle} as Deepset."  # noqa
             self.logger.info(msg)
 
-    def ds(self, r):
+    def dsffn(self, r):
         return self.log_wf(r, self.params)
 
     def reinit_positions(self):
@@ -179,7 +179,11 @@ class DS(WaveFunction):
         """
         This is the autograd version of the gradient of the logarithm of the wave function w.r.t. the coordinates
         """
-        grad_wf = jax.grad(self.log_wf, argnums=0)
+
+        def value_log_wf(r, alpha):
+            return self.log_wf(r, alpha)[1]
+
+        grad_wf = jax.grad(value_log_wf, argnums=0)
         return vmap(grad_wf, in_axes=(0, None))(r, params)
 
     def grad_wf(self, r):
@@ -189,7 +193,10 @@ class DS(WaveFunction):
     def laplacian_closure_jax(self, r, params):
         """ """
 
-        hessian_wf = vmap(jax.hessian(self.log_wf), in_axes=(0, None))
+        def value_log_wf(r, alpha):
+            return self.log_wf(r, alpha)[1]
+
+        hessian_wf = vmap(jax.hessian(value_log_wf), in_axes=(0, None))
         trace_hessian = vmap(jnp.trace)
 
         return trace_hessian(hessian_wf(r, params))
@@ -206,7 +213,10 @@ class DS(WaveFunction):
         return self.laplacian_closure(r, self.params)
 
     def grad_params_closure_jax(self, r, params):
-        grad_fn = vmap(jax.grad(self.log_wf, argnums=1), in_axes=(0, None))
+        def value_log_wf(r, alpha):
+            return self.log_wf(r, alpha)[1]
+
+        grad_fn = vmap(jax.grad(value_log_wf, argnums=1), in_axes=(0, None))
         grad_eval = grad_fn(r, params)  # still a parameter type
         return grad_eval
 
@@ -229,8 +239,8 @@ class DS(WaveFunction):
         that is log(|psi|^2).
         In our case, psi is real, so this is 2 log(|psi|) = 2 * forward(r, params) ?
         """
-
-        return 2.0 * self.log_wf(r, params)
+        sign, value = self.log_wf(r, params)
+        return sign, 2.0 * value
 
     def logprob_closure_pretrain(self, r, params):
         """Log probability amplitude

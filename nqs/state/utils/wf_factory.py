@@ -11,11 +11,11 @@ def wf_factory(wf_type, **kwargs):
             return mods.FFNN(**kwargs)
         case "vmc":
             return mods.VMC(**kwargs)
-        case "ds":
-            return mods.DS(**kwargs)
+        case "dsffn":
+            return mods.DSFFN(**kwargs)
         case "dummy":
             return mods.Dummy(**kwargs)
         case _:  # noqa
             raise NotImplementedError(
-                f"No options for {wf_type}, Only the VMC, RBM, FFNN, DS (and Dummy) supported for now."
+                f"No options for {wf_type}, Only the VMC, RBM, FFNN, DSFFN (and Dummy) supported for now."
             )

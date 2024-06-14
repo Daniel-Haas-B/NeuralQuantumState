@@ -36,7 +36,7 @@ detailed = True
 nqs_type = "vmc"
 seed = 42
 save_positions = False
-particle = "boson"
+particle = "fermion_dots"
 scale = (
     1.0 / np.sqrt(nparticles * dim) if mcmc_alg == "m" else 0.1 / np.sqrt(nparticles)
 )
@@ -87,9 +87,7 @@ history = system.train(
     tune=False,
 )
 
-df_all = system.sample(
-    nsamples, nchains, seed, one_body_density=False, save_positions=save_positions
-)
+df_all = system.sample(nsamples, nchains, seed, save_positions=save_positions)
 
 # Mean values
 print(df_all)

@@ -15,7 +15,7 @@ from nqs.state.nqs import NQS
 # jax.config.update("jax_platform_name", "cpu")
 
 
-@pytest.fixture(params=["vmc", "rbm", "ffnn", "ds"])
+@pytest.fixture(params=["vmc", "rbm", "ffnn", "dsffn"])
 def config(request):
     return test_utils.get_config_from_yml(f"tests/config_{request.param}.yaml")
 
@@ -57,7 +57,7 @@ def test_nqs_system(system, config):
     df_all = []
 
     # Pretrain if ds or ffnn
-    if config["wf_type"] in ["ds", "ffnn"]:
+    if config["wf_type"] in ["dsffn", "ffnn"]:
         system.pretrain(
             model="Gaussian", max_iter=100, batch_size=100, args=config["common_kwargs"]
         )

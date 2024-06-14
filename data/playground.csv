@@ -1,2 +1,2 @@
-energy,std_error,variance,accept_rate,energy(error),nqs_type,n_particles,dim,batch_size,eta,training_cycles,nsamples,Opti,particle
-3.1864022538457046,0.0037023365978453957,4.912053436968904,0.5544605255126953,3.186(4),vmc,2,2,500,0.1,100,1048576,adam,boson
+energy,std_error,variance,accept_rate,v_0,omega,energy(error),nqs_type,n_particles,dim,batch_size,eta,training_cycles,nsamples,Opti,particle
+0.5844632983207703,0.01057025664036614,7.471544475730948,0.5194816589355469,-20,1.0,0.58(1),rbm,2,1,500,0.0007071067811865475,1000,262144,adam,fermion_polarized

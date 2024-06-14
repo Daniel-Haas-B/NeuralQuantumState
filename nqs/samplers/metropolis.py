@@ -62,18 +62,21 @@ class Metropolis(Sampler):
             rng = rngs[i]
 
             prev_pos = state.positions
+            prev_sign = state.sign
             proposals_pos = rng.normal(loc=prev_pos, scale=self.scale)
             log_unif = np.log(rng.uniform())
-
             # Compute proposal log density
-            logp_proposal = wf.logprob(proposals_pos)
-            current_logp = wf.logprob(prev_pos)
+            # print("wf.logprob(proposals_pos) ", wf.logprob(proposals_pos))
+            sign_proposal, logp_proposal = wf.logprob(proposals_pos)
+
+            sign_current, current_logp = wf.logprob(prev_pos)
 
             # Metroplis acceptance criterion
             accept = log_unif < logp_proposal - current_logp
 
             # If accept is True, yield proposal, otherwise keep old state
             new_positions = proposals_pos if accept else prev_pos
+            new_sign = sign_proposal if accept else prev_sign
 
             # Create new state
             new_logp = logp_proposal if accept else current_logp
@@ -85,6 +88,7 @@ class Metropolis(Sampler):
             state_batch[i].logp = new_logp
             state_batch[i].n_accepted = new_n_accepted
             state_batch[i].delta = new_delta
+            state_batch[i].sign = new_sign
 
         return state_batch
 
@@ -107,7 +111,6 @@ class Metropolis(Sampler):
         sanity = []
 
         for i in range(batch_size):
-
             state = state_batch[i - 1]
             rng, rng_input = jax.random.split(rng)
 

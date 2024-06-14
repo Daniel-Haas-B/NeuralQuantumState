@@ -37,7 +37,7 @@ mcmc_alg = "m"  # lmh is shit for ffnn
 optimizer = "sr"
 batch_size = 100
 detailed = True
-nqs_type = "ds"
+nqs_type = "dsffn"
 seed = 42
 latent_dimension = 10
 particle = "boson"
@@ -71,7 +71,7 @@ common_kwargs = {
 }
 
 # Initial function call with specific kwargs
-system.set_wf("ds", nparticles, dim, **common_kwargs)
+system.set_wf("dsffn", nparticles, dim, **common_kwargs)
 
 system.set_sampler(mcmc_alg=mcmc_alg, scale=1 / np.sqrt(nparticles * dim))
 system.set_hamiltonian(
@@ -112,9 +112,7 @@ def main():
     #     plt.legend()
     #     plt.show()
 
-    df_all = system.sample(
-        nsamples, nchains, seed, one_body_density=False, save_positions=save_positions
-    )
+    df_all = system.sample(nsamples, nchains, seed, save_positions=save_positions)
 
     # Mean values
     accept_rate_mean = df_all["accept_rate"].mean()

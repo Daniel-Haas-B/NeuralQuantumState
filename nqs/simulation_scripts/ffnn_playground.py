@@ -120,7 +120,6 @@ def main():
             nsamples,
             nchains,
             seed,
-            one_body_density=False,
             save_positions=save_positions,
         )
 

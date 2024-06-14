@@ -1,0 +1,51 @@
+{
+    "os": "macOS-14.4.1-arm64-arm-64bit",
+    "python": "3.10.12",
+    "heartbeatAt": "2024-06-08T00:48:56.137951",
+    "startedAt": "2024-06-08T00:48:55.692728",
+    "docker": null,
+    "cuda": null,
+    "args": [
+        "--config",
+        "config_polarized.yaml"
+    ],
+    "state": "running",
+    "program": "-m nqs.simulation_scripts.nqs_experiment_pol_sweep",
+    "codePathLocal": null,
+    "git": {
+        "remote": "https://github.com/Daniel-Haas-B/NeuralQuantumState.git",
+        "commit": "76fa61ef85ffa0b7666c911f8e6624649673d4ad"
+    },
+    "email": "danielhaas.lima@gmail.com",
+    "root": "/Users/orpheus/Documents/Masters/NeuralQuantumState",
+    "host": "dan.local",
+    "username": "orpheus",
+    "executable": "/Users/orpheus/Library/Caches/pypoetry/virtualenvs/nqs-sj2KNPxM-py3.10/bin/python",
+    "cpu_count": 10,
+    "cpu_count_logical": 10,
+    "cpu_freq": {
+        "current": 3504,
+        "min": 702,
+        "max": 3504
+    },
+    "cpu_freq_per_core": [
+        {
+            "current": 3504,
+            "min": 702,
+            "max": 3504
+        }
+    ],
+    "disk": {
+        "/": {
+            "total": 460.4317207336426,
+            "used": 12.544807434082031
+        }
+    },
+    "gpuapple": {
+        "type": "arm",
+        "vendor": "Apple"
+    },
+    "memory": {
+        "total": 16.0
+    }
+}

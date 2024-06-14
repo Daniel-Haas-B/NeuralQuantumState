@@ -102,9 +102,7 @@ for key, value in history.items():
     plt.legend()
     plt.show()
 
-df_all = system.sample(
-    nsamples, nchains, seed, one_body_density=False, save_positions=save_positions
-)
+df_all = system.sample(nsamples, nchains, seed, save_positions=save_positions)
 
 # Mean values
 accept_rate_mean = df_all["accept_rate"].mean()

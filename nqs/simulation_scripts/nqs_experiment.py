@@ -48,7 +48,7 @@ def initialize_system(config):
         system.set_wf(
             config["nqs_type"], config["nparticles"], config["dim"], **common_kwargs
         )
-    elif config["nqs_type"] == "ds":
+    elif config["nqs_type"] == "dsffn":
         common_kwargs = {
             "layer_sizes": {
                 "S0": [config["dim"]]
@@ -131,7 +131,7 @@ def run_experiment(config):
             args=common_kwargs,
         )
 
-    if config["nqs_type"] == "ds":
+    if config["nqs_type"] == "dsffn":
         common_kwargs = {
             "layer_sizes": {
                 "S0": [config["dim"]]
@@ -169,7 +169,6 @@ def run_experiment(config):
         config["nsamples"],
         config["nchains"],
         config["seed"],
-        one_body_density=False,
         save_positions=config["save_positions"],
     )
 

@@ -1,0 +1,135 @@
+wandb_version: 1
+
+output_filename:
+  desc: null
+  value: /Users/orpheus/Documents/Masters/NeuralQuantumState/data/fermion_polarized/
+nparticles:
+  desc: null
+  value: 4
+dim:
+  desc: null
+  value: 1
+nsamples:
+  desc: null
+  value: 4096
+nchains:
+  desc: null
+  value: 1
+eta:
+  desc: null
+  value: 5.113802943258163e-05
+training_cycles:
+  desc: null
+  value: 383
+mcmc_alg:
+  desc: null
+  value: m
+optimizer:
+  desc: null
+  value: sr
+batch_size:
+  desc: null
+  value: 735
+detailed:
+  desc: null
+  value: true
+nqs_type:
+  desc: null
+  value: dsffn
+backend:
+  desc: null
+  value: jax
+seed:
+  desc: null
+  value: 42
+save_positions:
+  desc: null
+  value: false
+particle:
+  desc: null
+  value: fermion_polarized
+correlation:
+  desc: null
+  value: j
+interaction_type:
+  desc: null
+  value: gaussian
+sigma_0:
+  desc: null
+  value: 0.5
+omega:
+  desc: null
+  value: 1.0
+v_0:
+  desc: null
+  value: 20.0
+pretrain:
+  desc: null
+  value: true
+latent_dim:
+  desc: null
+  value: 8
+base_layer_sizes:
+  desc: null
+  value:
+    dsffn:
+      S0:
+      - 14
+      - 9
+      - 7
+      - 5
+      - 3
+      S1:
+      - 7
+      - 5
+      - 3
+      - 1
+activations:
+  desc: null
+  value:
+    dsffn:
+      S0:
+      - gelu
+      - gelu
+      - gelu
+      - gelu
+      - gelu
+      - gelu
+      S1:
+      - gelu
+      - gelu
+      - gelu
+      - linear
+nhidden:
+  desc: null
+  value: 6
+_wandb:
+  desc: null
+  value:
+    python_version: 3.10.12
+    cli_version: 0.16.6
+    is_jupyter_run: false
+    is_kaggle_kernel: false
+    start_time: 1717803274.0
+    t:
+      1:
+      - 12
+      - 53
+      - 55
+      2:
+      - 12
+      - 53
+      - 55
+      3:
+      - 16
+      - 23
+      - 37
+      4: 3.10.12
+      5: 0.16.6
+      8:
+      - 4
+      - 5
+      13: darwin-arm64
+architecture:
+  desc: null
+  value: arch4

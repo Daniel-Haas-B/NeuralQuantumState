@@ -9,7 +9,7 @@ mcmc_alg: "m"
 optimizer: "sr"
 batch_size: 100  # initial batch size
 detailed: true
-wf_type: "ds"
+wf_type: "dsffn"
 seed: 42
 latent_dimension: 4
 

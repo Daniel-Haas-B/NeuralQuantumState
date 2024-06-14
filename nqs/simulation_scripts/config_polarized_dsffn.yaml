@@ -1,0 +1,196 @@
+output_filename: "/Users/orpheus/Documents/Masters/NeuralQuantumState/data/fermion_polarized/"
+dim: 1 # do not change this in this yaml
+nsamples: 4096 # 2^18
+nchains: 1
+mcmc_alg: "m"
+detailed: true
+nqs_type: "dsffn"
+backend: "jax"
+seed: 42
+save_positions: False
+particle: "fermion_polarized" # do not change this in this yaml
+correlation: "j" #only None of j
+interaction_type: "gaussian" # do not change this in this yaml
+sigma_0: 0.5
+omega: 1.0 # do not change this in this yaml
+pretrain: True
+architectures:
+  arch1:
+    activations:
+      dsffn:
+        S0:
+          - gelu
+          - gelu
+          - gelu
+          - gelu
+        S1:
+          - gelu
+          - linear
+    base_layer_sizes:
+      dsffn:
+        S0:
+          - 7
+          - 5
+          - 3
+        S1:
+          - 3
+          - 1
+  arch2:
+    activations:
+      dsffn:
+        S0:
+          - gelu
+          - gelu
+          - gelu
+          - gelu
+          - gelu
+        S1:
+          - gelu
+          - gelu
+          - gelu
+          - linear
+    base_layer_sizes:
+      dsffn:
+        S0:
+          - 10
+          - 7
+          - 5
+          - 3
+        S1:
+          - 6
+          - 4
+          - 2
+          - 1
+  arch3:
+    activations:
+      dsffn:
+        S0:
+          - gelu
+          - gelu
+          - gelu
+          - gelu
+        S1:
+          - gelu
+          - gelu
+          - gelu
+          - linear
+    base_layer_sizes:
+      dsffn:
+        S0:
+          - 8
+          - 6
+          - 4
+        S1:
+          - 4
+          - 2
+          - 1
+  arch4:
+    activations:
+      dsffn:
+        S0:
+          - gelu
+          - gelu
+          - gelu
+          - gelu
+          - gelu
+        S1:
+          - gelu
+          - gelu
+          - linear
+    base_layer_sizes:
+      dsffn:
+        S0:
+          - 9
+          - 7
+          - 5
+          - 3
+        S1:
+          - 5
+          - 3
+          - 1
+  arch5:
+    activations:
+      dsffn:
+        S0:
+          - gelu
+          - gelu
+          - gelu
+          - gelu
+          - gelu
+        S1:
+          - gelu
+          - gelu
+          - linear
+    base_layer_sizes:
+      dsffn:
+        S0:
+          - 14
+          - 9
+          - 7
+          - 5
+        S1:
+          - 5
+          - 3
+          - 1
+  arch6:
+    activations:
+      dsffn:
+        S0:
+          - gelu
+          - gelu
+          - gelu
+        S1:
+          - gelu
+          - gelu
+          - linear
+    base_layer_sizes:
+      dsffn:
+        S0:
+          - 6
+          - 4
+        S1:
+          - 3
+          - 2
+          - 1
+  arch7:
+    activations:
+      dsffn:
+        S0:
+          - gelu
+          - gelu
+          - gelu
+          - gelu
+          - gelu
+        S1:
+          - gelu
+          - gelu
+          - linear
+    base_layer_sizes:
+      dsffn:
+        S0:
+          - 12
+          - 9
+          - 7
+          - 5
+        S1:
+          - 6
+          - 4
+          - 1
+  arch8:
+    activations:
+      dsffn:
+        S0:
+          - gelu
+          - gelu
+          - gelu
+        S1:
+          - gelu
+          - linear
+    base_layer_sizes:
+      dsffn:
+        S0:
+          - 9
+          - 6
+        S1:
+          - 3
+          - 1

@@ -1,0 +1,14 @@
+wandb_version: 1
+
+architecture:
+  value: arch4
+batch_size:
+  value: 107
+eta:
+  value: 0.008463933551283834
+latent_dim:
+  value: 5
+optimizer:
+  value: rmsprop
+training_cycles:
+  value: 460

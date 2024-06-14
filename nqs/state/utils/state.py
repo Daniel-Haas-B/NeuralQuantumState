@@ -23,26 +23,38 @@ class State:
     logp: Union[float, PyTree]
     n_accepted: int
     delta: int
+    sign: int
 
-    def __init__(self, positions, logp, n_accepted=0, delta=0):
+    def __init__(self, positions, logp, n_accepted=0, delta=0, sign=0):
         self.positions = positions
         self.logp = logp
         self.n_accepted = n_accepted
         self.delta = delta
+        self.sign = sign
 
     def create_batch_of_states(self, batch_size):
         batch_states = [
-            State(self.positions.copy(), self.logp, self.n_accepted, self.delta + i)
+            State(
+                self.positions.copy(),
+                self.logp,
+                self.n_accepted,
+                self.delta + i,
+                self.sign,
+            )
             for i in range(batch_size)
         ]
         return BatchedStates(batch_states)
 
     def __repr__(self):
-        return f"State(positions={self.positions}, logp={self.logp}, n_accepted={self.n_accepted}, delta={self.delta})"
+        return f"State(positions={self.positions}, logp={self.logp}, n_accepted={self.n_accepted}, delta={self.delta}, sign={self.sign})"
 
     def __getitem__(self, key):
         return State(
-            self.positions[key], self.logp[key], self.n_accepted[key], self.delta[key]
+            self.positions[key],
+            self.logp[key],
+            self.n_accepted[key],
+            self.delta[key],
+            self.sign[key],
         )
 
     def __setitem__(self, key, value):
@@ -50,6 +62,7 @@ class State:
         self.logp[key] = value.logp
         self.n_accepted[key] = value.n_accepted
         self.delta[key] = value.delta
+        self.sign[key] = value.sign
 
 
 class BatchedStates:
@@ -64,6 +77,15 @@ class BatchedStates:
     def positions(self, new_positions):
         for i, state in enumerate(self.states):
             state.positions = new_positions[i]
+
+    @property
+    def signs(self):
+        return np.array([state.sign for state in self.states])
+
+    @signs.setter
+    def signs(self, new_signs):
+        for i, state in enumerate(self.states):
+            state.sign = new_signs[i]
 
     @property
     def logp(self):

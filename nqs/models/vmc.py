@@ -36,7 +36,7 @@ class VMC(WaveFunction):
         self.N = nparticles
         self.dim = dim
 
-        logp = self.logprob(self.r0)  # log of the (absolute) wavefunction squared
+        sign, logp = self.logprob(self.r0)  # log of the (absolute) wavefunction squared
         self.state = State(self.r0, logp, 0, 0)
 
         if self.logger_level != "SILENT":
@@ -61,7 +61,8 @@ class VMC(WaveFunction):
         """
         Return a function that computes the log of the wavefunction squared
         """
-        return 2 * self.log_wf(r, alpha)
+        sign, value = self.log_wf(r, alpha)
+        return sign, 2 * value
 
     def logprob(self, r):
         """
@@ -76,7 +77,11 @@ class VMC(WaveFunction):
 
     def grad_wf_closure_jax(self, r, params):
         """ """
-        grad_wf_closure = jax.grad(self.log_wf, argnums=0)
+
+        def value_log_wf(r, alpha):
+            return self.log_wf(r, alpha)[1]
+
+        grad_wf_closure = jax.grad(value_log_wf, argnums=0)
         return vmap(grad_wf_closure, in_axes=(0, None))(r, params)
 
     def grad_wf(self, r):
@@ -105,10 +110,12 @@ class VMC(WaveFunction):
         Return a function that computes the gradient of the log of the wavefunction squared
         """
 
-        grad_fn = vmap(jax.grad(self.log_wf, argnums=1), in_axes=(0, None))
-        grad_eval = grad_fn(r, alpha)  # still a parameter type
+        def value_log_wf(r, alpha):
+            return self.log_wf(r, alpha)[1]
 
-        return grad_eval
+        grad_fn = vmap(jax.grad(value_log_wf, argnums=1), in_axes=(0, None))
+
+        return grad_fn(r, alpha)
 
     def _initialize_variational_params(self, rng):
         self.params = Parameter()
@@ -149,7 +156,10 @@ class VMC(WaveFunction):
         Return a function that computes the laplacian of the wavefunction
         """
 
-        hessian_wf = vmap(jax.hessian(self.log_wf), in_axes=(0, None))
+        def value_log_wf(r, alpha):
+            return self.log_wf(r, alpha)[1]
+
+        hessian_wf = vmap(jax.hessian(value_log_wf), in_axes=(0, None))
         trace_hessian = vmap(jnp.trace)
 
         return trace_hessian(hessian_wf(r, params))

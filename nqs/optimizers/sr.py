@@ -39,9 +39,7 @@ class Sr(Optimizer):
 
         # Fj is what sheng calls the original grad without the sr matrix
         for key, grad in grad_params_E.items():
-            # self.v[key] = self.gamma * self.v[key] + grad
-            # params.set(
-            #     [key], [params.get(key) - (self.trust_regions[key]) * self.v[key]]
-            # )
-            params.set([key], [params.get(key) - (self.eta / np.sqrt(self.t)) * grad])
+            self.v[key] = self.gamma * self.v[key] + (self.trust_regions[key]) * grad
+            params.set([key], [params.get(key) - self.v[key]])
+            # params.set([key], [params.get(key) - (self.eta / np.sqrt(self.t)) * grad])
             # params.set([key], [params.get(key) - (self.eta) * grad])

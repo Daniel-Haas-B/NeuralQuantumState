@@ -62,7 +62,6 @@ class WaveFunction:
         self.jastrow = False
         self.pade_jastrow = False
         self.sqrt_omega = 1  # will be reset in the set_hamiltonian
-        self.sign = 1
         self.slater_mode = slater_mode  # Add this attribute
 
         self.slater_fact = np.log(
@@ -165,6 +164,8 @@ class WaveFunction:
 
         Notes:
             Will be called after configure_particle.
+
+        # TODO : THIS ONLY WORKS FOR DOTS, NEED TO ADD POLARIZED CASE which will change
         """
         if correlation == "pj":
             self.pade_jastrow = True
@@ -173,12 +174,21 @@ class WaveFunction:
                 for j in range(i + 1, self.N):
                     # first N//2 particles are spin up, the rest are spin down
                     # there is a more efficient way to do this for sure
-                    if i < self.N // 2 and j < self.N // 2:
-                        self.pade_aij = self.pade_aij.at[i, j].set(1 / (self.dim + 1))
-                    elif i >= self.N // 2 and j >= self.N // 2:
-                        self.pade_aij = self.pade_aij.at[i, j].set(1 / (self.dim + 1))
+                    if "dots" in self.particle:
+                        if i < self.N // 2 and j < self.N // 2:
+                            self.pade_aij = self.pade_aij.at[i, j].set(
+                                1 / (self.dim + 1)
+                            )
+                        elif i >= self.N // 2 and j >= self.N // 2:
+                            self.pade_aij = self.pade_aij.at[i, j].set(
+                                1 / (self.dim + 1)
+                            )
+                        else:
+                            self.pade_aij = self.pade_aij.at[i, j].set(
+                                1 / (self.dim - 1)
+                            )
                     else:
-                        self.pade_aij = self.pade_aij.at[i, j].set(1 / (self.dim - 1))
+                        self.pade_aij = self.pade_aij.at[i, j].set(1 / (self.dim + 1))
 
             if "fermion" in self.particle:
                 self.log_wf = self.log_wf_pade_slater_jastrow
@@ -205,11 +215,13 @@ class WaveFunction:
             params (dict): Parameters of the wave function.
 
         Returns:
-            ndarray: Logarithm of the Slater determinant component of the wave function.
+            tuple: Sign of the Slater determinant and the logarithm of the Slater determinant.
         """
         slog_slater = self.slog_slater(r)
-        self.sign = slog_slater[0]
-        return self.log_wf0(r, params) + slog_slater[1]
+        sign = slog_slater[0]
+        value = slog_slater[1]
+
+        return sign, self.log_wf0(r, params) + value
 
     def log_wf_jastrow(self, r, params):
         """
@@ -233,12 +245,12 @@ class WaveFunction:
             params (dict): Parameters of the wave function, including Slater and Jastrow parameters.
 
         Returns:
-            ndarray: Logarithm of the combined Slater and Jastrow wave function.
+            tuple : Sign of the Slater determinant and the logarithm of the combined Slater and Jastrow wave function.
         """
         slog_slater = self.slog_slater(r)
-        self.sign = slog_slater[0]
-
-        return self.log_wf0(r, params) + slog_slater[1] + self.log_jastrow(r, params)
+        sign = slog_slater[0].squeeze(-1)
+        value = slog_slater[1]
+        return sign, self.log_wf0(r, params) + value + self.log_jastrow(r, params)
 
     def log_wf_pade_jastrow(self, r, params):
         """
@@ -262,12 +274,14 @@ class WaveFunction:
             params (dict): Parameters of the wave function, including Pade-Jastrow factor parameters.
 
         Returns:
-            ndarray: Logarithm of the combined Slater and Pade-Jastrow wave function.
+            tuple : Sign of the Slater determinant and the logarithm of the combined Slater and Pade-Jastrow wave function.
         """
         slog_slater = self.slog_slater(r)
-        self.sign = slog_slater[0]
+        sign = slog_slater[0].squeeze(-1)
+        value = slog_slater[1]
         return (
-            self.log_wf0(r, params) + slog_slater[1] + self.log_pade_jastrow(r, params)
+            sign,
+            self.log_wf0(r, params) + value + self.log_pade_jastrow(r, params),
         )
 
     def log_jastrow(self, r, params):
@@ -448,7 +462,6 @@ class WaveFunction:
         slog_det = jnp.linalg.slogdet(D)
         sign_det = slog_det[0]
 
-        # Compute the Slater determinant for the spin down particles
         log_slater = slog_det[1].squeeze(-1)
 
         return sign_det, log_slater  # the factor does not matter
@@ -643,7 +656,7 @@ class WaveFunction:
         """
         self.params.rescale(factor)
 
-    def compute_sr_matrix(self, expval_grad_params, grad_params, shift=1e-3):
+    def compute_sr_matrix(self, expval_grad_params, grad_params, shift=1e-1):
         """
         Compute the matrix for the stochastic reconfiguration algorithm.
         The expval_grad_params and grad_params should be dictionaries with keys
@@ -711,4 +724,6 @@ class WaveFunction:
         return sr_matrices
 
     def __call__(self, r):
-        return self.backend.exp(self.log_wf(r, self.params)) * self.sign.squeeze(-1)
+        log = self.log_wf(r, self.params)[1]
+        sign = self.log_wf(r, self.params)[0]
+        return self.backend.exp(log) * sign

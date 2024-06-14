@@ -48,7 +48,7 @@ def initialize_system(config):
         system.set_wf(
             config["nqs_type"], config["nparticles"], config["dim"], **common_kwargs
         )
-    elif config["nqs_type"] == "ds":
+    elif config["nqs_type"] == "dsffn":
         common_kwargs = {
             "layer_sizes": {
                 "S0": [config["dim"]]
@@ -131,7 +131,7 @@ def run_experiment(config):
             args=common_kwargs,
         )
 
-    if config["nqs_type"] == "ds":
+    if config["nqs_type"] == "dsffn":
         common_kwargs = {
             "layer_sizes": {
                 "S0": [config["dim"]]
@@ -169,7 +169,6 @@ def run_experiment(config):
         config["nsamples"],
         config["nchains"],
         config["seed"],
-        one_body_density=False,
         save_positions=config["save_positions"],
     )
 
@@ -185,13 +184,12 @@ def run_experiment(config):
 
     # Calculate weights based on variances
     weights = 1 / variances
-    weights /= np.sum(weights)
 
     # Compute combined mean
-    combined_mean = np.sum(weights * means)
+    combined_mean = np.sum(weights * means) / np.sum(weights)
 
     # Compute combined variance
-    combined_variance = 1 / np.sum(1 / variances)
+    combined_variance = 1 / np.sum(weights)
 
     # Compute combined standard error
     combined_std_error = np.sqrt(combined_variance)

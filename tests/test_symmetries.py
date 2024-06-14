@@ -69,8 +69,8 @@ def test_wf(particle, r, r_ex):
             "S1": ["gelu", "linear"],
         },
     )
-    print("Output without particle exchange: ", system.wf.ds(r))
-    print("Output with particle exchange: ", system.wf.ds(r_ex))
+    print("Output without particle exchange: ", system.wf.dsffn(r))
+    print("Output with particle exchange: ", system.wf.dsffn(r_ex))
     # system.set_wf(
     #     "ffnn",
     #     nparticles,

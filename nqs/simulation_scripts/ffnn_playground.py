@@ -120,7 +120,6 @@ def main():
             nsamples,
             nchains,
             seed,
-            one_body_density=False,
             save_positions=save_positions,
         )
 
@@ -136,13 +135,12 @@ def main():
 
         # Calculate weights based on variances
         weights = 1 / variances
-        weights /= np.sum(weights)
 
         # Compute combined mean
-        combined_mean = np.sum(weights * means)
+        combined_mean = np.sum(weights * means) / np.sum(weights)
 
         # Compute combined variance
-        combined_variance = 1 / np.sum(1 / variances)
+        combined_variance = 1 / np.sum(weights)
 
         # Compute combined standard error
         combined_std_error = np.sqrt(combined_variance)

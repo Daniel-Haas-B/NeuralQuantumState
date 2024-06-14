@@ -345,8 +345,16 @@ class NQS:
             energies = np.clip(energies, lower_bound, upper_bound)
             # comput expval_energy again
             expval_energy = np.mean(energies)
-
+            # if expval_energy < -10000 or expval_energy > 10000:
+            #     raise ValueError(
+            #         f"Energy is too high or too low: {expval_energy}. Stopping training"
+            #     )
             std_energy = np.std(energies)
+            if self._agent:
+                self._agent.log({"energy": expval_energy}, step=epoch)
+                self._agent.log({"std": std_energy}, step=epoch)
+                self._agent.log({"acc": current_acc}, step=epoch)
+
             if self.logger_level != "SILENT":
                 t_range.set_postfix(
                     avg_E_l=f"{expval_energy:.2f}",
@@ -397,10 +405,27 @@ class NQS:
                 self.wf.params, grad_params_E, self.sr_matrices
             )  # changes wf params inplace
 
-            if grad_norms < 10**-15:
-                if self.logger is not None:
-                    self.logger.warning("Gradient norm is zero, stopping training")
-                break
+            # if grad_norms < 10**-15:
+            #     if self.logger is not None:
+            #         self.logger.warning("Gradient norm is zero, stopping training")
+
+            #     # concatenate all the last weights, gradients and energies the correct number of times
+            #     # to match the number of epochs
+            #     for key in param_keys:
+            #         self._history[key] = np.concatenate(
+            #             [self._history[key]] * (epoch - len(self._history[key]))
+            #         )
+            #     self._history["energy"] = np.concatenate(
+            #         [self._history["energy"]] * (epoch - len(self._history["energy"]))
+            #     )
+            #     self._history["std"] = np.concatenate(
+            #         [self._history["std"]] * (epoch - len(self._history["std"]))
+            #     )
+            #     self._history["grad_params"] = np.concatenate(
+            #         [self._history["grad_params"]] * (epoch - len(self._history["grad_params"]))
+            #     )
+
+            #     return self._history
 
             # update wf state after each epoch?
             self.state = State(
@@ -420,8 +445,8 @@ class NQS:
         nsamples,
         nchains=1,
         seed=None,
-        one_body_density=False,
         save_positions=False,
+        foldername=None,
     ):
         """
         Perform sampling of the system's quantum state using the previously set wave function and sampler.
@@ -430,7 +455,6 @@ class NQS:
             nsamples (int): The number of samples to generate.
             nchains (int): The number of independent Markov chains to use for sampling. Default is 1.
             seed (int, optional): A seed for the random number generator to ensure reproducibility of the sampling process.
-            one_body_density (bool): If True, computes the one-body density of the quantum state. Default is False.
             save_positions (bool): If True, saves the particle positions during sampling. Default is False.
 
         Returns:
@@ -456,36 +480,47 @@ class NQS:
             "particle": self._particle,
         }
 
+        # sample_results = {
+        #     "chain_id": chain_id + 1,
+        #     "E_energy": energy,
+        #     "E_variance": variance_e,
+        #     "E_std_error": error_e,
+        #     "K_energy": np.mean(ke),
+        #     "K_std_error": error_ke,
+        #     "K_variance": variance_ke,
+        #     "PE_energy": np.mean(pe_trap),
+        #     "PE_std_error": error_pe_trap,
+        #     "PE_variance": variance_pe_trap,
+        #     "PE_int_energy": np.mean(pe_int),
+        #     "PE_int_std_error": error_pe_int,
+        #     "PE_int_variance": variance_pe_int,
+        #     "accept_rate": acc_rate,
+        #     "scale": self.scale,
+        #     "nsamples": nsamples,
+        # }
+
         system_info = pd.DataFrame(system_info, index=[0])
+        foldername += f"/sampler/N{self.N}_V{self.hamiltonian.v_0}"
+        sample_results = self._sampler.sample(
+            self.wf,
+            self.state,
+            nsamples,
+            nchains,
+            seed,
+            save_positions,
+            foldername=foldername,
+        )
+        sample_results["accept_rate"] = float(sample_results["accept_rate"].iloc[0])
 
-        if not one_body_density:
-            sample_results = self._sampler.sample(
-                self.wf, self.state, nsamples, nchains, seed, save_positions
-            )
-            sample_results["accept_rate"] = float(sample_results["accept_rate"].iloc[0])
+        # convert to numpy array
 
-            # convert to numpy array
+        system_info_repeated = system_info.loc[
+            system_info.index.repeat(len(sample_results))
+        ].reset_index(drop=True)
 
-            system_info_repeated = system_info.loc[
-                system_info.index.repeat(len(sample_results))
-            ].reset_index(drop=True)
+        self._results = pd.concat([system_info_repeated, sample_results], axis=1)
 
-            self._results = pd.concat([system_info_repeated, sample_results], axis=1)
-
-            return self._results
-
-        else:
-            sample_results = self._sampler.sample_obd(
-                self.wf,
-                self.state,
-                nsamples,
-                1,
-                seed,
-                lim_inf=-5,
-                lim_sup=5,
-                method="histogram",
-                # points=200, # if method is integral
-            )
+        return self._results
 
         return sample_results
 

@@ -37,7 +37,7 @@ class MetropolisHastings(Sampler):
 
             # Compute drift force at current positions
             F = self.hamiltonian.drift_force(wf, state.positions)
-
+            prev_sign = state.sign
             proposals = rng.normal(loc=state.positions, scale=self.scale) + F * Ddt
             # Compute proposal log density
             logp_proposal = wf.logprob(proposals)
@@ -60,6 +60,7 @@ class MetropolisHastings(Sampler):
 
             # If accept is True, yield proposal, otherwise keep old state
             new_positions = proposals if accept else state.positions
+            new_sign = wf.get_sign() if accept else prev_sign
 
             # Create new state
             new_logp = logp_proposal if accept else state.logp
@@ -70,6 +71,7 @@ class MetropolisHastings(Sampler):
             state_batch[i].logp = new_logp
             state_batch[i].n_accepted = new_n_accepted
             state_batch[i].delta = new_delta
+            state_batch[i].sign = new_sign
 
         return state_batch
 

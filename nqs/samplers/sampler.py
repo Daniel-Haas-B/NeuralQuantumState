@@ -1,5 +1,6 @@
 import copy
 import os
+import warnings
 
 import h5py
 import numpy as np
@@ -120,7 +121,16 @@ class Sampler:
 
             return positions, one_body_densities
 
-    def sample(self, wf, state, nsamples, nchains=1, seed=None, save_positions=False):
+    def sample(
+        self,
+        wf,
+        state,
+        nsamples,
+        nchains=1,
+        seed=None,
+        save_positions=False,
+        foldername=".",
+    ):
         """
         Samples from the wavefunction, optionally saving the positions and energies to disk.
 
@@ -135,13 +145,14 @@ class Sampler:
         Returns:
             DataFrame: A pandas DataFrame containing the results of the sampling.
         """
+        self.foldername = foldername
         nchains = check_and_set_nchains(nchains, self._logger)
         seeds = generate_seed_sequence(seed, nchains)
         if nchains == 1:
             chain_id = 0
 
             results, self._energies = self._sample(
-                wf, nsamples, state, seeds[0], chain_id, save_positions
+                wf, nsamples, state, seeds[0], chain_id, save_positions, foldername
             )
             self._results = pd.DataFrame([results])
         else:
@@ -163,7 +174,9 @@ class Sampler:
 
         return self._results
 
-    def _sample(self, wf, nsamples, state, seed, chain_id, save_positions=False):
+    def _sample(
+        self, wf, nsamples, state, seed, chain_id, save_positions=False, foldername="."
+    ):
         """
         Private method to perform the actual sampling. Intended to be called internally.
 
@@ -178,13 +191,18 @@ class Sampler:
         Returns:
             tuple: A tuple containing the sampling results and energies.
         """
-        batch_size = 2**10
+        batch_size = int(nsamples) // 256
 
         # Function to ensure data has correct shape
         def ensure_array(data):
             return np.atleast_1d(data)
 
-        filename = f"data/energies_and_pos_{wf.__class__.__name__}_ch{chain_id}.h5"
+        foldername = self.foldername
+        energy_pos_filename = (
+            f"{foldername}_energies_and_pos_{wf.__class__.__name__}_ch{chain_id}.h5"
+        )
+        obdm_filename = f"{foldername}_obdm_{wf.__class__.__name__}_ch{chain_id}.h5"
+
         if self._logger is not None:
             t_range = tqdm(
                 range(0, nsamples // batch_size),
@@ -199,16 +217,30 @@ class Sampler:
         state.delta = 0
         batch_state = state.create_batch_of_states(batch_size=batch_size)
 
-        if os.path.exists(filename):
-            os.remove(filename)
-        for i in t_range:  # 2**18
+        if os.path.exists(energy_pos_filename):
+            os.remove(energy_pos_filename)
+        if os.path.exists(obdm_filename):
+            os.remove(obdm_filename)
+        for i in t_range:
             batch_state = self._step(wf, batch_state, seed, batch_size=batch_size)
             positions = batch_state.positions
 
+            signs = batch_state.signs
+            # print(f"positions.shape: {positions.shape}")
+            # print("signs shape", signs.shape)
             ke = self.hamiltonian.local_kinetic_energy(wf, positions)
             pe_trap, pe_int = map(ensure_array, self.hamiltonian.potential(positions))
             energies = {"ke": ke, "pe_trap": pe_trap, "pe_int": pe_int}
-            with h5py.File(filename, "a") as f1:
+            # if obdm:
+            #     with h5py.File(obdm_filename, 'a') as f:
+            #         if 'xdata' not in f:
+            #             f.create_dataset('xdata', (0, N), maxshape=(None, N), compression="gzip", chunks=True)
+            #             f.create_dataset('ydata', (0, N), maxshape=(None, N), compression="gzip", chunks=True)
+            #             f.create_dataset('zdata', (0, N), maxshape=(None, N), compression="gzip", chunks=True)
+
+            #     self.obdm_sample_1d(positions, logps, signs, wf, obdm_filename)
+
+            with h5py.File(energy_pos_filename, "a") as f1:
                 if i == 0:
                     for energy_type, data in energies.items():
                         f1.create_dataset(
@@ -226,6 +258,15 @@ class Sampler:
                             chunks=True,
                             maxshape=(None, positions.shape[1]),
                         )
+                        f1.create_dataset(
+                            "signs",
+                            data=signs[
+                                :, None
+                            ],  # Add a new axis to signs to match the shape (65536, 1)
+                            compression="gzip",
+                            chunks=True,
+                            maxshape=(None, 1),
+                        )
                 else:
                     for energy_type, data in energies.items():
                         f1[energy_type].resize(
@@ -238,76 +279,57 @@ class Sampler:
                             (f1["positions"].shape[0] + positions.shape[0]), axis=0
                         )
                         f1["positions"][-positions.shape[0] :] = positions
+                        f1["signs"].resize(
+                            (f1["signs"].shape[0] + signs.shape[0]), axis=0
+                        )
+                        f1["signs"][-signs.shape[0] :] = signs[:, None]  #
 
         if self._logger is not None:
             t_range.clear()
 
         # open energies file
-        f = h5py.File(filename, "r")
+        f = h5py.File(energy_pos_filename, "r")
         ke = f["ke"][:]
         pe_trap = f["pe_trap"][:]
         pe_int = f["pe_int"][:]
-
         # pad pe if it is not the same size as ke
         if pe_int.shape[0] != ke.shape[0]:
             pe_int = np.pad(pe_int, (0, ke.shape[0] - pe_int.shape[0]))
 
         energies = ke + pe_trap + pe_int
 
-        assert (
-            np.sum(energies == 0) == 0
-        ), "There are empty energies which would give wrong statistics"
+        if np.sum(energies == 0) >= 10:
+            warnings.warn(
+                f"There are {np.sum(energies == 0)} empty energies which would give wrong statistics"
+            )
 
         energy = np.mean(energies)
-        error = block(energies)
-        variance = np.mean(energies**2) - energy**2
+        error_e = block(energies)
+        variance_e = np.mean(energies**2) - energy**2
+
+        error_ke = block(ke)
+        error_pe_trap = block(pe_trap)
+        error_pe_int = block(pe_int)
+
         acc_rate = batch_state.n_accepted[-1] / nsamples
 
         sample_results = {
             "chain_id": chain_id + 1,
-            "energy": energy,
-            "std_error": error,
-            "variance": variance,
+            "E_energy": energy,
+            "E_variance": variance_e,
+            "E_std_error": error_e,
+            "K_energy": np.mean(ke),
+            "K_std_error": error_ke,
+            "PE_trap_energy": np.mean(pe_trap),
+            "PE_trap_std_error": error_pe_trap,
+            "PE_int_energy": np.mean(pe_int),
+            "PE_int_std_error": error_pe_int,
             "accept_rate": acc_rate,
             "scale": self.scale,
             "nsamples": nsamples,
         }
 
         return sample_results, energies
-
-    def _marginal_sample(self, wf, nsamples, state, scale, seed=None, chain_id=0):
-        """
-        Performs fixed-position sampling to calculate the one-body density of the wavefunction.
-
-        Parameters:
-            wf (Wavefunction): The wavefunction to sample from.
-            nsamples (int): The number of samples to draw.
-            state (QuantumState): The quantum state, with one particle's position being fixed.
-            scale (float): A scale parameter to adjust the sampling resolution.
-            seed (int, optional): A seed for random number generation. If None, a random seed is used.
-            chain_id (int, optional): The ID of the current chain. Defaults to 0.
-
-        Returns:
-            np.ndarray: The one-body density sampled at the fixed position.
-        """
-        # TODO: CHECK THIS DIMENSIONALITY
-        one_body_density = np.zeros_like(
-            state.positions[0]
-        )  # initialise the one body density
-
-        for i in range(nsamples):
-            # fix the position of one particle
-
-            state = self._fixed_step(
-                wf, state, seed, fixed_index=0
-            )  # sample the other particles
-            one_body_density += wf.pdf(
-                state.positions
-            )  # add the probability density of finding the particles at position r
-
-        one_body_density /= nsamples  # average over the number of samples. This is a normalisation factor
-
-        return one_body_density
 
     def step(self, wf, state, seed):
         """
@@ -330,3 +352,44 @@ class Sampler:
     @scale.setter
     def scale(self, value):
         self._scale = value
+
+    def obdm_sample_1d(self, positions, logps, signs, wf, filename):
+        xmin = -5
+        xmax = +5
+        # here, positions is actually a batch of positions of size (batch_size, npar x ndim)
+        # Create ghost particle configuration
+        batch_size = positions.shape[0]
+        xps = np.random.uniform(xmin, xmax, positions.shape)
+        xdata = np.zeros(
+            (batch_size, positions.shape[1])
+        )  # this positions.shape[1] is only correct in the case of the 1D harmonic oscillator
+        ydata = np.zeros(
+            (batch_size, positions.shape[1])
+        )  # this positions.shape[1] is only correct in the case of the 1D harmonic oscillator
+        zdata = np.zeros(
+            (batch_size, positions.shape[1])
+        )  # this positions.shape[1] is only correct in the case of the 1D harmonic oscillator
+
+        for i in range(batch_size):
+            pos = positions[i]
+            sgn = signs[i]
+            logp = logps[i]
+            xp = xps[i]
+            # Evaluate the wave function on both configurations
+            sgn_p, logabs_p = wf.logprob(xp)
+            # Store the data
+            xdata[i] = xp
+            ydata[i] = pos
+            zdata[i] = (xmax - xmin) * sgn_p * sgn * np.exp(logabs_p - logp)
+
+        # Save the data
+        # Append data to the HDF5 file
+        with h5py.File(filename, "a") as f:
+            f["xdata"].resize((f["xdata"].shape[0] + xdata.shape[0]), axis=0)
+            f["xdata"][-xdata.shape[0] :] = xdata
+
+            f["ydata"].resize((f["ydata"].shape[0] + ydata.shape[0]), axis=0)
+            f["ydata"][-ydata.shape[0] :] = ydata
+
+            f["zdata"].resize((f["zdata"].shape[0] + zdata.shape[0]), axis=0)
+            f["zdata"][-zdata.shape[0] :] = zdata

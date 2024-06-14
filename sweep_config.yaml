@@ -1,0 +1,71 @@
+method: bayes
+metric:
+  goal: minimize
+  name: energy
+parameters:
+  activations_base_layer_sizes:
+    values:
+      - activations:
+          dsffn:
+            S0: ["gelu", "gelu", "gelu", "gelu", "gelu"]
+            S1: ["gelu", "gelu", "gelu", "linear"]
+        base_layer_sizes:
+          dsffn:
+            S0: [14, 9, 7, 5]
+            S1: [7, 5, 3, 1]
+      - activations:
+          dsffn:
+            S0: ["gelu", "gelu", "gelu"]
+            S1: ["gelu", "linear"]
+        base_layer_sizes:
+          dsffn:
+            S0: [7, 5]
+            S1: [3, 1]
+      - activations:
+          dsffn:
+            S0: ["gelu", "gelu", "gelu", "gelu", "gelu"]
+            S1: ["gelu", "gelu", "gelu", "linear"]
+        base_layer_sizes:
+          dsffn:
+            S0: [10, 7, 5, 3]
+            S1: [6, 4, 2, 1]
+      - activations:
+          dsffn:
+            S0: ["gelu", "gelu", "gelu"]
+            S1: ["gelu", "gelu", "linear"]
+        base_layer_sizes:
+          dsffn:
+            S0: [8, 6]
+            S1: [4, 2]
+      - activations:
+          dsffn:
+            S0: ["gelu", "gelu", "gelu", "gelu"]
+            S1: ["gelu", "gelu", "linear"]
+        base_layer_sizes:
+          dsffn:
+            S0: [9, 7, 5]
+            S1: [5, 3, 1]
+  batch_size:
+    distribution: int_uniform
+    max: 1000
+    min: 50
+  eta:
+    distribution: uniform
+    max: 0.01
+    min: 5e-05
+  latent_dim:
+    distribution: int_uniform
+    max: 24
+    min: 2
+  training_cycles:
+    distribution: int_uniform
+    max: 1200
+    min: 300
+
+command:
+  - ${env}
+  - python
+  - -m
+  - nqs.simulation_scripts.nqs_experiment_pol_sweep
+  - --config
+  - config_polarized.yaml

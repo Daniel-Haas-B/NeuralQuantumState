@@ -1,7 +1,7 @@
 output_filename: "data/playground.csv"
 nparticles: 2
 dim: 1
-nsamples: 262144 # 2^12
+nsamples: 4096 # 2^12
 nchains: 1
 eta: 0.001
 training_cycles: 100
@@ -9,7 +9,7 @@ mcmc_alg: "m"
 optimizer: "sr"
 batch_size: 300
 detailed: true
-nqs_type: "ds"
+nqs_type: "dsffn"
 backend: "jax"
 seed: 42
 save_positions: true
@@ -17,15 +17,15 @@ particle: "fermion_dots"
 correlation: "j"
 interaction_type: "none"
 latent_dim: 10
-omega: 1.0
+omega: 1.0 # 0.1, 1/6, 0.28, 0.5, 1.0
 base_layer_sizes:
   ffnn: [9, 7, 3, 1]
-  ds: 
+  dsffn: 
     S0: [14, 9, 7, 5, 3]
     S1: [7, 5, 3, 1] # first node is latent dim, last node always 1
 activations:
   ffnn: ["gelu", "elu", "gelu", "linear"]
-  ds: 
+  dsffn: 
     S0: ["gelu", "elu", "gelu", "elu", "gelu", "elu"]
     S1: ["gelu", "elu", "gelu", "linear"]
 nhidden: 6

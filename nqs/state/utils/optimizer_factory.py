@@ -14,6 +14,7 @@ def optimizer_factory(opti_type, **kwargs):
         case "adam":
             return Adam(**kwargs)
         case "rmsprop":
+            print("kwargs: ", kwargs)
             return RmsProp(**kwargs)
         case "adagrad":
             return Adagrad(**kwargs)

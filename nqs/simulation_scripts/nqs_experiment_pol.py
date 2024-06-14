@@ -2,19 +2,15 @@ import argparse
 import cProfile  # noqa
 import os
 import pstats  # noqa
+import time
 
 import jax
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-import seaborn as sns
+import wandb  # noqa
 import yaml
 
 from nqs.state import nqs
-from nqs.state.utils import plot_2dobd  # noqa
-from nqs.state.utils import plot_3dobd
-from nqs.state.utils import plot_density_profile  # noqa
-from nqs.state.utils import plot_psi  # noqa
 
 jax.config.update("jax_platform_name", "cpu")
 
@@ -48,7 +44,7 @@ def initialize_system(config):
         system.set_wf(
             config["nqs_type"], config["nparticles"], config["dim"], **common_kwargs
         )
-    elif config["nqs_type"] == "ds":
+    elif config["nqs_type"] == "dsffn":
         common_kwargs = {
             "layer_sizes": {
                 "S0": [config["dim"]]
@@ -98,7 +94,7 @@ def run_experiment(config):
     system.set_sampler(
         mcmc_alg=mcmc_alg,
         scale=(
-            1 / np.sqrt(config["nparticles"] * config["dim"])
+            0.5 / np.sqrt(config["nparticles"] * config["dim"])
             if mcmc_alg == "m"
             else 0.1 / np.sqrt(config["nparticles"])
         ),
@@ -116,7 +112,7 @@ def run_experiment(config):
         optimizer=config["optimizer"],
         eta=config["eta"] / np.sqrt(config["nparticles"] * config["dim"]),
     )
-
+    common_kwargs = {}
     if config["nqs_type"] == "ffnn":
         common_kwargs = {
             "layer_sizes": [config["nparticles"] * config["dim"]]
@@ -125,15 +121,8 @@ def run_experiment(config):
             "correlation": config["correlation"],
             "particle": config["particle"],
         }
-        system.pretrain(
-            model="Gaussian",
-            max_iter=1000,
-            batch_size=2000,
-            logger_level="INFO",
-            args=common_kwargs,
-        )
 
-    if config["nqs_type"] == "ds":
+    if config["nqs_type"] == "dsffn":
         common_kwargs = {
             "layer_sizes": {
                 "S0": [config["dim"]]
@@ -149,14 +138,14 @@ def run_experiment(config):
             "correlation": config["correlation"],
             "particle": config["particle"],
         }
-        system.pretrain(
-            model="Gaussian",
-            max_iter=1000,
-            batch_size=2000,
-            logger_level="INFO",
+    if config["pretrain"]:
+        system = pretrain(
+            system,
+            max_iter=500,
+            batch_size=500,
             args=common_kwargs,
         )
-
+    time_train = time.time()
     history = system.train(  # noqa
         max_iter=config["training_cycles"],
         batch_size=config["batch_size"],
@@ -166,52 +155,193 @@ def run_experiment(config):
         grad_clip=0,
         seed=config["seed"],
     )
+    time_train = time.time() - time_train
 
+    # save energies and stds to csv, together
+    df_hist = pd.DataFrame(
+        {
+            "energy": history["energy"],
+            "std_error": history["std"],
+            "nqs_type": config["nqs_type"],
+            "n_particles": config["nparticles"],
+            "dim": config["dim"],
+            "batch_size": config["batch_size"],
+            "eta": config["eta"],
+            "training_cycles": config["training_cycles"],
+            "nsamples": config["nsamples"],
+            "Opti": config["optimizer"],
+            "particle": config["particle"],
+        }
+    )
+    if not os.path.exists(
+        config["output_filename"] + f"energies_and_stds_v0_{config['v_0']}.csv"
+    ):
+        df_hist.to_csv(
+            config["output_filename"] + f"energies_and_stds_v0_{config['v_0']}.csv",
+            index=False,
+        )
+    else:
+        df_hist.to_csv(
+            config["output_filename"] + f"energies_and_stds_v0_{config['v_0']}.csv",
+            mode="a",
+            header=False,
+            index=False,
+        )
+
+    time_sample = time.time()
     df_all = system.sample(
         config["nsamples"],
         config["nchains"],
         config["seed"],
-        one_body_density=False,
         save_positions=config["save_positions"],
+        foldername=config["output_filename"],
     )
+    time_sample = time.time() - time_sample
 
     # Mean values
-    energy_mean = df_all["energy"].mean()
     accept_rate_mean = df_all["accept_rate"].mean()
 
     # Combined standard error of the mean for energy
-    combined_std_error = np.mean(df_all["std_error"]) / np.sqrt(config["nchains"])
+    E_means = df_all["E_energy"]
+    E_std_errors = df_all["E_std_error"]
+    E_variances = E_std_errors**2
+    E_weights = 1 / E_variances
+    E_combined_mean = np.sum(E_weights * E_means) / np.sum(E_weights)
+    E_combined_variance = 1 / np.sum(E_weights)
+    E_combined_std_error = np.sqrt(E_combined_variance)
+
+    # Combined standard error of the mean for kinetic energy
+    K_means = df_all["K_energy"]
+    K_std_errors = df_all["K_std_error"]
+    K_variances = K_std_errors**2
+    K_weights = 1 / K_variances
+    K_combined_mean = np.sum(K_weights * K_means) / np.sum(K_weights)
+    K_combined_variance = 1 / np.sum(K_weights)
+    K_combined_std_error = np.sqrt(K_combined_variance)
+
+    # Combined standard error of the mean for potential energy (trap)
+    PE_trap_means = df_all["PE_trap_energy"]
+    PE_trap_std_errors = df_all["PE_trap_std_error"]
+    PE_trap_variances = PE_trap_std_errors**2
+    PE_trap_weights = 1 / PE_trap_variances
+    PE_trap_combined_mean = np.sum(PE_trap_weights * PE_trap_means) / np.sum(
+        PE_trap_weights
+    )
+    PE_trap_combined_variance = 1 / np.sum(PE_trap_weights)
+    PE_trap_combined_std_error = np.sqrt(PE_trap_combined_variance)
+
+    # Combined standard error of the mean for potential energy (int)
+    PE_int_means = df_all["PE_int_energy"]
+    PE_int_std_errors = df_all["PE_int_std_error"]
+    PE_int_variances = PE_int_std_errors**2
+    PE_int_weights = 1 / PE_int_variances
+    PE_int_combined_mean = np.sum(PE_int_weights * PE_int_means) / np.sum(
+        PE_int_weights
+    )
+    PE_int_combined_variance = 1 / np.sum(PE_int_weights)
+    PE_int_combined_std_error = np.sqrt(PE_int_combined_variance)
 
     # Construct the combined DataFrame
     combined_data = {
-        "energy": [energy_mean],
-        "std_error": [combined_std_error],
-        "variance": [np.mean(df_all["variance"])],
+        "E_energy": [E_combined_mean],
+        "E_std_error": [E_combined_std_error],
+        "E_variance": [np.mean(df_all["E_variance"])],
+        "K_energy": [K_combined_mean],
+        "K_std_error": [K_combined_std_error],
+        "PE_trap_energy": [PE_trap_combined_mean],
+        "PE_trap_std_error": [PE_trap_combined_std_error],
+        "PE_int_energy": [PE_int_combined_mean],
+        "PE_int_std_error": [PE_int_combined_std_error],
         "accept_rate": [accept_rate_mean],
+        "v_0": [config["v_0"]],
+        "omega": [config["omega"]],
+        "pretrain": [config["pretrain"]],
+        "sigma_0": [config["sigma_0"]],
+        "correration": [config["correlation"]],
+        "optimizer": [config["optimizer"]],
     }
 
     df_mean = pd.DataFrame(combined_data)
-    final_energy = df_mean["energy"].values[0]
-    final_error = df_mean["std_error"].values[0]
-    error_str = f"{final_error:.0e}"
-    error_scale = int(error_str.split("e")[-1])
-    energy_decimal_places = -error_scale
+
+    final_E_energy = df_mean["E_energy"].values[0]
+    final_K_energy = df_mean["K_energy"].values[0]
+    final_PE_trap_energy = df_mean["PE_trap_energy"].values[0]
+    final_PE_int_energy = df_mean["PE_int_energy"].values[0]
+    final_E_error = df_mean["E_std_error"].values[0]
+    final_K_error = df_mean["K_std_error"].values[0]
+    final_PE_trap_error = df_mean["PE_trap_std_error"].values[0]
+    final_PE_int_error = df_mean["PE_int_std_error"].values[0]
+    # convert any NaN to 0
+    final_E_error = 0 if np.isnan(final_E_error) else final_E_error
+    final_K_error = 0 if np.isnan(final_K_error) else final_K_error
+    final_PE_trap_error = 0 if np.isnan(final_PE_trap_error) else final_PE_trap_error
+    final_PE_int_error = 0 if np.isnan(final_PE_int_error) else final_PE_int_error
+    final_E_energy = 0 if np.isnan(final_E_energy) else final_E_energy
+    final_K_energy = 0 if np.isnan(final_K_energy) else final_K_energy
+    final_PE_trap_energy = 0 if np.isnan(final_PE_trap_energy) else final_PE_trap_energy
+    final_PE_int_energy = 0 if np.isnan(final_PE_int_energy) else final_PE_int_energy
+
+    E_error_str = f"{final_E_error:.0e}"
+    K_error_str = f"{final_K_error:.0e}"
+    PE_trap_error_str = f"{final_PE_trap_error:.0e}"
+    PE_int_error_str = f"{final_PE_int_error:.0e}"
+
+    E_error_scale = int(E_error_str.split("e")[-1])
+    K_error_scale = int(K_error_str.split("e")[-1])
+    PE_trap_error_scale = int(PE_trap_error_str.split("e")[-1])
+    PE_int_error_scale = int(PE_int_error_str.split("e")[-1])
+
+    E_energy_decimal_places = -E_error_scale
+    K_energy_decimal_places = -K_error_scale
+    PE_trap_energy_decimal_places = -PE_trap_error_scale
+    PE_int_energy_decimal_places = -PE_int_error_scale
 
     # Format energy to match the precision required by the error
-    if energy_decimal_places > 0:
-        energy_str = f"{final_energy:.{energy_decimal_places}f}"
+    if E_energy_decimal_places > 0:
+        E_energy_str = f"{final_E_energy:.{E_energy_decimal_places}f}"
     else:
-        energy_str = f"{int(final_energy)}"
+        E_energy_str = f"{int(final_E_energy)}"
+
+    if K_energy_decimal_places > 0:
+        K_energy_str = f"{final_K_energy:.{K_energy_decimal_places}f}"
+    else:
+        K_energy_str = f"{int(final_K_energy)}"
+
+    if PE_trap_energy_decimal_places > 0:
+        PE_trap_energy_str = f"{final_PE_trap_energy:.{PE_trap_energy_decimal_places}f}"
+    else:
+        PE_trap_energy_str = f"{int(final_PE_trap_energy)}"
+
+    if PE_int_energy_decimal_places > 0:
+        PE_int_energy_str = f"{final_PE_int_energy:.{PE_int_energy_decimal_places}f}"
+    else:
+        PE_int_energy_str = f"{int(final_PE_int_energy)}"
 
     # Get the first digit of the error for the parenthesis notation
-    error_first_digit = error_str[0]
+    E_error_first_digit = E_error_str[0]
+    K_error_first_digit = K_error_str[0]
+    PE_trap_error_first_digit = PE_trap_error_str[0]
+    PE_int_error_first_digit = PE_int_error_str[0]
 
     # Remove trailing decimal point if it exists after formatting
-    if energy_str[-1] == ".":
-        energy_str = energy_str[:-1]
+    if E_energy_str[-1] == ".":
+        E_energy_str = E_energy_str[:-1]
+    if K_energy_str[-1] == ".":
+        K_energy_str = K_energy_str[:-1]
+    if PE_trap_energy_str[-1] == ".":
+        PE_trap_energy_str = PE_trap_energy_str[:-1]
+    if PE_int_energy_str[-1] == ".":
+        PE_int_energy_str = PE_int_energy_str[:-1]
 
-    formatted_energy = f"{energy_str}({error_first_digit})"
-    df_mean["energy(error)"] = formatted_energy
+    formated_E_energy = f"{E_energy_str}({E_error_first_digit})"
+    formated_K_energy = f"{K_energy_str}({K_error_first_digit})"
+    formated_PE_trap_energy = f"{PE_trap_energy_str}({PE_trap_error_first_digit})"
+    formated_PE_int_energy = f"{PE_int_energy_str}({PE_int_error_first_digit})"
+
+    df_mean["E_energy(error)"] = formated_E_energy
+    df_mean["K_energy(error)"] = formated_K_energy
+    df_mean["PE_trap_energy(error)"] = formated_PE_trap_energy
+    df_mean["PE_int_energy(error)"] = formated_PE_int_energy
 
     df_mean[
         [
@@ -224,6 +354,8 @@ def run_experiment(config):
             "nsamples",
             "Opti",
             "particle",
+            "time_train",
+            "time_sample",
         ]
     ] = [
         config["nqs_type"],
@@ -235,20 +367,78 @@ def run_experiment(config):
         config["nchains"] * config["nsamples"],
         config["optimizer"],
         config["particle"],
+        time_train,
+        time_sample,
     ]
+    if not os.path.exists(
+        config["output_filename"] + f"final_results_v0_{config['v_0']}.csv"
+    ):
+        df_mean.to_csv(
+            config["output_filename"] + f"final_results_v0_{config['v_0']}.csv",
+            index=False,
+        )
+    else:
+        df_mean.to_csv(
+            config["output_filename"] + f"final_results_v0_{config['v_0']}.csv",
+            mode="a",
+            header=False,
+            index=False,
+        )
 
-    df_mean.to_csv(config["output_filename"], index=False)
     print(df_mean)
 
-    if config["save_positions"]:
-        chain_id = 0
-        filename = f"energies_and_pos_{config['nqs_type'].upper()}_ch{chain_id}.h5"
-        plot_3dobd(filename, config["nsamples"], config["dim"])
+    # if config["save_positions"]:
+    #     chain_id = 0
+    #     filename = f"energies_and_pos_{config['nqs_type'].upper()}_ch{chain_id}.h5"
+    #     plot_3dobd(filename, config["nsamples"], config["dim"])
 
-    sns.scatterplot(data=df_all, x="chain_id", y="energy")
-    plt.xlabel("Chain")
-    plt.ylabel("Energy")
-    plt.show()
+    # sns.scatterplot(data=df_all, x="chain_id", y="energy")
+    # plt.xlabel("Chain")
+    # plt.ylabel("Energy")
+    # plt.show()
+
+
+def pretrain(system, max_iter, batch_size, args):
+    print("Pretraining with GAUSSIAN model first")
+    if system.nqs_type == "ffnn" or system.nqs_type == "dsffn":
+        system.pretrain(
+            model="Gaussian",
+            max_iter=max_iter,
+            batch_size=batch_size,
+            logger_level="INFO",
+            args=args,
+        )
+
+    if config["v_0"] != 0:  # pretrain with v_0 = 0
+        print("Pretraining with v_0 = 0 FIRST")
+        system.set_hamiltonian(
+            type_="ho",
+            int_type=config["interaction_type"],
+            sigma_0=config["sigma_0"],
+            omega=config["omega"],  # will be fixed to 1 to compare to drissi et al
+            v_0=0,
+            r0_reg=10,
+            training_cycles=config["training_cycles"],
+        )
+        system.train(  # noqa
+            max_iter=config["training_cycles"],
+            batch_size=config["batch_size"],
+            early_stop=False,
+            history=True,
+            tune=False,
+            grad_clip=0,
+            seed=config["seed"],
+        )
+        system.set_hamiltonian(
+            type_="ho",
+            int_type=config["interaction_type"],
+            sigma_0=config["sigma_0"],
+            omega=config["omega"],  # needs to be fixed to 1 to compare to drissi et al
+            v_0=config["v_0"],
+            r0_reg=10,
+            training_cycles=config["training_cycles"],
+        )
+    return system
 
 
 if __name__ == "__main__":
@@ -262,23 +452,27 @@ if __name__ == "__main__":
     config_path = os.path.join(os.path.dirname(__file__), args.config)
 
     config = load_config(config_path)
-    run_experiment(config)
 
-# def main():
-#     parser = argparse.ArgumentParser(description="Run NQS Experiment")
-#     parser.add_argument('--config', type=str, required=True, help='Path to the configuration file')
-#     args = parser.parse_args()
+    interactions = [0]
+    repeats = 3
+    n_particles = [14]  # [14, 12]
 
-#     # Ensure the config path is relative to the project root
-#     config_path = os.path.join(os.path.dirname(__file__), args.config)
-
-#     config = load_config(config_path)
-#     run_experiment(config)
-
-# if __name__ == "__main__":
-#     # Use cProfile to run the main function and save the stats to a file
-#     cProfile.runctx("main()", globals(), locals(), "profile_stats.prof")
-
-#     # Create pstats object and sort by cumulative time
-#     p = pstats.Stats("profile_stats.prof")
-#     p.sort_stats("cumulative").print_stats(50)
+    for nqs_type in ["dsffn"]:
+        config["nqs_type"] = nqs_type
+        for opti in ["sr"]:
+            for _ in range(repeats):
+                for interaction in interactions:
+                    for n_particle in n_particles:
+                        print(
+                            f"Running experiment with interaction: {interaction} and n_particles: {n_particle}"
+                        )
+                        config["v_0"] = interaction
+                        config["nparticles"] = n_particle
+                        config["optimizer"] = opti
+                        try:
+                            run_experiment(config)
+                        except Exception as e:
+                            print(
+                                f"Error: {e} for interaction: {interaction} and n_particles: {n_particle}"
+                            )
+                            continue

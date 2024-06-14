@@ -58,14 +58,6 @@ class RBM(WaveFunction):
             )
             self.logger.info(msg)
 
-    # def __call__(self, r):
-    #     return self.wf(
-    #         r,
-    #         self.params.get("v_bias"),
-    #         self.params.get("h_bias"),
-    #         self.params.get("W_kernel"),
-    #     )
-
     def _initialize_bias_and_kernel(self, rng):
         v_bias = rng.standard_normal(size=self.Nvisible) * 0.01
         h_bias = rng.standard_normal(size=self.Nhidden) * 0.01
@@ -120,7 +112,6 @@ class RBM(WaveFunction):
             params.get("h_bias") + (r @ params.get("W_kernel")) * self._sigma2_factor
         )  # potential failure point
         x_h = self.backend.sum(x_h, axis=-1)
-        # print("x_h + x_v", x_h + x_v)
 
         return x_v + x_h
 
@@ -130,7 +121,7 @@ class RBM(WaveFunction):
         So p_rbm = |Ψ(r)|^2 = exp(-2 * log(Ψ(r))) which in log domain is -2 * log(Ψ(r))
         """
 
-        return self._factor * self.log_wf(r, params)
+        return self._factor * self.log_wf(r, params)[1]
 
     def pdf(self, r):
         """
@@ -140,7 +131,9 @@ class RBM(WaveFunction):
 
     def logprob_closure(self, r, params):
         """Log probability amplitude"""
-        return self._rbm_psi_repr * self.log_wf(r, params).sum()
+        sign, value = self.log_wf(r, params)
+
+        return sign, self._rbm_psi_repr * value.sum()
 
     def logprob(self, r):
         """Log probability amplitude"""

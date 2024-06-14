@@ -107,14 +107,15 @@ def run_experiment(config):
             else 0.1 / np.sqrt(config["nparticles"])
         ),
     )
-    print("running omega", config["omega"])
+    print("running v0", config["v_0"])
     print("running nqs", config["nqs_type"])
 
     system.set_hamiltonian(
         type_="ho",
         int_type=config["interaction_type"],
         sigma_0=config["sigma_0"],
-        omega=config["omega"],
+        omega=config["omega"],  # needs to be fixed to 1 to compare to drissi et al
+        v_0=config["v_0"],
         r0_reg=config["r0_reg"],
         training_cycles=config["training_cycles"],
     )
@@ -123,6 +124,14 @@ def run_experiment(config):
         eta=config["eta"] / np.sqrt(config["nparticles"] * config["dim"]),
     )
     common_kwargs = {}
+    if config["nqs_type"] == "ffnn":
+        common_kwargs = {
+            "layer_sizes": [config["nparticles"] * config["dim"]]
+            + config["base_layer_sizes"][config["nqs_type"]],
+            "activations": config["activations"].get(config["nqs_type"], []),
+            "correlation": config["correlation"],
+            "particle": config["particle"],
+        }
 
     if config["nqs_type"] == "dsffn":
         selected_arch = config["architecture"]
@@ -206,10 +215,8 @@ def run_experiment(config):
         "std_error": [combined_std_error],
         "variance": [np.mean(df_all["variance"])],
         "accept_rate": [accept_rate_mean],
-        "v_0": [config["v_0"]],
         "omega": [config["omega"]],
         "pretrain": [config["pretrain"]],
-        "sigma_0": [config["sigma_0"]],
         "correration": [config["correlation"]],
         "optimizer": [config["optimizer"]],
     }
@@ -285,15 +292,12 @@ def pretrain(system, max_iter, batch_size, args):
             args=args,
         )
 
-    if config["v_0"] != 0:  # pretrain with v_0 = 0
-        print("Pretraining with v_0 = 0 FIRST")
+    if config["interaction_type"].lower() != "none":  # pretrain with v_0 = 0
+        print("Pretraining with noninteracting model first")
         system.set_hamiltonian(
             type_="ho",
-            int_type=config["interaction_type"],
-            sigma_0=config["sigma_0"],
-            omega=config["omega"],  # will be fixed to 1 to compare to drissi et al
-            v_0=0,
-            r0_reg=10,
+            int_type="none",
+            omega=config["omega"],
             training_cycles=config["training_cycles"],
         )
         system.train(  # noqa
@@ -308,10 +312,8 @@ def pretrain(system, max_iter, batch_size, args):
         system.set_hamiltonian(
             type_="ho",
             int_type=config["interaction_type"],
-            sigma_0=config["sigma_0"],
-            omega=config["omega"],  # needs to be fixed to 1 to compare to drissi et al
-            v_0=config["v_0"],
-            r0_reg=10,
+            omega=config["omega"],
+            r0_reg=config["r0_reg"],
             training_cycles=config["training_cycles"],
         )
     return system
@@ -329,7 +331,7 @@ if __name__ == "__main__":
     config_path = os.path.join(os.path.dirname(__file__), args.config)
     base_config = load_config(config_path)
 
-    wandb.init(project="dsff_1d_fermions_N2_V0=-2")
+    wandb.init(project="dsff_2d_dots")
 
     wand_config = wandb.config
     # from wanb.config get which architecture to run

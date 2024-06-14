@@ -89,6 +89,8 @@ class HarmonicOscillator(Hamiltonian):
                 self.reg_decay = (1 / (3 * self.kwargs.get("r0_reg"))) ** (
                     2 / self.kwargs.get("training_cycles")
                 )
+
+        self.omega = self.kwargs.get("omega")
         # self.fr_arr = []
 
     def regularized_potential(self, r):
@@ -107,7 +109,7 @@ class HarmonicOscillator(Hamiltonian):
         """
         # HO trap
 
-        v_trap = 0.5 * self.backend.sum(r * r, axis=-1) * self.kwargs["omega"] ** 2
+        v_trap = 0.5 * self.backend.sum(r * r, axis=-1) * self.omega**2
 
         # Interaction
         v_int = 0.0

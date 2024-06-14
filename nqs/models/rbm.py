@@ -73,7 +73,8 @@ class RBM(WaveFunction):
             )
         if self.pade_jastrow:
             assert not self.jastrow, "Pade Jastrow requires Jastrow to be false"
-            self.params.set("CPJ", np.array(rng.uniform(-1, 1, 1)))
+            limit = np.sqrt(2 / (self.N * self.dim))
+            self.params.set("WPJ", np.array(rng.uniform(-limit, limit, 1)))
 
     def _initialize_vars(self, nparticles, dim, nhidden, factor, sigma2):
         self._sigma2 = sigma2

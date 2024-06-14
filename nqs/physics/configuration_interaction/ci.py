@@ -1,3 +1,6 @@
+# ! ##########
+# DISCLAIMER: this material is not mine. It was adapted from https://github.com/arnaurios/1D_fermions
+# ! ##########
 import os
 
 import numpy as np

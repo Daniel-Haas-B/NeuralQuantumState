@@ -147,7 +147,7 @@ class FFNN(WaveFunction):
             )
         if self.pade_jastrow:
             assert not self.jastrow, "Pade Jastrow requires Jastrow to be false"
-            self.params.set("CPJ", self.backend.array(rng.uniform(-1, 1, 1)))
+            self.params.set("WPJ", self.backend.array(rng.uniform(-1, 1, 1)))
 
     def log_wf_pretrain(self, x, params):
         """

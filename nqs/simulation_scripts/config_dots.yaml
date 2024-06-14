@@ -1,30 +1,30 @@
-output_filename: "data/playground.csv"
-nparticles: 2
-dim: 1
+output_filename: "/Users/orpheus/Documents/Masters/NeuralQuantumState/data/fermion_dots/"
+nparticles: 2 # 6, 10, 12, 20
+dim: 2 # do not change this in this yaml
 nsamples: 4096 # 2^12
 nchains: 1
 eta: 0.001
-training_cycles: 100
+training_cycles: 1000
 mcmc_alg: "m"
-optimizer: "sr"
-batch_size: 300
+optimizer: "adam"
+batch_size: 500
 detailed: true
-nqs_type: "dsffn"
+nqs_type: "vmc"
 backend: "jax"
 seed: 42
-save_positions: true
+save_positions: false
 particle: "fermion_dots"
 correlation: "j"
-interaction_type: "none"
+interaction_type: "none" # "coulomb" or "none" or "coulomb_gradual" 
+r0_reg: 200 # larger makes change faster. Smaller is more gradual. Range should be from 1 to 5 kinda. This will only make sense if coulomb_gradual is chosen.
 latent_dim: 10
 omega: 1.0 # 0.1, 1/6, 0.28, 0.5, 1.0
+pretrain: false
 base_layer_sizes:
-  ffnn: [9, 7, 3, 1]
-  dsffn: 
+  dsffn:
     S0: [14, 9, 7, 5, 3]
     S1: [7, 5, 3, 1] # first node is latent dim, last node always 1
 activations:
-  ffnn: ["gelu", "elu", "gelu", "linear"]
   dsffn: 
     S0: ["gelu", "elu", "gelu", "elu", "gelu", "elu"]
     S1: ["gelu", "elu", "gelu", "linear"]

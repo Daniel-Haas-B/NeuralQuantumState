@@ -68,14 +68,13 @@ class DSFFN(WaveFunction):
 
     def _initialize_layers(self, rng):
         self.params = Parameter()  # Initialize empty Parameter object
-        factor = 1
         for i in range(0, len(self._layer_sizes0) - 1):
             # The number of units in the layers
             input_size = self._layer_sizes0[i]
             output_size = self._layer_sizes0[i + 1]
 
             # He initialization, considering the size of layers
-            limit = np.sqrt(2 / (input_size)) * factor
+            limit = np.sqrt(2 / (input_size))
 
             # Initialize weights and biases
             self.params.set(
@@ -92,7 +91,7 @@ class DSFFN(WaveFunction):
             output_size = self._layer_sizes1[i + 1]
 
             # He initialization, considering the size of layers
-            limit = np.sqrt(2 / (input_size)) * factor
+            limit = np.sqrt(2 / (input_size))
 
             # Initialize weights and biases
             self.params.set(
@@ -116,7 +115,7 @@ class DSFFN(WaveFunction):
 
         if self.pade_jastrow:
             assert not self.jastrow, "Pade Jastrow requires Jastrow to be false"
-            self.params.set("CPJ", np.array(rng.uniform(-limit, limit, 1)))
+            self.params.set("WPJ", np.array(rng.uniform(-limit, limit, 1)))
 
     def log_wf0(self, x, params):
         """

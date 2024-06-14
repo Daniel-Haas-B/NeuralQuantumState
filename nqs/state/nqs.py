@@ -500,7 +500,12 @@ class NQS:
         # }
 
         system_info = pd.DataFrame(system_info, index=[0])
-        foldername += f"/sampler/N{self.N}_V{self.hamiltonian.v_0}"
+        if hasattr(self.hamiltonian, "v_0"):
+            foldername += f"/sampler/N{self.N}_V{self.hamiltonian.v_0}"
+        elif hasattr(self.hamiltonian, "omega"):
+            foldername += f"/sampler/N{self.N}_omega{self.hamiltonian.omega}"
+        else:
+            raise ValueError("No foldername provided")
         sample_results = self._sampler.sample(
             self.wf,
             self.state,
@@ -556,7 +561,7 @@ class NQS:
             if str(args["correlation"]).lower() == "j":
                 WJ_params = self.wf.params.get("WJ")
             elif str(args["correlation"]).lower() == "pj":
-                CPJ_params = self.wf.params.get("CPJ")
+                WPJ_params = self.wf.params.get("WPJ")
             elif args["correlation"] is not None:
                 if args["correlation"].lower() != "none":
                     raise ValueError(
@@ -587,4 +592,4 @@ class NQS:
         if str(args["correlation"]).lower() == "j":
             self.wf.params.set("WJ", WJ_params)
         elif str(args["correlation"]).lower() == "pj":
-            self.wf.params.set("CPJ", CPJ_params)
+            self.wf.params.set("WPJ", WPJ_params)

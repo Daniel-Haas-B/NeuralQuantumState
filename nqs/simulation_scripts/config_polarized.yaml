@@ -14,7 +14,7 @@ backend: "jax"
 seed: 42
 save_positions: False
 particle: "fermion_polarized" # do not change this in this yaml
-correlation: "j" #only None of j
+correlation: "j" # None or j or pj
 interaction_type: "gaussian" # do not change this in this yaml
 
 sigma_0: 0.5

@@ -165,35 +165,43 @@ class WaveFunction:
         Notes:
             Will be called after configure_particle.
 
-        # TODO : THIS ONLY WORKS FOR DOTS, NEED TO ADD POLARIZED CASE which will change
         """
         if correlation == "pj":
             self.pade_jastrow = True
             self.pade_aij = jnp.zeros((self.N, self.N))
             for i in range(self.N):
-                for j in range(i + 1, self.N):
-                    # first N//2 particles are spin up, the rest are spin down
-                    # there is a more efficient way to do this for sure
-                    if "dots" in self.particle:
-                        if i < self.N // 2 and j < self.N // 2:
-                            self.pade_aij = self.pade_aij.at[i, j].set(
-                                1 / (self.dim + 1)
-                            )
-                        elif i >= self.N // 2 and j >= self.N // 2:
-                            self.pade_aij = self.pade_aij.at[i, j].set(
-                                1 / (self.dim + 1)
-                            )
+                for j in range(i, self.N):
+                    if i == j:
+                        self.pade_aij = self.pade_aij.at[i, j].set(1 / (self.dim + 1))
+                    else:
+                        # first N//2 particles are spin up, the rest are spin down
+                        if "dots" in self.particle:
+                            if (i < self.N // 2 and j < self.N // 2) or (
+                                i >= self.N // 2 and j >= self.N // 2
+                            ):
+                                self.pade_aij = self.pade_aij.at[i, j].set(
+                                    1 / (self.dim + 1)
+                                )
+                                self.pade_aij = self.pade_aij.at[j, i].set(
+                                    1 / (self.dim + 1)
+                                )
+
+                            else:
+                                self.pade_aij = self.pade_aij.at[i, j].set(
+                                    1 / (self.dim - 1)
+                                )
+                                self.pade_aij = self.pade_aij.at[j, i].set(
+                                    1 / (self.dim - 1)
+                                )
                         else:
                             self.pade_aij = self.pade_aij.at[i, j].set(
-                                1 / (self.dim - 1)
+                                1 / (self.dim + 1)
                             )
-                    else:
-                        self.pade_aij = self.pade_aij.at[i, j].set(1 / (self.dim + 1))
+                            self.pade_aij = self.pade_aij.at[j, i].set(
+                                1 / (self.dim + 1)
+                            )
 
-            if "fermion" in self.particle:
-                self.log_wf = self.log_wf_pade_slater_jastrow
-            else:
-                self.log_wf = self.log_wf_pade_jastrow
+            self.log_wf = self.log_wf_pade_slater_jastrow
 
         elif correlation == "j":
             self.jastrow = True
@@ -313,7 +321,7 @@ class WaveFunction:
 
         Parameters:
             r (ndarray): An array of particle positions reshaped into (-1, N, dim) dimensions.
-            params (dict): Parameters of the wave function including the Pade-Jastrow coefficient 'CPJ'.
+            params (dict): Parameters of the wave function including the Pade-Jastrow coefficient 'WPJ'.
 
         Returns:
             ndarray: Computed Pade-Jastrow factor.
@@ -326,9 +334,14 @@ class WaveFunction:
 
         rij = jnp.triu(r_dist, k=1)
         fraction = (
-            self.pade_aij * rij / (1 + params["CPJ"] * rij)
+            self.pade_aij * rij / (1 + params["WPJ"] * rij)
         )  # elementwise addition
         # Create a mask for the upper triangular part, excluding the diagona
+        # print the value but first need to convert to numpy
+        # print("rij", rij)
+        # print("params[WPJ]", self.params["WPJ"])
+        # print("pade_aij", self.pade_aij)
+        # print("fraction", fraction)
 
         result = jnp.sum(fraction, axis=(1, 2))
 
@@ -448,7 +461,6 @@ class WaveFunction:
         A = self.N
         r = r.reshape(-1, self.N, self.dim)
 
-        # Compute the Slater determinant for the spin up particles
         D = self.backend.zeros((r.shape[0], A, A))
         degree_combs = self.generate_degrees(mode="full")
         # print("r in log_slater", r)
@@ -457,8 +469,6 @@ class WaveFunction:
                 degrees = degree_combs[j]
                 D = D.at[:, part, j].set(self.hermite(r[:, part, :], degrees))
 
-        # print("D_up", D_up)
-        # print("D_down", D_down)
         slog_det = jnp.linalg.slogdet(D)
         sign_det = slog_det[0]
 
@@ -656,7 +666,7 @@ class WaveFunction:
         """
         self.params.rescale(factor)
 
-    def compute_sr_matrix(self, expval_grad_params, grad_params, shift=1e-1):
+    def compute_sr_matrix(self, expval_grad_params, grad_params, shift=1e-3):
         """
         Compute the matrix for the stochastic reconfiguration algorithm.
         The expval_grad_params and grad_params should be dictionaries with keys

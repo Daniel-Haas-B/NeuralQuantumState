@@ -71,7 +71,7 @@ def initialize_system(config):
             config["nparticles"],
             config["dim"],
             nhidden=config["nhidden"],
-            sigma2=1.0 / np.sqrt(config["omega"]),
+            sigma2=1.0 / config["omega"],
             particle=config["particle"],
             correlation=config["correlation"],
         )
@@ -94,7 +94,7 @@ def run_experiment(config):
     system.set_sampler(
         mcmc_alg=mcmc_alg,
         scale=(
-            0.5 / np.sqrt(config["nparticles"] * config["dim"])
+            1 / np.sqrt(config["nparticles"] * config["dim"])
             if mcmc_alg == "m"
             else 0.1 / np.sqrt(config["nparticles"])
         ),
@@ -106,9 +106,13 @@ def run_experiment(config):
         r0_reg=config["r0_reg"],
         training_cycles=config["training_cycles"],
     )
+    print("config", config["alpha0"])
     system.set_optimizer(
         optimizer=config["optimizer"],
         eta=config["eta"] / np.sqrt(config["nparticles"] * config["dim"]),
+        alpha_0=config["alpha0"],
+        alpha_1=config["alpha1"],
+        gamma=config["gamma"],
     )
     common_kwargs = {}
     if config["nqs_type"] == "ffnn":
@@ -139,19 +143,21 @@ def run_experiment(config):
     if config["pretrain"]:
         system = pretrain(
             system,
-            max_iter=1000,
-            batch_size=500,
+            max_iter=1500,
+            batch_size=1000,
             args=common_kwargs,
+            omega=config["omega"],
         )
     time_train = time.time()
     history = system.train(  # noqa
         max_iter=config["training_cycles"],
-        batch_size=config["batch_size"],
+        batch_size=config["batch_size"] // 2,
         early_stop=False,
         history=True,
         tune=False,
-        grad_clip=0,
+        grad_clip=10,
         seed=config["seed"],
+        # agent=wandb,
     )
     time_train = time.time() - time_train
 
@@ -171,20 +177,40 @@ def run_experiment(config):
             "particle": config["particle"],
         }
     )
-    # if not os.path.exists(
-    #     config["output_filename"] + f"energies_and_stds_v0_{config['omega']}.csv"
-    # ):
-    #     df_hist.to_csv(
-    #         config["output_filename"] + f"energies_and_stds_v0_{config['omega']}.csv",
-    #         index=False,
-    #     )
-    # else:
-    #     df_hist.to_csv(
-    #         config["output_filename"] + f"energies_and_stds_v0_{config['omega']}.csv",
-    #         mode="a",
-    #         header=False,
-    #         index=False,
-    #     )
+    if not os.path.exists(
+        config["output_filename"] + f"energies_and_stds_omega_{config['omega']}.csv"
+    ):
+        df_hist.to_csv(
+            config["output_filename"]
+            + f"energies_and_stds_omega_{config['omega']}.csv",
+            index=False,
+        )
+    else:
+        df_hist.to_csv(
+            config["output_filename"]
+            + f"energies_and_stds_omega_{config['omega']}.csv",
+            mode="a",
+            header=False,
+            index=False,
+        )
+
+    # save weights and biases to another csv
+    try:
+        wb = system.wf.params
+        wb_df = pd.DataFrame(wb)
+        # now save the weights and biases to a csv
+        if not os.path.exists(
+            config["output_filename"]
+            + f"weights_and_biases_omega_{config['omega']}.csv"
+        ):
+            wb_df.to_csv(
+                config["output_filename"]
+                + f"weights_and_biases_omega_{config['omega']}.csv",
+                index=False,
+            )
+
+    except Exception as e:
+        print(f"Error: {e}")
 
     time_sample = time.time()
     df_all = system.sample(
@@ -368,15 +394,15 @@ def run_experiment(config):
         time_sample,
     ]
     if not os.path.exists(
-        config["output_filename"] + f"final_results_v0_{config['omega']}.csv"
+        config["output_filename"] + f"final_results_omega_{config['omega']}.csv"
     ):
         df_mean.to_csv(
-            config["output_filename"] + f"final_results_v0_{config['omega']}.csv",
+            config["output_filename"] + f"final_results_omega_{config['omega']}.csv",
             index=False,
         )
     else:
         df_mean.to_csv(
-            config["output_filename"] + f"final_results_v0_{config['omega']}.csv",
+            config["output_filename"] + f"final_results_omega_{config['omega']}.csv",
             mode="a",
             header=False,
             index=False,
@@ -395,15 +421,15 @@ def run_experiment(config):
     # plt.show()
 
 
-def pretrain(system, max_iter, batch_size, args):
-    print("Pretraining with GAUSSIAN model first")
+def pretrain(system, max_iter, batch_size, args, omega=1.0):
     if system.nqs_type == "ffnn" or system.nqs_type == "dsffn":
         system.pretrain(
             model="Gaussian",
             max_iter=max_iter,
-            batch_size=batch_size,
+            batch_size=batch_size * 2,
             logger_level="INFO",
             args=args,
+            omega=omega,
         )
 
     if config["interaction_type"].lower() != "none":
@@ -414,20 +440,47 @@ def pretrain(system, max_iter, batch_size, args):
             omega=config["omega"],  # will be fixed to 1 to compare to drissi et al
             training_cycles=config["training_cycles"],
         )
+        # system.train(  # noqa
+        #     max_iter=50,
+        #     batch_size=config["batch_size"]//8,
+        #     early_stop=False,
+        #     history=True,
+        #     tune=False,
+        #     grad_clip=10,
+        #     seed=config["seed"],
+        # )
+        # system.train(  # noqa
+        #     max_iter=100,
+        #     batch_size=config["batch_size"]//4,
+        #     early_stop=False,
+        #     history=True,
+        #     tune=False,
+        #     grad_clip=10,
+        #     seed=config["seed"],
+        # )
+        # system.train(  # noqa
+        #     max_iter=100,
+        #     batch_size=config["batch_size"]//2,
+        #     early_stop=False,
+        #     history=True,
+        #     tune=False,
+        #     grad_clip=10,
+        #     seed=config["seed"],
+        # )
         system.train(  # noqa
-            max_iter=config["training_cycles"],
-            batch_size=config["batch_size"],
+            max_iter=200,
+            batch_size=config["training_cycles"],
             early_stop=False,
             history=True,
             tune=False,
-            grad_clip=0,
+            grad_clip=10,
             seed=config["seed"],
         )
         system.set_hamiltonian(
             type_="ho",
             int_type=config["interaction_type"],
             omega=config["omega"],  # needs to be fixed to 1 to compare to drissi et al
-            r0_reg=config["reg_r0"],
+            r0_reg=config["r0_reg"],
             training_cycles=config["training_cycles"],
         )
     return system
@@ -441,17 +494,73 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Ensure the config path is relative to the project root
+
     config_path = os.path.join(os.path.dirname(__file__), args.config)
+    base_config = load_config(config_path)
 
-    config = load_config(config_path)
+    # wandb.init(project="dsff_2d_dots")
 
-    print(
-        f"Running experiment with interaction: {config['interaction_type']} and n_particles: {config['nparticles']}"
-    )
+    # wand_config = wandb.config
+    # from wanb.config get which architecture to run
 
-    # try:
-    run_experiment(config)
-    # except Exception as e:
-    #    print(
-    #        f"Error: {e} for interaction: {config['interaction_type']} and n_particles: {config['nparticles']}"
-    #    )
+    # combine the dictionaries
+    # config = {**base_config, **wand_config}
+    config = base_config
+
+    n_particles = [20]
+    omegas = [0.1]
+    nqs_types = ["dsffn"]
+    repeats = 1
+
+    ##
+    # 2p arch 1, latent 7
+    # 6p arch 7, latent 7 for 1.0 and 0.5
+    ##
+    config_rbm = "/Users/orpheus/Documents/Masters/NeuralQuantumState/nqs/simulation_scripts/config_dots_rbm.yaml"
+    config_vmc = "/Users/orpheus/Documents/Masters/NeuralQuantumState/nqs/simulation_scripts/config_dots_vmc.yaml"
+    config_dsffn = "/Users/orpheus/Documents/Masters/NeuralQuantumState/nqs/simulation_scripts/config_dots_dsffn.yaml"
+
+    # arch = config["arch"]
+    arch = 7
+    # alpha0 = 0.1#config["alpha0"]
+    # alpha1 = 0.1#config["alpha1"]
+    config["alpha0"] = 0.01
+    config["alpha1"] = 0.001
+    config["gamma"] = 0.9
+
+    for i in range(repeats):
+        for nqs_type in nqs_types:
+            if nqs_type == "vmc":
+                config_path = config_vmc
+            elif nqs_type == "rbm":
+                config_path = config_rbm
+            elif nqs_type == "dsffn":
+                config_path = config_dsffn
+
+            # config = load_config(config_path)
+            config["nqs_type"] = nqs_type
+            # choosing new architecture
+            if config["nqs_type"] == "dsffn":
+                config["pretrain"] = True
+                config["base_layer_sizes"] = config["architectures"][f"arch{arch}"][
+                    "base_layer_sizes"
+                ]
+                config["activations"] = config["architectures"][f"arch{arch}"][
+                    "activations"
+                ]
+
+            for n in n_particles:
+                config["nparticles"] = n
+                for omega in omegas:
+                    config["omega"] = omega
+                    print(
+                        f"Running experiment with interaction: {config['interaction_type']} and n_particles: {config['nparticles']}"
+                    )
+                    try:
+                        run_experiment(config)
+                    except Exception as e:
+                        # create of append to a error txt
+
+                        print(
+                            f"Error: {e} for n_particles: {n} and omega: {omega} and nqs_type: {nqs_type}\n"
+                        )

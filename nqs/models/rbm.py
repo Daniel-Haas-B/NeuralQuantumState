@@ -73,8 +73,8 @@ class RBM(WaveFunction):
             )
         if self.pade_jastrow:
             assert not self.jastrow, "Pade Jastrow requires Jastrow to be false"
-            limit = np.sqrt(2 / (self.N * self.dim))
-            self.params.set("WPJ", np.array(rng.uniform(-limit, limit, 1)))
+            limit = np.sqrt(1 / (100000 * self.N))
+            self.params.set("CPJ", np.array(rng.uniform(-limit, limit, 1)))
 
     def _initialize_vars(self, nparticles, dim, nhidden, factor, sigma2):
         self._sigma2 = sigma2
@@ -89,7 +89,7 @@ class RBM(WaveFunction):
     def _precompute(self):
         self._sigma4 = self._sigma2 * self._sigma2
         self._sigma2_factor = 1.0 / self._sigma2
-        self._sigma2_factor2 = 0.5 / self._sigma2
+        self._sigma2_factor2 = 1.0 / (2 * self._sigma2)
 
     def _softplus(self, x):
         """Softplus activation function.

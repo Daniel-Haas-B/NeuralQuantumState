@@ -377,6 +377,11 @@ def run_experiment(config):
             config["output_filename"] + f"final_results_v0_{config['v_0']}.csv",
             index=False,
         )
+        print(
+            "saving to csv",
+            config["output_filename"] + f"final_results_v0_{config['v_0']}.csv",
+        )
+
     else:
         df_mean.to_csv(
             config["output_filename"] + f"final_results_v0_{config['v_0']}.csv",
@@ -384,18 +389,24 @@ def run_experiment(config):
             header=False,
             index=False,
         )
+        print(
+            "saving to csv",
+            config["output_filename"] + f"final_results_v0_{config['v_0']}.csv",
+        )
 
-    print(df_mean)
+    # # get wf output at several random positions
+    # # 100 random from -4 to 4 of size N * dim
+    # # Generate random positions
+    # # Generate random positions
+    # plot_psi(system, config["nparticles"], config["dim"])
 
-    # if config["save_positions"]:
-    #     chain_id = 0
-    #     filename = f"energies_and_pos_{config['nqs_type'].upper()}_ch{chain_id}.h5"
-    #     plot_3dobd(filename, config["nsamples"], config["dim"])
+    # # this does not work and give error ValueError: Input z must be 2D, not 1D
+    # #plt.figure()
+    # #plt.contourf(particle_x, particle_y, outputs, cmap="viridis")
 
-    # sns.scatterplot(data=df_all, x="chain_id", y="energy")
-    # plt.xlabel("Chain")
-    # plt.ylabel("Energy")
-    # plt.show()
+    # # this does not work and give error ValueError: Invalid shape (100, ) for image data
+    # #plt.figure()
+    # #plt.imshow(outputs, cmap="viridis", extent=[-4, 4, -4, 4])
 
 
 def pretrain(system, max_iter, batch_size, args):
@@ -453,10 +464,9 @@ if __name__ == "__main__":
 
     config = load_config(config_path)
 
-    interactions = [0]
-    repeats = 3
-    n_particles = [14]  # [14, 12]
-
+    n_particles = [2, 3, 4, 5, 6]  # [14, 12]
+    interactions = [-20, -10, 0, 10, 20]
+    repeats = 1
     for nqs_type in ["dsffn"]:
         config["nqs_type"] = nqs_type
         for opti in ["sr"]:

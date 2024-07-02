@@ -115,7 +115,8 @@ class DSFFN(WaveFunction):
 
         if self.pade_jastrow:
             assert not self.jastrow, "Pade Jastrow requires Jastrow to be false"
-            self.params.set("WPJ", np.array(rng.uniform(-limit, limit, 1)))
+            limit = np.sqrt(1 / (10000000))
+            self.params.set("CPJ", np.array(rng.uniform(-limit, limit, 1)))
 
     def log_wf0(self, x, params):
         """

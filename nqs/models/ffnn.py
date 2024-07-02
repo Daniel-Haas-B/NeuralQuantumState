@@ -1,6 +1,7 @@
 from functools import partial  # noqa
 
 import jax
+import numpy as np
 from jax import vmap
 
 from nqs.models.base_wf import WaveFunction
@@ -147,7 +148,8 @@ class FFNN(WaveFunction):
             )
         if self.pade_jastrow:
             assert not self.jastrow, "Pade Jastrow requires Jastrow to be false"
-            self.params.set("WPJ", self.backend.array(rng.uniform(-1, 1, 1)))
+            limit = np.sqrt(2 / (100000))
+            self.params.set("CPJ", np.array(rng.uniform(-limit, limit, 1)))
 
     def log_wf_pretrain(self, x, params):
         """

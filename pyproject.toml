@@ -36,6 +36,7 @@ black = "^24.4.2"
 jax = "^0.4.28"
 jaxlib = "^0.4.28"
 csv2latex = "^0.11"
+pymupdf = "^1.24.5"
 
 
 [tool.poetry.group.dev.dependencies]

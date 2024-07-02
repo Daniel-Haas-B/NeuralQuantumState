@@ -1,6 +1,6 @@
 output_filename: "/Users/orpheus/Documents/Masters/NeuralQuantumState/data/fermion_polarized/"
 dim: 1 # do not change this in this yaml
-nsamples: 4096 # 2^18
+nsamples: 8388608 # 2^18
 nchains: 1
 mcmc_alg: "m"
 detailed: true
@@ -9,7 +9,7 @@ backend: "jax"
 seed: 42
 save_positions: False
 particle: "fermion_polarized" # do not change this in this yaml
-correlation: "j" #only None of j
+correlation: "PJ" #only None of j
 interaction_type: "gaussian" # do not change this in this yaml
 sigma_0: 0.5
 omega: 1.0 # do not change this in this yaml

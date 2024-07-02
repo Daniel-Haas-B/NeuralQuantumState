@@ -3,7 +3,6 @@ import nqs.models as mods
 
 def wf_factory(wf_type, **kwargs):
     wf_type = wf_type.lower() if isinstance(wf_type, str) else wf_type
-
     match wf_type:
         case "rbm":
             return mods.RBM(**kwargs)

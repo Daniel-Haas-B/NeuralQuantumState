@@ -1,0 +1,89 @@
+Error: Energy is too high or too low: -100034.078125. Stopping training for n_particles: 6 and omega: 0.1 and nqs_type: vmc
+Error: Energy is too high or too low: -7.153956133352453e+19. Stopping training for n_particles: 6 and omega: 0.1 and nqs_type: vmc
+Error: invalid literal for int() with base 10: 'inf' for n_particles: 2 and omega: 1.0 and nqs_type: dsffn
+Error: unsupported operand type(s) for /: 'int' and 'str' for n_particles: 2 and omega: 1.0 and nqs_type: dsffn
+Error: unsupported operand type(s) for /: 'int' and 'str' for n_particles: 2 and omega: 1.0 and nqs_type: dsffn
+Error: unsupported operand type(s) for /: 'int' and 'str' for n_particles: 2 and omega: 1.0 and nqs_type: dsffn
+Error: integer division or modulo by zero for n_particles: 2 and omega: 1.0 and nqs_type: dsffn
+Error: Energy is too high or too low: -2328980992.0. Stopping training for n_particles: 2 and omega: 1.0 and nqs_type: dsffn
+Error: Energy is too high or too low: -4857469.0. Stopping training for n_particles: 2 and omega: 0.5 and nqs_type: dsffn
+Error: Energy is too high or too low: 613861248.0. Stopping training for n_particles: 2 and omega: 0.28 and nqs_type: dsffn
+Error: Energy is too high or too low: 8264806.0. Stopping training for n_particles: 2 and omega: 0.28 and nqs_type: dsffn
+Error: Energy is too high or too low: 101057.71875. Stopping training for n_particles: 2 and omega: 0.28 and nqs_type: dsffn
+Error: Energy is too high or too low: 101810.4140625. Stopping training for n_particles: 2 and omega: 0.28 and nqs_type: dsffn
+Error: Energy is too high or too low: -6241809.5. Stopping training for n_particles: 2 and omega: 0.1 and nqs_type: dsffn
+Error: Energy is too high or too low: -246125.09375. Stopping training for n_particles: 2 and omega: 0.1 and nqs_type: dsffn
+Error: Energy is too high or too low: -4.266845306998699e+19. Stopping training for n_particles: 2 and omega: 0.28 and nqs_type: dsffn
+Error: Energy is too high or too low: -1441952188858368.0. Stopping training for n_particles: 2 and omega: 0.28 and nqs_type: dsffn
+Error: Energy is too high or too low: -10347494768640.0. Stopping training for n_particles: 2 and omega: 1.0 and nqs_type: dsffn
+Error: Energy is too high or too low: 1216675.0. Stopping training for n_particles: 6 and omega: 1.0 and nqs_type: dsffn
+Error: Energy is too high or too low: -1083804.625. Stopping training for n_particles: 6 and omega: 1.0 and nqs_type: dsffn
+Error: Energy is too high or too low: 755754.625. Stopping training for n_particles: 6 and omega: 1.0 and nqs_type: dsffn
+Error: Energy is too high or too low: 107564.1875. Stopping training for n_particles: 6 and omega: 1.0 and nqs_type: dsffn
+Error: Energy is too high or too low: -823993.8125. Stopping training for n_particles: 6 and omega: 1.0 and nqs_type: dsffn
+Error: Energy is too high or too low: -2.8155257936173513e+21. Stopping training for n_particles: 6 and omega: 1.0 and nqs_type: dsffn
+Error: Energy is too high or too low: -7.013006219350639e+18. Stopping training for n_particles: 6 and omega: 1.0 and nqs_type: dsffn
+Error: SVD did not converge for n_particles: 6 and omega: 1.0 and nqs_type: dsffn
+Error: num layers != num activations +1 for n_particles: 6 and omega: 1.0 and nqs_type: dsffn
+Error: num layers != num activations +1 for n_particles: 6 and omega: 1.0 and nqs_type: dsffn
+Error: SVD did not converge for n_particles: 6 and omega: 1.0 and nqs_type: dsffn
+Error: SVD did not converge for n_particles: 6 and omega: 0.5 and nqs_type: dsffn
+Error: SVD did not converge for n_particles: 6 and omega: 0.5 and nqs_type: dsffn
+Error: SVD did not converge for n_particles: 6 and omega: 0.5 and nqs_type: dsffn
+Error: SVD did not converge for n_particles: 6 and omega: 0.5 and nqs_type: dsffn
+Error: SVD did not converge for n_particles: 6 and omega: 0.5 and nqs_type: dsffn
+Error: SVD did not converge for n_particles: 6 and omega: 0.5 and nqs_type: dsffn
+Error: SVD did not converge for n_particles: 6 and omega: 0.5 and nqs_type: dsffn
+Error: SVD did not converge for n_particles: 6 and omega: 0.5 and nqs_type: dsffn
+Error: SVD did not converge for n_particles: 6 and omega: 0.5 and nqs_type: dsffn
+Error: SVD did not converge for n_particles: 6 and omega: 1.0 and nqs_type: dsffn
+Error: SVD did not converge for n_particles: 6 and omega: 1.0 and nqs_type: dsffn
+Error: SVD did not converge for n_particles: 2 and omega: 1.0 and nqs_type: dsffn
+Error: Energy is too high or too low: 1352627.75. Stopping training for n_particles: 6 and omega: 1.0 and nqs_type: dsffn
+Error: Energy is too high or too low: -9.94876502739549e+23. Stopping training for n_particles: 6 and omega: 1.0 and nqs_type: dsffn
+Error: Energy is too high or too low: -141183.484375. Stopping training for n_particles: 6 and omega: 0.28 and nqs_type: dsffn
+Error: Energy is too high or too low: -499295.1875. Stopping training for n_particles: 6 and omega: 0.5 and nqs_type: dsffn
+Error: Energy is too high or too low: 214640.3125. Stopping training for n_particles: 6 and omega: 0.28 and nqs_type: dsffn
+Error: Energy is too high or too low: 224192.65625. Stopping training for n_particles: 6 and omega: 0.28 and nqs_type: dsffn
+Error: Energy is too high or too low: -366079.5. Stopping training for n_particles: 6 and omega: 0.28 and nqs_type: dsffn
+Error: Energy is too high or too low: -63219072.0. Stopping training for n_particles: 6 and omega: 0.28 and nqs_type: dsffn
+Error: Energy is too high or too low: -63219072.0. Stopping training for n_particles: 6 and omega: 0.28 and nqs_type: dsffn
+Error: Energy is too high or too low: -63219072.0. Stopping training for n_particles: 6 and omega: 0.28 and nqs_type: dsffn
+Error: Energy is too high or too low: -1.0301882786381824e+16. Stopping training for n_particles: 6 and omega: 0.28 and nqs_type: dsffn
+Error: Energy is too high or too low: -8007203092955136.0. Stopping training for n_particles: 6 and omega: 0.28 and nqs_type: dsffn
+Error: Energy is too high or too low: -63219072.0. Stopping training for n_particles: 6 and omega: 0.28 and nqs_type: dsffn
+Error: Energy is too high or too low: -78674672.0. Stopping training for n_particles: 6 and omega: 0.28 and nqs_type: dsffn
+Error: Energy is too high or too low: -185671.984375. Stopping training for n_particles: 6 and omega: 0.28 and nqs_type: dsffn
+Error: Energy is too high or too low: -63219072.0. Stopping training for n_particles: 6 and omega: 0.28 and nqs_type: dsffn
+Error: Energy is too high or too low: -208935.109375. Stopping training for n_particles: 6 and omega: 0.28 and nqs_type: dsffn
+Error: Energy is too high or too low: -1017506.5625. Stopping training for n_particles: 6 and omega: 0.28 and nqs_type: dsffn
+Error: Energy is too high or too low: -8.328109949662003e+17. Stopping training for n_particles: 6 and omega: 0.28 and nqs_type: dsffn
+Error: Energy is too high or too low: 436283.625. Stopping training for n_particles: 6 and omega: 0.28 and nqs_type: dsffn
+Error: Energy is too high or too low: -396374.65625. Stopping training for n_particles: 6 and omega: 0.28 and nqs_type: dsffn
+Error: Energy is too high or too low: 740921.1875. Stopping training for n_particles: 6 and omega: 0.28 and nqs_type: dsffn
+Error: unsupported operand type(s) for +: 'tuple' and 'ArrayImpl' for n_particles: 6 and omega: 0.28 and nqs_type: dsffn
+Error: Energy is too high or too low: -1275451015168.0. Stopping training for n_particles: 6 and omega: 0.28 and nqs_type: dsffn
+Error: Energy is too high or too low: 620351.875. Stopping training for n_particles: 6 and omega: 0.28 and nqs_type: dsffn
+Error: Energy is too high or too low: 224192.65625. Stopping training for n_particles: 6 and omega: 0.28 and nqs_type: dsffn
+Error: Energy is too high or too low: 224192.65625. Stopping training for n_particles: 6 and omega: 0.28 and nqs_type: dsffn
+Error: Energy is too high or too low: -5286156304384.0. Stopping training for n_particles: 6 and omega: 0.28 and nqs_type: dsffn
+Error: Energy is too high or too low: 141660.71875. Stopping training for n_particles: 6 and omega: 0.28 and nqs_type: dsffn
+Error: Energy is too high or too low: 3448963.75. Stopping training for n_particles: 6 and omega: 0.1 and nqs_type: dsffn
+Error: Energy is too high or too low: -270116.84375. Stopping training for n_particles: 12 and omega: 1.0 and nqs_type: dsffn
+Error: Energy is too high or too low: 143188.953125. Stopping training for n_particles: 12 and omega: 1.0 and nqs_type: dsffn
+Error: Energy is too high or too low: 145882.890625. Stopping training for n_particles: 12 and omega: 1.0 and nqs_type: dsffn
+Error: Energy is too high or too low: 295526.90625. Stopping training for n_particles: 6 and omega: 0.28 and nqs_type: dsffn
+Error: Energy is too high or too low: -4.917095938307658e+21. Stopping training for n_particles: 6 and omega: 0.28 and nqs_type: dsffn
+Error: Energy is too high or too low: -207919.734375. Stopping training for n_particles: 6 and omega: 0.28 and nqs_type: dsffn
+Error: Energy is too high or too low: 163344.6875. Stopping training for n_particles: 6 and omega: 0.28 and nqs_type: dsffn
+Error: Energy is too high or too low: -147186.609375. Stopping training for n_particles: 6 and omega: 0.28 and nqs_type: dsffn
+Error: 'alpha0' for n_particles: 6 and omega: 0.28 and nqs_type: dsffn
+Error: 'alpha0' for n_particles: 6 and omega: 0.28 and nqs_type: dsffn
+Error: 'alpha0' for n_particles: 6 and omega: 0.28 and nqs_type: dsffn
+Error: 'alpha0' for n_particles: 6 and omega: 0.28 and nqs_type: dsffn
+Error: 'alpha0' for n_particles: 6 and omega: 0.28 and nqs_type: dsffn
+Error: 'alpha0' for n_particles: 6 and omega: 0.28 and nqs_type: dsffn
+Error: 'alpha0' for n_particles: 6 and omega: 0.28 and nqs_type: dsffn
+Error: 'alpha0' for n_particles: 6 and omega: 0.28 and nqs_type: dsffn
+Error: num layers != num activations +1 for n_particles: 6 and omega: 0.28 and nqs_type: dsffn
+Error: 'alpha0' for n_particles: 6 and omega: 0.28 and nqs_type: dsffn

@@ -345,13 +345,18 @@ class NQS:
             energies = np.clip(energies, lower_bound, upper_bound)
             # comput expval_energy again
             expval_energy = np.mean(energies)
-            # if expval_energy < -10000 or expval_energy > 10000:
-            #     raise ValueError(
-            #         f"Energy is too high or too low: {expval_energy}. Stopping training"
-            #     )
+            if expval_energy < -100000 or expval_energy > 100000:
+                # FIX: TEMPORARY AVERTING THE PROBLEM
+                print(
+                    f"Energy is too high or too low: {expval_energy}. Should Stopping training"
+                )
             std_energy = np.std(energies)
             if self._agent:
                 self._agent.log({"energy": expval_energy}, step=epoch)
+                self._agent.log(
+                    {"energy_minus_e0": np.abs(expval_energy - (self.N**2) / 2)},
+                    step=epoch,
+                )
                 self._agent.log({"std": std_energy}, step=epoch)
                 self._agent.log({"acc": current_acc}, step=epoch)
 
@@ -527,8 +532,6 @@ class NQS:
 
         return self._results
 
-        return sample_results
-
     def pretrain(self, model, max_iter, batch_size, args=None, **kwargs):
         """
         Pretrain the wave function using a specified model. This is typically used to initialize the wave function parameters to sensible values before the main training phase.
@@ -561,7 +564,7 @@ class NQS:
             if str(args["correlation"]).lower() == "j":
                 WJ_params = self.wf.params.get("WJ")
             elif str(args["correlation"]).lower() == "pj":
-                WPJ_params = self.wf.params.get("WPJ")
+                CPJ_params = self.wf.params.get("CPJ")
             elif args["correlation"] is not None:
                 if args["correlation"].lower() != "none":
                     raise ValueError(
@@ -572,7 +575,7 @@ class NQS:
 
         pre_system.set_optimizer(
             optimizer="adam",
-            eta=0.1,
+            eta=0.02,
             gamma=0,
             beta1=0.9,
             beta2=0.999,
@@ -582,7 +585,7 @@ class NQS:
         params = pre_system.pretrain(
             max_iter=max_iter,
             batch_size=batch_size,
-            seed=self._seed * 2,
+            seed=self._seed * 3,
             history=False,
             pretrain_sampler=False,  # there is no true for now
             pretrain_jastrow=False,  # there is no true for now
@@ -592,4 +595,4 @@ class NQS:
         if str(args["correlation"]).lower() == "j":
             self.wf.params.set("WJ", WJ_params)
         elif str(args["correlation"]).lower() == "pj":
-            self.wf.params.set("WPJ", WPJ_params)
+            self.wf.params.set("CPJ", CPJ_params)

@@ -140,7 +140,6 @@ class Gaussian:
             raise errors.NotTrained(msg)
 
     def _check_logger(self):
-
         if not isinstance(self.logger_level, str):
             raise TypeError("'logger_level' must be passed as str")
 
@@ -174,8 +173,10 @@ class Gaussian:
         self._history.update({key: [] for key in param_keys}) if self._history else None
 
         epoch = 0
+        omega = kwargs.get("omega", 1.0)
         loss_func = lambda x, param: self.jaxmse(  # noqa
-            self.wf.logprob_closure_pretrain(x, param), self.multivar_gaussian_pdf(x)
+            self.wf.logprob_closure_pretrain(x, param),
+            self.multivar_gaussian_pdf(x, omega),
         )
         # self.state = self.wf.state
         for _ in t_range:
@@ -232,7 +233,7 @@ class Gaussian:
 
         return self.wf.params
 
-    def multivar_gaussian_pdf(self, x):
+    def multivar_gaussian_pdf(self, x, omega=1.0):
         """
         Given an input, it outputs the probability density function of a multivariate Gaussian.
         DISCLAIMER: we are in log domain, so we return the log of the pdf.
@@ -243,7 +244,7 @@ class Gaussian:
         """
         means = self.backend.zeros(self.N * self.dim)
 
-        covariance = self.backend.eye(self.dim * self.N)
+        covariance = self.backend.eye(self.dim * self.N) * omega
         x_minus_mean = x - means
         inv_cov = covariance  # self.la.inv(covariance)
 

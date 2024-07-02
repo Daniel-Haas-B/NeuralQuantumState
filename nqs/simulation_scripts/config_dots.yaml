@@ -3,29 +3,29 @@ nparticles: 2 # 6, 10, 12, 20
 dim: 2 # do not change this in this yaml
 nsamples: 4096 # 2^12
 nchains: 1
-eta: 0.001
-training_cycles: 1000
+eta: 0.002
+training_cycles: 600
 mcmc_alg: "m"
 optimizer: "adam"
-batch_size: 500
+batch_size: 1000
 detailed: true
-nqs_type: "vmc"
+nqs_type: "dsffn"
 backend: "jax"
 seed: 42
 save_positions: false
 particle: "fermion_dots"
-correlation: "j"
+correlation: "none"
 interaction_type: "none" # "coulomb" or "none" or "coulomb_gradual" 
-r0_reg: 200 # larger makes change faster. Smaller is more gradual. Range should be from 1 to 5 kinda. This will only make sense if coulomb_gradual is chosen.
-latent_dim: 10
-omega: 1.0 # 0.1, 1/6, 0.28, 0.5, 1.0
-pretrain: false
+r0_reg: 3 # larger makes change faster. Smaller is more gradual. Range should be from 1 to 5 kinda. This will only make sense if coulomb_gradual is chosen.
+latent_dim: 7
+omega: 1.0 # 1/6, 0.28, 0.5, 1.0
+pretrain: True
 base_layer_sizes:
   dsffn:
-    S0: [14, 9, 7, 5, 3]
-    S1: [7, 5, 3, 1] # first node is latent dim, last node always 1
+    S0: [9, 7, 5, 3]
+    S1: [3, 1] # first node is latent dim, last node always 1
 activations:
   dsffn: 
-    S0: ["gelu", "elu", "gelu", "elu", "gelu", "elu"]
-    S1: ["gelu", "elu", "gelu", "linear"]
+    S0: ["gelu","gelu", "gelu", "gelu", "gelu"]
+    S1: ["gelu", "linear"]
 nhidden: 6

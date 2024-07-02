@@ -204,5 +204,4 @@ class HarmonicOscillator(Hamiltonian):
 
         r = r.reshape(1, -1)  # check this for VMC
         F = 2 * wf.grad_wf(r)
-
         return F.squeeze()  # remove the first axis

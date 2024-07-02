@@ -5,7 +5,7 @@ import pstats  # noqa
 
 import jax
 import numpy as np
-import pandas as pd
+import pandas as pd  # noqa
 import wandb
 import yaml
 
@@ -107,15 +107,12 @@ def run_experiment(config):
             else 0.1 / np.sqrt(config["nparticles"])
         ),
     )
-    print("running v0", config["v_0"])
     print("running nqs", config["nqs_type"])
 
     system.set_hamiltonian(
         type_="ho",
         int_type=config["interaction_type"],
-        sigma_0=config["sigma_0"],
         omega=config["omega"],  # needs to be fixed to 1 to compare to drissi et al
-        v_0=config["v_0"],
         r0_reg=config["r0_reg"],
         training_cycles=config["training_cycles"],
     )
@@ -160,7 +157,7 @@ def run_experiment(config):
         system = pretrain(
             system,
             max_iter=1000,
-            batch_size=500,
+            batch_size=1000,
             args=common_kwargs,
         )
 
@@ -182,93 +179,187 @@ def run_experiment(config):
     # else:
     #     df_hist.to_csv(config["output_filename"] + f"energies_and_stds_v0_{config['v_0']}.csv", mode='a', header=False, index=False)
 
-    df_all = system.sample(
-        config["nsamples"],
-        config["nchains"],
-        config["seed"],
-        save_positions=False,
-        foldername=config["output_filename"],
-    )
+    # df_all = system.sample(
+    #     config["nsamples"],
+    #     config["nchains"],
+    #     config["seed"],
+    #     save_positions=False,
+    #     foldername=config["output_filename"],
+    # )
 
-    # Mean values
-    accept_rate_mean = df_all["accept_rate"].mean()
+    # # Mean values
+    # accept_rate_mean = df_all["accept_rate"].mean()
 
-    # Combined standard error of the mean for energy
-    means = df_all["energy"]
-    std_errors = df_all["std_error"]
+    # # Combined standard error of the mean for energy
+    # E_means = df_all["E_energy"]
+    # E_std_errors = df_all["E_std_error"]
+    # E_variances = E_std_errors**2
+    # E_weights = 1 / E_variances
+    # E_combined_mean = np.sum(E_weights * E_means) / np.sum(E_weights)
+    # E_combined_variance = 1 / np.sum(E_weights)
+    # E_combined_std_error = np.sqrt(E_combined_variance)
 
-    # Calculate variances from standard errors
-    variances = std_errors**2
+    # # Combined standard error of the mean for kinetic energy
+    # K_means = df_all["K_energy"]
+    # K_std_errors = df_all["K_std_error"]
+    # K_variances = K_std_errors**2
+    # K_weights = 1 / K_variances
+    # K_combined_mean = np.sum(K_weights * K_means) / np.sum(K_weights)
+    # K_combined_variance = 1 / np.sum(K_weights)
+    # K_combined_std_error = np.sqrt(K_combined_variance)
 
-    weights = 1 / variances
-    combined_mean = np.sum(weights * means) / np.sum(weights)
+    # # Combined standard error of the mean for potential energy (trap)
+    # PE_trap_means = df_all["PE_trap_energy"]
+    # PE_trap_std_errors = df_all["PE_trap_std_error"]
+    # PE_trap_variances = PE_trap_std_errors**2
+    # PE_trap_weights = 1 / PE_trap_variances
+    # PE_trap_combined_mean = np.sum(PE_trap_weights * PE_trap_means) / np.sum(
+    #     PE_trap_weights
+    # )
+    # PE_trap_combined_variance = 1 / np.sum(PE_trap_weights)
+    # PE_trap_combined_std_error = np.sqrt(PE_trap_combined_variance)
 
-    # Compute combined variance
-    combined_variance = 1 / np.sum(weights)
+    # # Combined standard error of the mean for potential energy (int)
+    # PE_int_means = df_all["PE_int_energy"]
+    # PE_int_std_errors = df_all["PE_int_std_error"]
+    # PE_int_variances = PE_int_std_errors**2
+    # PE_int_weights = 1 / PE_int_variances
+    # PE_int_combined_mean = np.sum(PE_int_weights * PE_int_means) / np.sum(
+    #     PE_int_weights
+    # )
+    # PE_int_combined_variance = 1 / np.sum(PE_int_weights)
+    # PE_int_combined_std_error = np.sqrt(PE_int_combined_variance)
 
-    # Compute combined standard error
-    combined_std_error = np.sqrt(combined_variance)
+    # # Construct the combined DataFrame
+    # combined_data = {
+    #     "E_energy": [E_combined_mean],
+    #     "E_std_error": [E_combined_std_error],
+    #     "E_variance": [np.mean(df_all["E_variance"])],
+    #     "K_energy": [K_combined_mean],
+    #     "K_std_error": [K_combined_std_error],
+    #     "PE_trap_energy": [PE_trap_combined_mean],
+    #     "PE_trap_std_error": [PE_trap_combined_std_error],
+    #     "PE_int_energy": [PE_int_combined_mean],
+    #     "PE_int_std_error": [PE_int_combined_std_error],
+    #     "accept_rate": [accept_rate_mean],
+    #     "omega": [config["omega"]],
+    #     "pretrain": [config["pretrain"]],
+    #     "r0_reg": [config["r0_reg"]],
+    #     "correration": [config["correlation"]],
+    #     "optimizer": [config["optimizer"]],
+    # }
 
-    # Construct the combined DataFrame
-    combined_data = {
-        "energy": [combined_mean],
-        "std_error": [combined_std_error],
-        "variance": [np.mean(df_all["variance"])],
-        "accept_rate": [accept_rate_mean],
-        "omega": [config["omega"]],
-        "pretrain": [config["pretrain"]],
-        "correration": [config["correlation"]],
-        "optimizer": [config["optimizer"]],
-    }
+    # df_mean = pd.DataFrame(combined_data)
 
-    df_mean = pd.DataFrame(combined_data)
-    final_energy = df_mean["energy"].values[0]
-    final_error = df_mean["std_error"].values[0]
-    error_str = f"{final_error:.0e}"
-    error_scale = int(error_str.split("e")[-1])
-    energy_decimal_places = -error_scale
+    # final_E_energy = df_mean["E_energy"].values[0]
+    # final_K_energy = df_mean["K_energy"].values[0]
+    # final_PE_trap_energy = df_mean["PE_trap_energy"].values[0]
+    # final_PE_int_energy = df_mean["PE_int_energy"].values[0]
+    # final_E_error = df_mean["E_std_error"].values[0]
+    # final_K_error = df_mean["K_std_error"].values[0]
+    # final_PE_trap_error = df_mean["PE_trap_std_error"].values[0]
+    # final_PE_int_error = df_mean["PE_int_std_error"].values[0]
+    # # convert any NaN to 0
+    # final_E_error = 0 if np.isnan(final_E_error) else final_E_error
+    # final_K_error = 0 if np.isnan(final_K_error) else final_K_error
+    # final_PE_trap_error = 0 if np.isnan(final_PE_trap_error) else final_PE_trap_error
+    # final_PE_int_error = 0 if np.isnan(final_PE_int_error) else final_PE_int_error
+    # final_E_energy = 0 if np.isnan(final_E_energy) else final_E_energy
+    # final_K_energy = 0 if np.isnan(final_K_energy) else final_K_energy
+    # final_PE_trap_energy = 0 if np.isnan(final_PE_trap_energy) else final_PE_trap_energy
+    # final_PE_int_energy = 0 if np.isnan(final_PE_int_energy) else final_PE_int_energy
 
-    # Format energy to match the precision required by the error
-    if energy_decimal_places > 0:
-        energy_str = f"{final_energy:.{energy_decimal_places}f}"
-    else:
-        energy_str = f"{int(final_energy)}"
+    # E_error_str = f"{final_E_error:.0e}"
+    # K_error_str = f"{final_K_error:.0e}"
+    # PE_trap_error_str = f"{final_PE_trap_error:.0e}"
+    # PE_int_error_str = f"{final_PE_int_error:.0e}"
 
-    # Get the first digit of the error for the parenthesis notation
-    error_first_digit = error_str[0]
+    # E_error_scale = int(E_error_str.split("e")[-1])
+    # K_error_scale = int(K_error_str.split("e")[-1])
+    # PE_trap_error_scale = int(PE_trap_error_str.split("e")[-1])
+    # PE_int_error_scale = int(PE_int_error_str.split("e")[-1])
 
-    # Remove trailing decimal point if it exists after formatting
-    if energy_str[-1] == ".":
-        energy_str = energy_str[:-1]
+    # E_energy_decimal_places = -E_error_scale
+    # K_energy_decimal_places = -K_error_scale
+    # PE_trap_energy_decimal_places = -PE_trap_error_scale
+    # PE_int_energy_decimal_places = -PE_int_error_scale
 
-    formatted_energy = f"{energy_str}({error_first_digit})"
-    df_mean["energy(error)"] = formatted_energy
+    # # Format energy to match the precision required by the error
+    # if E_energy_decimal_places > 0:
+    #     E_energy_str = f"{final_E_energy:.{E_energy_decimal_places}f}"
+    # else:
+    #     E_energy_str = f"{int(final_E_energy)}"
 
-    df_mean[
-        [
-            "nqs_type",
-            "n_particles",
-            "dim",
-            "batch_size",
-            "eta",
-            "training_cycles",
-            "nsamples",
-            "Opti",
-            "particle",
-        ]
-    ] = [
-        config["nqs_type"],
-        config["nparticles"],
-        config["dim"],
-        config["batch_size"],
-        config["eta"] / np.sqrt(config["nparticles"] * config["dim"]),
-        config["training_cycles"],
-        config["nchains"] * config["nsamples"],
-        config["optimizer"],
-        config["particle"],
-    ]
+    # if K_energy_decimal_places > 0:
+    #     K_energy_str = f"{final_K_energy:.{K_energy_decimal_places}f}"
+    # else:
+    #     K_energy_str = f"{int(final_K_energy)}"
 
-    print(df_mean)
+    # if PE_trap_energy_decimal_places > 0:
+    #     PE_trap_energy_str = f"{final_PE_trap_energy:.{PE_trap_energy_decimal_places}f}"
+    # else:
+    #     PE_trap_energy_str = f"{int(final_PE_trap_energy)}"
+
+    # if PE_int_energy_decimal_places > 0:
+    #     PE_int_energy_str = f"{final_PE_int_energy:.{PE_int_energy_decimal_places}f}"
+    # else:
+    #     PE_int_energy_str = f"{int(final_PE_int_energy)}"
+
+    # # Get the first digit of the error for the parenthesis notation
+    # E_error_first_digit = E_error_str[0]
+    # K_error_first_digit = K_error_str[0]
+    # PE_trap_error_first_digit = PE_trap_error_str[0]
+    # PE_int_error_first_digit = PE_int_error_str[0]
+
+    # # Remove trailing decimal point if it exists after formatting
+    # if E_energy_str[-1] == ".":
+    #     E_energy_str = E_energy_str[:-1]
+    # if K_energy_str[-1] == ".":
+    #     K_energy_str = K_energy_str[:-1]
+    # if PE_trap_energy_str[-1] == ".":
+    #     PE_trap_energy_str = PE_trap_energy_str[:-1]
+    # if PE_int_energy_str[-1] == ".":
+    #     PE_int_energy_str = PE_int_energy_str[:-1]
+
+    # formated_E_energy = f"{E_energy_str}({E_error_first_digit})"
+    # formated_K_energy = f"{K_energy_str}({K_error_first_digit})"
+    # formated_PE_trap_energy = f"{PE_trap_energy_str}({PE_trap_error_first_digit})"
+    # formated_PE_int_energy = f"{PE_int_energy_str}({PE_int_error_first_digit})"
+
+    # df_mean["E_energy(error)"] = formated_E_energy
+    # df_mean["K_energy(error)"] = formated_K_energy
+    # df_mean["PE_trap_energy(error)"] = formated_PE_trap_energy
+    # df_mean["PE_int_energy(error)"] = formated_PE_int_energy
+
+    # df_mean[
+    #     [
+    #         "nqs_type",
+    #         "n_particles",
+    #         "dim",
+    #         "batch_size",
+    #         "eta",
+    #         "training_cycles",
+    #         "nsamples",
+    #         "Opti",
+    #         "particle",
+    #         "time_train",
+    #         "time_sample",
+    #     ]
+    # ] = [
+    #     config["nqs_type"],
+    #     config["nparticles"],
+    #     config["dim"],
+    #     config["batch_size"],
+    #     config["eta"] / np.sqrt(config["nparticles"] * config["dim"]),
+    #     config["training_cycles"],
+    #     config["nchains"] * config["nsamples"],
+    #     config["optimizer"],
+    #     config["particle"],
+    #     time_train,
+    #     time_sample,
+    # ]
+
+    # print(df_mean)
 
     # if config["save_positions"]:
     #     chain_id = 0
@@ -282,7 +373,6 @@ def run_experiment(config):
 
 
 def pretrain(system, max_iter, batch_size, args):
-    print("Pretraining with GAUSSIAN model first")
     if system.nqs_type == "ffnn" or system.nqs_type == "dsffn":
         system.pretrain(
             model="Gaussian",
@@ -292,7 +382,7 @@ def pretrain(system, max_iter, batch_size, args):
             args=args,
         )
 
-    if config["interaction_type"].lower() != "none":  # pretrain with v_0 = 0
+    if config["interaction_type"].lower() != "none":
         print("Pretraining with noninteracting model first")
         system.set_hamiltonian(
             type_="ho",
@@ -345,5 +435,8 @@ if __name__ == "__main__":
     #     os.remove(f'{config["output_filename"]}final_results_{config["v_0"]}.csv')
     # if os.path.exists(f'{config["output_filename"]}energies_and_stds_{config["v_0"]}.csv'):
     #     os.remove(f'{config["output_filename"]}energies_and_stds_{config["v_0"]}.csv')
-
-    run_experiment(config)
+    try:
+        run_experiment(config)
+    except Exception as e:
+        print("failled to run experiment")
+        print(e)

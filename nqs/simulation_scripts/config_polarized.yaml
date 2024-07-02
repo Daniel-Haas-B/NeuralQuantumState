@@ -1,25 +1,25 @@
 output_filename: "/Users/orpheus/Documents/Masters/NeuralQuantumState/data/fermion_polarized/"
-nparticles: 6
+nparticles: 2
 dim: 1 # do not change this in this yaml
-nsamples: 131072 #2097152 #16777216 # 2^18
+nsamples: 2048 #2097152 #2097152 #16777216 # 2^18
 nchains: 8 # disclaimer! see if deepset will also be fast with 8 chains
-eta: 0.001 #02467038091177851 #0.008
-training_cycles: 600
+eta: 0.00001 #02467038091177851 #0.008
+training_cycles: 1500
 mcmc_alg: "m"
 optimizer: "sr"
-batch_size: 300
+batch_size: 1000
 detailed: true
-nqs_type: "rbm"
+nqs_type: "vmc"
 backend: "jax"
 seed: 42
 save_positions: False
 particle: "fermion_polarized" # do not change this in this yaml
-correlation: "j" # None or j or pj
+correlation: "none" # None or j or pj
 interaction_type: "gaussian" # do not change this in this yaml
 
 sigma_0: 0.5
 omega: 1.0 # do not change this in this yaml
-v_0: 20
+v_0: 0
 pretrain: True
 latent_dim: 10
 base_layer_sizes:

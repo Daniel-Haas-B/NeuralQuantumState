@@ -191,7 +191,7 @@ class Sampler:
         Returns:
             tuple: A tuple containing the sampling results and energies.
         """
-        batch_size = int(nsamples) // 256
+        batch_size = int(nsamples) // 65536
 
         # Function to ensure data has correct shape
         def ensure_array(data):

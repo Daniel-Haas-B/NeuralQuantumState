@@ -191,7 +191,7 @@ class Sampler:
         Returns:
             tuple: A tuple containing the sampling results and energies.
         """
-        batch_size = int(nsamples) // 256
+        batch_size = int(nsamples) // 65536
 
         # Function to ensure data has correct shape
         def ensure_array(data):
@@ -225,7 +225,7 @@ class Sampler:
             batch_state = self._step(wf, batch_state, seed, batch_size=batch_size)
             positions = batch_state.positions
 
-            signs = batch_state.signs
+            # signs = batch_state.signs
             # print(f"positions.shape: {positions.shape}")
             # print("signs shape", signs.shape)
             ke = self.hamiltonian.local_kinetic_energy(wf, positions)
@@ -258,15 +258,15 @@ class Sampler:
                             chunks=True,
                             maxshape=(None, positions.shape[1]),
                         )
-                        f1.create_dataset(
-                            "signs",
-                            data=signs[
-                                :, None
-                            ],  # Add a new axis to signs to match the shape (65536, 1)
-                            compression="gzip",
-                            chunks=True,
-                            maxshape=(None, 1),
-                        )
+                        # f1.create_dataset(
+                        #     "signs",
+                        #     data=signs[
+                        #         :, None
+                        #     ],  # Add a new axis to signs to match the shape (65536, 1)
+                        #     compression="gzip",
+                        #     chunks=True,
+                        #     maxshape=(None, 1),
+                        # )
                 else:
                     for energy_type, data in energies.items():
                         f1[energy_type].resize(
@@ -279,10 +279,10 @@ class Sampler:
                             (f1["positions"].shape[0] + positions.shape[0]), axis=0
                         )
                         f1["positions"][-positions.shape[0] :] = positions
-                        f1["signs"].resize(
-                            (f1["signs"].shape[0] + signs.shape[0]), axis=0
-                        )
-                        f1["signs"][-signs.shape[0] :] = signs[:, None]  #
+                        # f1["signs"].resize(
+                        #     (f1["signs"].shape[0] + signs.shape[0]), axis=0
+                        # )
+                        # f1["signs"][-signs.shape[0] :] = signs[:, None]  #
 
         if self._logger is not None:
             t_range.clear()

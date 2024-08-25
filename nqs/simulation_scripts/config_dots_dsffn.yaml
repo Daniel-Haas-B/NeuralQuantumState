@@ -1,0 +1,229 @@
+output_filename: "/Users/orpheus/Documents/Masters/NeuralQuantumState/data/fermion_dots/"
+nparticles: 2 # 6, 10, 12, 20
+dim: 2 # do not change this in this yaml
+nsamples: 2097152 #1048576 # 2^12
+nchains: 8
+eta: 0.01
+training_cycles: 3000 # dont touch this
+mcmc_alg: "m"
+optimizer: "sr"
+batch_size: 1000 # try adam with coulomb instead of gradual
+detailed: true
+nqs_type: "dsffn"
+backend: "jax"
+seed: 42
+save_positions: true
+particle: "fermion_dots"
+correlation: "pj"
+interaction_type: "coulomb_gradual" # "coulomb" or "none" or "coulomb_gradual" 
+r0_reg: 3 # larger makes change faster. Smaller is more gradual. Range should be from 1 to 5 kinda. This will only make sense if coulomb_gradual is chosen.
+latent_dim: 2
+omega: 1.0 # 1/6, 0.28, 0.5, 1.0
+pretrain: true
+base_layer_sizes:
+  dsffn:
+    S0: [14, 9, 7, 5, 3]
+    S1: [7, 5, 3, 1] # first node is latent dim, last node always 1
+activations:
+  dsffn: 
+    S0: ["gelu", "elu", "gelu", "elu", "gelu", "elu"]
+    S1: ["gelu", "elu", "gelu", "linear"]
+nhidden: 6
+architectures:
+  arch1:
+    activations:
+      dsffn:
+        S0:
+          - gelu
+          - elu
+          - gelu
+          - elu
+          - gelu
+        S1:
+          - gelu
+          - elu
+          - linear
+    base_layer_sizes:
+      dsffn:
+        S0:
+          - 7
+          - 7
+          - 5
+          - 3
+        S1:
+          - 3
+          - 3
+          - 1
+  arch2:
+    activations:
+      dsffn:
+        S0:
+          - gelu
+          - gelu
+          - gelu
+          - gelu
+          - gelu
+        S1:
+          - gelu
+          - gelu
+          - gelu
+          - linear
+    base_layer_sizes:
+      dsffn:
+        S0:
+          - 10
+          - 7
+          - 5
+          - 3
+        S1:
+          - 6
+          - 4
+          - 2
+          - 1
+  arch3:
+    activations:
+      dsffn:
+        S0:
+          - gelu
+          - gelu
+          - gelu
+          - gelu
+        S1:
+          - gelu
+          - gelu
+          - gelu
+          - linear
+    base_layer_sizes:
+      dsffn:
+        S0:
+          - 8
+          - 6
+          - 4
+        S1:
+          - 4
+          - 2
+          - 1
+  arch4:
+    activations:
+      dsffn:
+        S0:
+          - gelu
+          - gelu
+          - gelu
+          - gelu
+          - gelu
+        S1:
+          - gelu
+          - gelu
+          - linear
+    base_layer_sizes:
+      dsffn:
+        S0:
+          - 9
+          - 7
+          - 5
+          - 3
+        S1:
+          - 5
+          - 3
+          - 1
+  arch5:
+    activations:
+      dsffn:
+        S0:
+          - gelu
+          - gelu
+          - gelu
+          - gelu
+          - gelu
+        S1:
+          - gelu
+          - gelu
+          - linear
+    base_layer_sizes:
+      dsffn:
+        S0:
+          - 14
+          - 9
+          - 7
+          - 5
+        S1:
+          - 5
+          - 3
+          - 1
+  arch6:
+    activations:
+      dsffn:
+        S0:
+          - gelu
+          - gelu
+          - gelu
+        S1:
+          - gelu
+          - gelu
+          - linear
+    base_layer_sizes:
+      dsffn:
+        S0:
+          - 6
+          - 4
+        S1:
+          - 3
+          - 2
+          - 1
+  arch7:
+    activations:
+      dsffn:
+        S0:
+          - gelu
+          - gelu
+          - gelu
+          - gelu
+        S1:
+          - gelu
+          - linear
+    base_layer_sizes:
+      dsffn:
+        S0:
+          - 9
+          - 7
+          - 5
+        S1:
+          - 4
+          - 1
+  arch8:
+    activations:
+      dsffn:
+        S0:
+          - gelu
+          - gelu
+          - gelu
+        S1:
+          - gelu
+          - linear
+    base_layer_sizes:
+      dsffn:
+        S0:
+          - 9
+          - 6
+        S1:
+          - 3
+          - 1
+  arch10:
+    activations:
+      dsffn:
+        S0:
+          - gelu
+          - gelu
+          - gelu
+        S1:
+          - gelu
+          - linear
+    base_layer_sizes:
+      dsffn:
+        S0:
+          - 4
+          - 3
+        S1:
+          - 2
+          - 1

@@ -1,0 +1,52 @@
+[32mINFO:NQS     [0m [35mUsing particle fermion_polarized[0m
+[32mINFO:NQS     [0m [35mUsing correlation factor none[0m
+[32mINFO:NQS     [0m [35mNeural Network Quantum State initialized with particle fermion_polarized as Deepset.[0m
+[32mINFO:Gaussian[0m [35mUsing particle fermion_polarized[0m
+[32mINFO:Gaussian[0m [35mUsing correlation factor none[0m
+[32mINFO:Gaussian[0m [35mNeural Network Quantum State initialized with particle fermion_polarized as Deepset.[0m
+[CpuDevice(id=0)]
+Running experiment with interaction: -20 and n_particles: 2
+layer_sizes {'S0': [1, 9, 7, 5, 3, 10], 'S1': [10, 3, 1]}
+activations {'S0': ['gelu', 'gelu', 'gelu', 'gelu', 'gelu'], 'S1': ['gelu', 'linear']}
+Pretraining with GAUSSIAN model first
+[Pre-training progress]:   0%|[34m          [0m| 0/500 [00:00<?, ?it/s]/Users/orpheus/.pyenv/versions/3.10.12/lib/python3.10/multiprocessing/resource_tracker.py:224: UserWarning: resource_tracker: There appear to be 1 leaked semaphore objects to clean up at shutdown
+  warnings.warn('resource_tracker: There appear to be %d '
+/Users/orpheus/Documents/Masters/NeuralQuantumState/analysis/plots_fermiondots.py:773: RuntimeWarning: More than 20 figures have been opened. Figures created through the pyplot interface (`matplotlib.pyplot.figure`) are retained until explicitly closed and may consume too much memory. (To control this warning, see the rcParam `figure.max_open_warning`). Consider using `matplotlib.pyplot.close()`.
+  fig, ax = plt.subplots(figsize=(5, 5))
+/Users/orpheus/Documents/Masters/NeuralQuantumState/analysis/plots_fermiondots.py:773: RuntimeWarning: More than 20 figures have been opened. Figures created through the pyplot interface (`matplotlib.pyplot.figure`) are retained until explicitly closed and may consume too much memory. (To control this warning, see the rcParam `figure.max_open_warning`). Consider using `matplotlib.pyplot.close()`.
+  fig, ax = plt.subplots(figsize=(5, 5))
+Plotting two-body density for N = 20, omega = 0.1
+Saving figure to /Users/orpheus/Documents/Masters/NeuralQuantumState/analysis/figs/fermion_dots/two_body_density_N[20]_nqs_VMC_0.1.pdf
+Plotting two-body density for N = 20, omega = 0.28
+Saving figure to /Users/orpheus/Documents/Masters/NeuralQuantumState/analysis/figs/fermion_dots/two_body_density_N[20]_nqs_VMC_0.28.pdf
+Plotting two-body density for N = 20, omega = 0.5
+Saving figure to /Users/orpheus/Documents/Masters/NeuralQuantumState/analysis/figs/fermion_dots/two_body_density_N[20]_nqs_VMC_0.5.pdf
+Plotting two-body density for N = 20, omega = 1.0
+Saving figure to /Users/orpheus/Documents/Masters/NeuralQuantumState/analysis/figs/fermion_dots/two_body_density_N[20]_nqs_VMC_1.0.pdf
+Plotting two-body density for N = 20, omega = 0.1
+Saving figure to /Users/orpheus/Documents/Masters/NeuralQuantumState/analysis/figs/fermion_dots/two_body_density_N[20]_nqs_RBM_0.1.pdf
+Plotting two-body density for N = 20, omega = 0.28
+Saving figure to /Users/orpheus/Documents/Masters/NeuralQuantumState/analysis/figs/fermion_dots/two_body_density_N[20]_nqs_RBM_0.28.pdf
+Plotting two-body density for N = 20, omega = 0.5
+Saving figure to /Users/orpheus/Documents/Masters/NeuralQuantumState/analysis/figs/fermion_dots/two_body_density_N[20]_nqs_RBM_0.5.pdf
+Plotting two-body density for N = 20, omega = 1.0
+Saving figure to /Users/orpheus/Documents/Masters/NeuralQuantumState/analysis/figs/fermion_dots/two_body_density_N[20]_nqs_RBM_1.0.pdf
+Plotting two-body density for N = 20, omega = 0.1
+Saving figure to /Users/orpheus/Documents/Masters/NeuralQuantumState/analysis/figs/fermion_dots/two_body_density_N[20]_nqs_DSFFN_0.1.pdf
+Plotting two-body density for N = 20, omega = 0.28
+Saving figure to /Users/orpheus/Documents/Masters/NeuralQuantumState/analysis/figs/fermion_dots/two_body_density_N[20]_nqs_DSFFN_0.28.pdf
+Plotting two-body density for N = 20, omega = 0.5
+Saving figure to /Users/orpheus/Documents/Masters/NeuralQuantumState/analysis/figs/fermion_dots/two_body_density_N[20]_nqs_DSFFN_0.5.pdf
+Traceback (most recent call last):
+  File "/Users/orpheus/Documents/Masters/NeuralQuantumState/analysis/plots_fermiondots.py", line 1097, in <module>
+    plot_densities([n_particles], [omega], nqs)
+  File "/Users/orpheus/Documents/Masters/NeuralQuantumState/analysis/plots_fermiondots.py", line 921, in plot_densities
+    positions = np.array(hdf["positions"])
+  File "h5py/_objects.pyx", line 54, in h5py._objects.with_phil.wrapper
+  File "h5py/_objects.pyx", line 55, in h5py._objects.with_phil.wrapper
+  File "/Users/orpheus/Library/Caches/pypoetry/virtualenvs/nqs-sj2KNPxM-py3.10/lib/python3.10/site-packages/h5py/_hl/group.py", line 357, in __getitem__
+    oid = h5o.open(self.id, self._e(name), lapl=self._lapl)
+  File "h5py/_objects.pyx", line 54, in h5py._objects.with_phil.wrapper
+  File "h5py/_objects.pyx", line 55, in h5py._objects.with_phil.wrapper
+  File "h5py/h5o.pyx", line 241, in h5py.h5o.open
+KeyError: "Unable to open object (object 'positions' doesn't exist)"

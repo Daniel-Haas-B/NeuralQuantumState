@@ -29,7 +29,7 @@ def save(filename):
     if filename:
         filename = make_figs_path(filename)
         print(f"Saving figure to {filename}")
-        plt.savefig(filename)
+        plt.savefig(filename, transparent=False)
 
 
 colors = [

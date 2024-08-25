@@ -345,13 +345,18 @@ class NQS:
             energies = np.clip(energies, lower_bound, upper_bound)
             # comput expval_energy again
             expval_energy = np.mean(energies)
-            # if expval_energy < -10000 or expval_energy > 10000:
-            #     raise ValueError(
-            #         f"Energy is too high or too low: {expval_energy}. Stopping training"
-            #     )
+            if expval_energy < -100000 or expval_energy > 100000:
+                # FIX: TEMPORARY AVERTING THE PROBLEM
+                print(
+                    f"Energy is too high or too low: {expval_energy}. Should Stopping training"
+                )
             std_energy = np.std(energies)
             if self._agent:
                 self._agent.log({"energy": expval_energy}, step=epoch)
+                self._agent.log(
+                    {"energy_minus_e0": np.abs(expval_energy - (self.N**2) / 2)},
+                    step=epoch,
+                )
                 self._agent.log({"std": std_energy}, step=epoch)
                 self._agent.log({"acc": current_acc}, step=epoch)
 
@@ -500,7 +505,12 @@ class NQS:
         # }
 
         system_info = pd.DataFrame(system_info, index=[0])
-        foldername += f"/sampler/N{self.N}_V{self.hamiltonian.v_0}"
+        if hasattr(self.hamiltonian, "v_0"):
+            foldername += f"/sampler/N{self.N}_V{self.hamiltonian.v_0}"
+        elif hasattr(self.hamiltonian, "omega"):
+            foldername += f"/sampler/N{self.N}_omega{self.hamiltonian.omega}"
+        else:
+            raise ValueError("No foldername provided")
         sample_results = self._sampler.sample(
             self.wf,
             self.state,
@@ -521,8 +531,6 @@ class NQS:
         self._results = pd.concat([system_info_repeated, sample_results], axis=1)
 
         return self._results
-
-        return sample_results
 
     def pretrain(self, model, max_iter, batch_size, args=None, **kwargs):
         """
@@ -567,7 +575,7 @@ class NQS:
 
         pre_system.set_optimizer(
             optimizer="adam",
-            eta=0.1,
+            eta=0.02,
             gamma=0,
             beta1=0.9,
             beta2=0.999,
@@ -577,7 +585,7 @@ class NQS:
         params = pre_system.pretrain(
             max_iter=max_iter,
             batch_size=batch_size,
-            seed=self._seed * 2,
+            seed=self._seed * 3,
             history=False,
             pretrain_sampler=False,  # there is no true for now
             pretrain_jastrow=False,  # there is no true for now

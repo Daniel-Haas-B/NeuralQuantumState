@@ -18,7 +18,7 @@ class Gd(Optimizer):
         self.v = {key: np.zeros_like(params.get(key)) for key in self._param_keys}
         self.gamma = gamma
 
-    def step(self, params, grad_params_E, sr_matrices=None):
+    def step(self, params, grad_params_E):
         """Update the parameters"""
 
         for key, grad in grad_params_E.items():

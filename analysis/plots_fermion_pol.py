@@ -391,7 +391,13 @@ def energy_convergence_loop_side_by_side(v0_values, n_particles=2):
 
             # Extract energies and standard errors
             energies = filtered_df["energy"]
-            stds = z * filtered_df["std_error"] / np.sqrt(filtered_df["batch_size"])
+            std = filtered_df["std_error"]
+
+            # get rolling mean
+            energies = energies.rolling(window=10).mean()
+            std = std.rolling(window=10).mean()
+
+            stds = z * std / np.sqrt(filtered_df["batch_size"])
 
             # Reset index for plotting
             energies = energies.reset_index(drop=True)
@@ -402,7 +408,11 @@ def energy_convergence_loop_side_by_side(v0_values, n_particles=2):
 
             # Add shaded area for the std error
             ax.fill_between(
-                energies.index, stds_minus, stds_plus, alpha=0.1, color="purple"
+                energies.index,
+                stds_minus,
+                stds_plus,
+                alpha=0.2,
+                color=color_map[nqs_type],
             )
 
             # Plot energies
@@ -516,7 +526,13 @@ def energy_convergence_loop_side_by_side_jastrow(v0_values, n_particles=2):
 
             # Extract energies and standard errors
             energies = filtered_df["energy"]
+            # get rolling mean
+            energies = energies.rolling(window=10).mean()
+
             stds = z * filtered_df["std_error"] / np.sqrt(filtered_df["batch_size"])
+
+            # get rolling mean
+            stds = stds.rolling(window=10).mean()
 
             # Reset index for plotting
             energies = energies.reset_index(drop=True)
@@ -530,7 +546,7 @@ def energy_convergence_loop_side_by_side_jastrow(v0_values, n_particles=2):
                 energies.index,
                 stds_minus,
                 stds_plus,
-                alpha=0.1,
+                alpha=0.2,
                 color=color_map[correlation],
             )
 
@@ -967,6 +983,7 @@ def plot_lmh_vs_m(
     data_pth="/Users/orpheus/Documents/Masters/NeuralQuantumState/data/fermion_polarized/vmc_complete_metadata.csv",
 ):
     df_m_20 = pd.read_csv(DATA_PATH + "/v_20_vmc_m_all_N.csv")
+
     df_lmh_20 = pd.read_csv(DATA_PATH + "/v_20_vmc_lmh_all_N.csv")
 
     df_m_minus_20 = pd.read_csv(DATA_PATH + "/v_-20_vmc_m_all_N.csv")
@@ -977,46 +994,143 @@ def plot_lmh_vs_m(
     # Extracting data for plotting
     steps_m_20 = df_m_20["Step"]
     energy_m_20_n2 = df_m_20["nparticles: 2 - energy"].rolling(window=20).mean()
+    min_energy_m_20_n2 = (
+        df_m_20["nparticles: 2 - energy__MIN"].rolling(window=20).mean()
+    )
+    max_energy_m_20_n2 = (
+        df_m_20["nparticles: 2 - energy__MAX"].rolling(window=20).mean()
+    )
     energy_m_20_n4 = df_m_20["nparticles: 4 - energy"].rolling(window=20).mean()
+    min_energy_m_20_n4 = (
+        df_m_20["nparticles: 4 - energy__MIN"].rolling(window=20).mean()
+    )
+    max_energy_m_20_n4 = (
+        df_m_20["nparticles: 4 - energy__MAX"].rolling(window=20).mean()
+    )
     energy_m_20_n6 = df_m_20["nparticles: 6 - energy"].rolling(window=20).mean()
+    min_energy_m_20_n6 = (
+        df_m_20["nparticles: 6 - energy__MIN"].rolling(window=20).mean()
+    )
+    max_energy_m_20_n6 = (
+        df_m_20["nparticles: 6 - energy__MAX"].rolling(window=20).mean()
+    )
     steps_lmh_20 = df_lmh_20["Step"]
     energy_lmh_20_n2 = df_lmh_20["nparticles: 2 - energy"].rolling(window=20).mean()
+    min_energy_lmh_20_n2 = (
+        df_lmh_20["nparticles: 2 - energy__MIN"].rolling(window=20).mean()
+    )
+    max_energy_lmh_20_n2 = (
+        df_lmh_20["nparticles: 2 - energy__MAX"].rolling(window=20).mean()
+    )
     energy_lmh_20_n4 = df_lmh_20["nparticles: 4 - energy"].rolling(window=20).mean()
+    min_energy_lmh_20_n4 = (
+        df_lmh_20["nparticles: 4 - energy__MIN"].rolling(window=20).mean()
+    )
+    max_energy_lmh_20_n4 = (
+        df_lmh_20["nparticles: 4 - energy__MAX"].rolling(window=20).mean()
+    )
     energy_lmh_20_n6 = df_lmh_20["nparticles: 6 - energy"].rolling(window=20).mean()
+    min_energy_lmh_20_n6 = (
+        df_lmh_20["nparticles: 6 - energy__MIN"].rolling(window=20).mean()
+    )
+    max_energy_lmh_20_n6 = (
+        df_lmh_20["nparticles: 6 - energy__MAX"].rolling(window=20).mean()
+    )
     steps_m_minus_20 = df_m_minus_20["Step"]
     energy_m_minus_20_n2 = (
         df_m_minus_20["nparticles: 2 - energy"].rolling(window=20).mean()
+    )
+    min_energy_m_minus_20_n2 = (
+        df_m_minus_20["nparticles: 2 - energy__MIN"].rolling(window=20).mean()
+    )
+    max_energy_m_minus_20_n2 = (
+        df_m_minus_20["nparticles: 2 - energy__MAX"].rolling(window=20).mean()
     )
 
     energy_m_minus_20_n4 = (
         df_m_minus_20["nparticles: 4 - energy"].rolling(window=20).mean()
     )
+    min_energy_m_minus_20_n4 = (
+        df_m_minus_20["nparticles: 4 - energy__MIN"].rolling(window=20).mean()
+    )
+    max_energy_m_minus_20_n4 = (
+        df_m_minus_20["nparticles: 4 - energy__MAX"].rolling(window=20).mean()
+    )
+
     energy_m_minus_20_n6 = (
         df_m_minus_20["nparticles: 6 - energy"].rolling(window=20).mean()
     )
+    min_energy_m_minus_20_n6 = (
+        df_m_minus_20["nparticles: 6 - energy__MIN"].rolling(window=20).mean()
+    )
+    max_energy_m_minus_20_n6 = (
+        df_m_minus_20["nparticles: 6 - energy__MAX"].rolling(window=20).mean()
+    )
+
     steps_lmh_minus_20 = df_lmh_minus_20["Step"]
     energy_lmh_minus_20_n2 = (
         df_lmh_minus_20["nparticles: 2 - energy"].rolling(window=20).mean()
     )
+    min_energy_lmh_minus_20_n2 = (
+        df_lmh_minus_20["nparticles: 2 - energy__MIN"].rolling(window=20).mean()
+    )
+    max_energy_lmh_minus_20_n2 = (
+        df_lmh_minus_20["nparticles: 2 - energy__MAX"].rolling(window=20).mean()
+    )
+
     energy_lmh_minus_20_n4 = (
         df_lmh_minus_20["nparticles: 4 - energy"].rolling(window=20).mean()
+    )
+    min_energy_lmh_minus_20_n4 = (
+        df_lmh_minus_20["nparticles: 4 - energy__MIN"].rolling(window=20).mean()
+    )
+    max_energy_lmh_minus_20_n4 = (
+        df_lmh_minus_20["nparticles: 4 - energy__MAX"].rolling(window=20).mean()
     )
 
     energy_lmh_minus_20_n6 = (
         df_lmh_minus_20["nparticles: 6 - energy"].rolling(window=20).mean()
     )
+    min_energy_lmh_minus_20_n6 = (
+        df_lmh_minus_20["nparticles: 6 - energy__MIN"].rolling(window=20).mean()
+    )
+    max_energy_lmh_minus_20_n6 = (
+        df_lmh_minus_20["nparticles: 6 - energy__MAX"].rolling(window=20).mean()
+    )
+
     # Plotting
-    fig, axes = plt.subplots(1, 2, figsize=(5, 5))
+    fig, axes = plt.subplots(1, 2, figsize=(12, 5))
 
     # Plot for V = 20
     axes[0].plot(steps_m_20, energy_m_20_n2, linestyle="--", color=palette[0], lw=2)
+    # fill between
+    axes[0].fill_between(steps_m_20, min_energy_m_20_n2, max_energy_m_20_n2, alpha=0.2)
+
     axes[0].plot(steps_lmh_20, energy_lmh_20_n2, linestyle="-", color=palette[0], lw=2)
+    # fill between
+    axes[0].fill_between(
+        steps_lmh_20, min_energy_lmh_20_n2, max_energy_lmh_20_n2, alpha=0.2
+    )
 
     axes[0].plot(steps_m_20, energy_m_20_n4, linestyle="--", color=palette[1], lw=2)
+    # fill between
+    axes[0].fill_between(steps_m_20, min_energy_m_20_n4, max_energy_m_20_n4, alpha=0.2)
+
     axes[0].plot(steps_lmh_20, energy_lmh_20_n4, linestyle="-", color=palette[1], lw=2)
+    # fill between
+    axes[0].fill_between(
+        steps_lmh_20, min_energy_lmh_20_n4, max_energy_lmh_20_n4, alpha=0.2
+    )
 
     axes[0].plot(steps_m_20, energy_m_20_n6, linestyle="--", color=palette[2], lw=2)
+    # fill between
+    axes[0].fill_between(steps_m_20, min_energy_m_20_n6, max_energy_m_20_n6, alpha=0.2)
+
     axes[0].plot(steps_lmh_20, energy_lmh_20_n6, linestyle="-", color=palette[2], lw=2)
+    # fill between
+    axes[0].fill_between(
+        steps_lmh_20, min_energy_lmh_20_n6, max_energy_lmh_20_n6, alpha=0.2
+    )
 
     # axes[0].set_title('Energy vs. Epoch for V = 20')
     axes[0].set_title("$V_0 = 20$")
@@ -1028,6 +1142,11 @@ def plot_lmh_vs_m(
     axes[1].plot(
         steps_m_minus_20, energy_m_minus_20_n2, linestyle="--", color=palette[0], lw=2
     )
+    # fill between
+    axes[1].fill_between(
+        steps_m_minus_20, min_energy_m_minus_20_n2, max_energy_m_minus_20_n2, alpha=0.2
+    )
+
     axes[1].plot(
         steps_lmh_minus_20,
         energy_lmh_minus_20_n2,
@@ -1035,10 +1154,22 @@ def plot_lmh_vs_m(
         color=palette[0],
         lw=2,
     )
+    # fill between
+    axes[1].fill_between(
+        steps_lmh_minus_20,
+        min_energy_lmh_minus_20_n2,
+        max_energy_lmh_minus_20_n2,
+        alpha=0.2,
+    )
 
     axes[1].plot(
         steps_m_minus_20, energy_m_minus_20_n4, linestyle="--", color=palette[1], lw=2
     )
+    # fill between
+    axes[1].fill_between(
+        steps_m_minus_20, min_energy_m_minus_20_n4, max_energy_m_minus_20_n4, alpha=0.2
+    )
+
     axes[1].plot(
         steps_lmh_minus_20,
         energy_lmh_minus_20_n4,
@@ -1046,16 +1177,35 @@ def plot_lmh_vs_m(
         color=palette[1],
         lw=2,
     )
+    # fill between
+    axes[1].fill_between(
+        steps_lmh_minus_20,
+        min_energy_lmh_minus_20_n4,
+        max_energy_lmh_minus_20_n4,
+        alpha=0.2,
+    )
 
     axes[1].plot(
         steps_m_minus_20, energy_m_minus_20_n6, linestyle="--", color=palette[2], lw=2
     )
+    # fill between
+    axes[1].fill_between(
+        steps_m_minus_20, min_energy_m_minus_20_n6, max_energy_m_minus_20_n6, alpha=0.2
+    )
+
     axes[1].plot(
         steps_lmh_minus_20,
         energy_lmh_minus_20_n6,
         linestyle="-",
         color=palette[2],
         lw=2,
+    )
+    # fill between
+    axes[1].fill_between(
+        steps_lmh_minus_20,
+        min_energy_lmh_minus_20_n6,
+        max_energy_lmh_minus_20_n6,
+        alpha=0.2,
     )
 
     # axes[1].set_title('Energy vs. Epoch for V = -20')
@@ -1098,12 +1248,13 @@ if __name__ == "__main__":
     # plot_obdm_histogram([2, 3], [-20, 0], "VMC")
     # v0_values = [-20, -10, 10, 20]
     # energy_convergence_loop_side_by_side(v0_values)
+    # plot_lmh_vs_m()
     # energy_convergence_loop_side_by_side_jastrow(v0_values)
     # plot_density_profile([2,3,4,5,6], [-20, -10, 0, 10, 20], "DSFFN")
     # plot_density_profile([2], [-20, -10, 0, 10, 20], "all")
-    plot_density_profile([3], [-20, -10, 0, 10, 20], "all")
-    plot_density_profile([4], [-20, -10, 0, 10, 20], "all")
-    plot_density_profile([5], [-20, -10, 0, 10, 20], "all")
-    plot_density_profile([6], [-20, -10, 0, 10, 20], "all")
+    # plot_density_profile([3], [-20, -10, 0, 10, 20], "all")
+    # plot_density_profile([4], [-20, -10, 0, 10, 20], "all")
+    # plot_density_profile([5], [-20, -10, 0, 10, 20], "all")
+    # plot_density_profile([6], [-20, -10, 0, 10, 20], "all")
     # plot_lmh_vs_m()
     pass

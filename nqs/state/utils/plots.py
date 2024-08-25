@@ -393,8 +393,10 @@ def plot_psi(system, N, dim):
     """
     Plot the wave function evaluated at multiple points.
     """
+    # get type of system
+    system_type = system.wf.particle
 
-    assert dim == 1, "Only implemented for 2D"
+    assert dim == 1, "Only implemented for 1D"
     assert N == 2, "Only implemented for 2 particles"
 
     # for 2 particles, 2 dim
@@ -413,7 +415,11 @@ def plot_psi(system, N, dim):
     plt.contourf(X, Y, psi, cmap="BuPu")
     # fix square aspect ratio
     plt.gca().set_aspect("equal", adjustable="box")
+    # add labels x1 and x2
+    plt.xlabel("$X_1$")
+    plt.ylabel("$X_2$")
 
     plt.colorbar()
-    plot_style.save("1D2P_wave_function")
-    plt.show()
+    plot_style.save(f"{system_type}/1D2P_wave_function")
+
+    # plt.show()

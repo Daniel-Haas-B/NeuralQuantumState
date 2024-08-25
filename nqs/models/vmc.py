@@ -127,9 +127,9 @@ class VMC(WaveFunction):
                 "WJ", np.array(rng.uniform(-limit, limit, (self.N, self.N)))
             )
         if self.pade_jastrow:
-            limit
             assert not self.jastrow, "Pade Jastrow requires Jastrow to be false"
-            self.params.set("CPJ", np.array(rng.uniform(-1, 1, 1)))
+            limit = np.sqrt(2 / (100000))
+            self.params.set("CPJ", np.array(rng.uniform(-limit, limit, 1)))
 
     def laplacian(self, r):
         """

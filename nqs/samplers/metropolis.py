@@ -62,7 +62,7 @@ class Metropolis(Sampler):
             rng = rngs[i]
 
             prev_pos = state.positions
-            prev_sign = state.sign
+            # prev_sign = state.sign
             proposals_pos = rng.normal(loc=prev_pos, scale=self.scale)
             log_unif = np.log(rng.uniform())
             # Compute proposal log density
@@ -76,7 +76,7 @@ class Metropolis(Sampler):
 
             # If accept is True, yield proposal, otherwise keep old state
             new_positions = proposals_pos if accept else prev_pos
-            new_sign = sign_proposal if accept else prev_sign
+            # new_sign = sign_proposal if accept else prev_sign
 
             # Create new state
             new_logp = logp_proposal if accept else current_logp
@@ -88,7 +88,7 @@ class Metropolis(Sampler):
             state_batch[i].logp = new_logp
             state_batch[i].n_accepted = new_n_accepted
             state_batch[i].delta = new_delta
-            state_batch[i].sign = new_sign
+            # state_batch[i].sign = new_sign
 
         return state_batch
 

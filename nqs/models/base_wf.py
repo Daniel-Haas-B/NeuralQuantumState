@@ -165,35 +165,43 @@ class WaveFunction:
         Notes:
             Will be called after configure_particle.
 
-        # TODO : THIS ONLY WORKS FOR DOTS, NEED TO ADD POLARIZED CASE which will change
         """
         if correlation == "pj":
             self.pade_jastrow = True
             self.pade_aij = jnp.zeros((self.N, self.N))
             for i in range(self.N):
-                for j in range(i + 1, self.N):
-                    # first N//2 particles are spin up, the rest are spin down
-                    # there is a more efficient way to do this for sure
-                    if "dots" in self.particle:
-                        if i < self.N // 2 and j < self.N // 2:
-                            self.pade_aij = self.pade_aij.at[i, j].set(
-                                1 / (self.dim + 1)
-                            )
-                        elif i >= self.N // 2 and j >= self.N // 2:
-                            self.pade_aij = self.pade_aij.at[i, j].set(
-                                1 / (self.dim + 1)
-                            )
+                for j in range(i, self.N):
+                    if i == j:
+                        self.pade_aij = self.pade_aij.at[i, j].set(1 / (self.dim + 1))
+                    else:
+                        # first N//2 particles are spin up, the rest are spin down
+                        if "dots" in self.particle:
+                            if (i < self.N // 2 and j < self.N // 2) or (
+                                i >= self.N // 2 and j >= self.N // 2
+                            ):
+                                self.pade_aij = self.pade_aij.at[i, j].set(
+                                    1 / (self.dim + 1)
+                                )
+                                self.pade_aij = self.pade_aij.at[j, i].set(
+                                    1 / (self.dim + 1)
+                                )
+
+                            else:
+                                self.pade_aij = self.pade_aij.at[i, j].set(
+                                    1 / (self.dim - 1)
+                                )
+                                self.pade_aij = self.pade_aij.at[j, i].set(
+                                    1 / (self.dim - 1)
+                                )
                         else:
                             self.pade_aij = self.pade_aij.at[i, j].set(
-                                1 / (self.dim - 1)
+                                1 / (self.dim + 1)
                             )
-                    else:
-                        self.pade_aij = self.pade_aij.at[i, j].set(1 / (self.dim + 1))
+                            self.pade_aij = self.pade_aij.at[j, i].set(
+                                1 / (self.dim + 1)
+                            )
 
-            if "fermion" in self.particle:
-                self.log_wf = self.log_wf_pade_slater_jastrow
-            else:
-                self.log_wf = self.log_wf_pade_jastrow
+            self.log_wf = self.log_wf_pade_slater_jastrow
 
         elif correlation == "j":
             self.jastrow = True
@@ -328,7 +336,6 @@ class WaveFunction:
         fraction = (
             self.pade_aij * rij / (1 + params["CPJ"] * rij)
         )  # elementwise addition
-        # Create a mask for the upper triangular part, excluding the diagona
 
         result = jnp.sum(fraction, axis=(1, 2))
 
@@ -448,7 +455,6 @@ class WaveFunction:
         A = self.N
         r = r.reshape(-1, self.N, self.dim)
 
-        # Compute the Slater determinant for the spin up particles
         D = self.backend.zeros((r.shape[0], A, A))
         degree_combs = self.generate_degrees(mode="full")
         # print("r in log_slater", r)
@@ -457,8 +463,6 @@ class WaveFunction:
                 degrees = degree_combs[j]
                 D = D.at[:, part, j].set(self.hermite(r[:, part, :], degrees))
 
-        # print("D_up", D_up)
-        # print("D_down", D_down)
         slog_det = jnp.linalg.slogdet(D)
         sign_det = slog_det[0]
 
@@ -493,63 +497,6 @@ class WaveFunction:
                 hermite_product *= hermite_poly
 
         return hermite_product
-
-    # @staticmethod
-    # def symmetry(func):
-    #     """
-    #     #TODO: ensure that receiving args are size (bacth, nparticles, dim)
-    #     """
-
-    #     def wrapper(self, r, *args, **kwargs):
-    #         n = self.N
-
-    #         # first permutation is always the identity
-
-    #         r_reshaped = r.reshape(-1, n, self.dim)
-
-    #         def symmetrize_r(r):
-    #             # print("r.shape[0]", r.shape[0])
-    #             # first permutation is always the identity
-    #             total = self.backend.zeros_like(
-    #                 func(self, r, *args, **kwargs)
-    #             )  # inneficient
-
-    #             for sigma in permutations(range(n)):
-    #                 permuted_r = r_reshaped[:, sigma, :]
-    #                 # print("permuted r", permuted_r)
-    #                 permuted_r = permuted_r.reshape(r.shape)
-    #                 total += func(self, permuted_r, *args, **kwargs)
-
-    #             return total / math.factorial(n)
-
-    #         def antisymmetrize(func, *args):
-    #             total = self.backend.zeros_like(
-    #                 func(self, r, *args, **kwargs)
-    #             )  # inneficient
-    #             for sigma in permutations(range(n)):
-    #                 permuted_r = r_reshaped[:, sigma, :]
-
-    #                 inversions = 0
-    #                 for i in range(len(sigma)):
-    #                     for j in range(i + 1, len(sigma)):
-    #                         if sigma[i] > sigma[j]:
-    #                             inversions += 1
-    #                 sign = (-1) ** inversions
-
-    #                 permuted_r = permuted_r.reshape(r.shape)
-
-    #                 total += sign * func(self, permuted_r, *args, **kwargs)
-    #             return total / math.factorial(n)
-
-    #         if self.symmetry == "boson":
-    #             return symmetrize_r(r)
-
-    #         elif self.symmetry == "fermion":
-    #             return antisymmetrize(func, *args)
-    #         else:
-    #             return func(self, r, *args, **kwargs)
-
-    #     return wrapper
 
     @abstractmethod
     def laplacian(self, r):
@@ -656,7 +603,7 @@ class WaveFunction:
         """
         self.params.rescale(factor)
 
-    def compute_sr_matrix(self, expval_grad_params, grad_params, shift=1e-1):
+    def compute_sr_matrix(self, expval_grad_params, grad_params, shift=1e-4):
         """
         Compute the matrix for the stochastic reconfiguration algorithm.
         The expval_grad_params and grad_params should be dictionaries with keys
@@ -727,3 +674,60 @@ class WaveFunction:
         log = self.log_wf(r, self.params)[1]
         sign = self.log_wf(r, self.params)[0]
         return self.backend.exp(log) * sign
+
+    # @staticmethod
+    # def symmetry(func):
+    #     """
+    #     #TODO: ensure that receiving args are size (bacth, nparticles, dim)
+    #     """
+
+    #     def wrapper(self, r, *args, **kwargs):
+    #         n = self.N
+
+    #         # first permutation is always the identity
+
+    #         r_reshaped = r.reshape(-1, n, self.dim)
+
+    #         def symmetrize_r(r):
+    #             # print("r.shape[0]", r.shape[0])
+    #             # first permutation is always the identity
+    #             total = self.backend.zeros_like(
+    #                 func(self, r, *args, **kwargs)
+    #             )  # inneficient
+
+    #             for sigma in permutations(range(n)):
+    #                 permuted_r = r_reshaped[:, sigma, :]
+    #                 # print("permuted r", permuted_r)
+    #                 permuted_r = permuted_r.reshape(r.shape)
+    #                 total += func(self, permuted_r, *args, **kwargs)
+
+    #             return total / math.factorial(n)
+
+    #         def antisymmetrize(func, *args):
+    #             total = self.backend.zeros_like(
+    #                 func(self, r, *args, **kwargs)
+    #             )  # inneficient
+    #             for sigma in permutations(range(n)):
+    #                 permuted_r = r_reshaped[:, sigma, :]
+
+    #                 inversions = 0
+    #                 for i in range(len(sigma)):
+    #                     for j in range(i + 1, len(sigma)):
+    #                         if sigma[i] > sigma[j]:
+    #                             inversions += 1
+    #                 sign = (-1) ** inversions
+
+    #                 permuted_r = permuted_r.reshape(r.shape)
+
+    #                 total += sign * func(self, permuted_r, *args, **kwargs)
+    #             return total / math.factorial(n)
+
+    #         if self.symmetry == "boson":
+    #             return symmetrize_r(r)
+
+    #         elif self.symmetry == "fermion":
+    #             return antisymmetrize(func, *args)
+    #         else:
+    #             return func(self, r, *args, **kwargs)
+
+    #     return wrapper
